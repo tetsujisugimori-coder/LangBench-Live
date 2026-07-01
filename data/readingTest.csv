@@ -1,0 +1,11 @@
+id,name,category,value,memo
+1,item_001,A,100,memo_001
+2,item_002,B,200,memo_002
+3,item_003,A,150,memo_003
+4,item_004,C,300,memo_004
+5,item_005,B,250,memo_005
+6,item_006,A,120,memo_006
+7,item_007,C,180,memo_007
+8,item_008,B,220,memo_008
+9,item_009,A,130,memo_009
+10,item_010,C,310,memo_010
