@@ -121,3 +121,17 @@
 * JavaScript版のベンチマーク追加
 * 複数言語の結果を同じJSONにまとめる仕組み
 * HTMLダッシュボード表示
+
+## 2026-07-02
+
+* 対象: main のCSV読み込みベンチマーク処理
+* 変更対象ファイル:
+  * `benchmarks/line_count/python/main.py`
+  * `LOG.md`
+* 変更内容: small / medium / large の3種類のCSVを対象に、それぞれ3回ずつ `elapsed_ms` と `line_count` を測定し、`summary` とともに `result.json` に保存するように変更。
+* 確認コマンド:
+  * `python tools/create_sample_csv.py`
+  * `python benchmarks/line_count/python/main.py`
+* 確認結果:
+  * 3種類のCSVについて各3回の測定結果が出力されることを確認。
+  * `result.json` に `samples` 配列、`runs` 配列、`summary` が保存されることを確認。
