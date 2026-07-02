@@ -20,6 +20,8 @@ LANGBENCH-LIVE/
         main.py
   results/
     result.json
+  tools/
+    create_sample_csv.py
   README.md
   LOG.md
 ```
@@ -29,6 +31,24 @@ LANGBENCH-LIVE/
 ```bash
 python benchmarks/line_count/python/main.py
 ```
+
+## CSV生成スクリプト
+
+`tools/create_sample_csv.py` は、ベンチマーク用の `data/readingTest.csv` を生成する補助スクリプトです。
+
+引数なしで実行した場合は、ヘッダー行を除いて10行のデータを作成します。
+
+```bash
+python tools/create_sample_csv.py
+```
+
+作成するデータ行数は、コマンドライン引数で指定できます。
+
+```bash
+python tools/create_sample_csv.py 100000
+```
+
+生成されるCSVのヘッダーは `id,name,category,value,memo` です。`category` は `A`, `B`, `C` を順番に繰り返します。
 
 ## 出力されるJSON
 
