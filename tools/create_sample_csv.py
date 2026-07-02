@@ -3,32 +3,13 @@ import sys
 from pathlib import Path
 
 
-DEFAULT_ROWS = 10
-FILE_NAME = "readingTest.csv"
+SAMPLES = [("small", 1000), ("medium", 100000), ("large", 1000000)]
 HEADER = ["id", "name", "category", "value", "memo"]
 CATEGORIES = ["A", "B", "C"]
 
 
 def get_project_root() -> Path:
     return Path(__file__).resolve().parents[1]
-
-
-def parse_rows(args: list[str]) -> int:
-    if not args:
-        return DEFAULT_ROWS
-
-    if len(args) > 1:
-        raise ValueError("Specify exactly one row count. Example: python tools/create_sample_csv.py 100000")
-
-    try:
-        rows = int(args[0])
-    except ValueError as error:
-        raise ValueError("Row count must be a positive integer. Example: python tools/create_sample_csv.py 100000") from error
-
-    if rows <= 0:
-        raise ValueError("Row count must be a positive integer.")
-
-    return rows
 
 
 def build_row(row_id: int) -> list[object]:
@@ -54,17 +35,23 @@ def create_csv(csv_path: Path, rows: int) -> None:
 
 def main() -> int:
     try:
-        rows = parse_rows(sys.argv[1:])
         project_root = get_project_root()
-        csv_path = project_root / "data" / FILE_NAME
-        create_csv(csv_path, rows)
+        data_dir = project_root / "data"
+        created_samples = []
+
+        for sample_name, rows in SAMPLES:
+            file_name = f"readingTest_{sample_name}.csv"
+            csv_path = data_dir / file_name
+            create_csv(csv_path, rows)
+            created_samples.append((file_name, rows))
     except Exception as error:
-        print(f"status=error", file=sys.stderr)
+        print("status=error", file=sys.stderr)
         print(f"message={error}", file=sys.stderr)
         return 1
 
-    print(f"file=data/{FILE_NAME}")
-    print(f"rows={rows}")
+    for file_name, rows in created_samples:
+        print(f"file=data/{file_name}")
+        print(f"rows={rows}")
     print("status=success")
     return 0
 

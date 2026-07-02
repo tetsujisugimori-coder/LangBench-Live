@@ -31,6 +31,34 @@
 * 複数言語の結果を同じJSONにまとめる仕組み
 * HTMLダッシュボード表示
 
+## 2026-07-02 LangBench Live v0.1 CSV生成ファイル整理
+
+### 今回変更した概要
+
+* `tools/create_sample_csv.py` を、`small` / `medium` / `large` の3種類のCSVを固定生成する構成に変更した
+* 生成されるサンプルCSVはリポジトリにコミットせず、ローカルで生成する方針をREADMEに追記した
+* 生成CSVと `results/result.json` を `.gitignore` に追加した
+
+### 変更したファイル
+
+* `tools/create_sample_csv.py`
+* `README.md`
+* `LOG.md`
+* `.gitignore`
+
+### 確認した動作
+
+* `python tools/create_sample_csv.py` で `readingTest_small.csv`, `readingTest_medium.csv`, `readingTest_large.csv` を作成できること
+* 各CSVのヘッダーが `id,name,category,value,memo` であること
+* 標準出力に各ファイル名と行数、最後に `status=success` が表示されること
+
+### 未対応・今後の検討事項
+
+* 生成CSVを使ったベンチマーク対象ファイルの切り替え
+* 日本語入りCSVの生成
+* 大容量CSVでの測定
+* C版、JavaScript版との比較
+
 ## 2026-07-02 LangBench Live v0.1 CSV生成スクリプト追加
 
 ### 今回変更した概要

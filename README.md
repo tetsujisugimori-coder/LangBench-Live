@@ -34,19 +34,20 @@ python benchmarks/line_count/python/main.py
 
 ## CSV生成スクリプト
 
-`tools/create_sample_csv.py` は、ベンチマーク用の `data/readingTest.csv` を生成する補助スクリプトです。
+`tools/create_sample_csv.py` は、ベンチマーク用のサイズ違いのCSVをまとめて生成する補助スクリプトです。
 
-引数なしで実行した場合は、ヘッダー行を除いて10行のデータを作成します。
+CSV sample files are not committed to the repository.
+Generate them locally with:
 
 ```bash
 python tools/create_sample_csv.py
 ```
 
-作成するデータ行数は、コマンドライン引数で指定できます。
+作成されるファイルは次の3つです。
 
-```bash
-python tools/create_sample_csv.py 100000
-```
+* `data/readingTest_small.csv`: 1,000行
+* `data/readingTest_medium.csv`: 100,000行
+* `data/readingTest_large.csv`: 1,000,000行
 
 生成されるCSVのヘッダーは `id,name,category,value,memo` です。`category` は `A`, `B`, `C` を順番に繰り返します。
 

@@ -1,0 +1,7 @@
+# Generated benchmark CSV files
+data/readingTest_small.csv
+data/readingTest_medium.csv
+data/readingTest_large.csv
+
+# Generated benchmark results
+results/result.json
