@@ -2,11 +2,15 @@ import csv
 import json
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 
-BENCHMARK = "csv_line_count"
+PROJECT = "LangBench Live"
+EXPERIMENT = "csv_line_count"
+EXPERIMENT_LABEL = "CSV行数カウント"
 LANGUAGE = "python"
+SCHEMA_VERSION = "1.0"
 MEASURE_RUNS = 3
 SAMPLES = [
     {"name": "small", "file": "data/readingTest_small.csv", "expected_data_rows": 1000},
@@ -32,7 +36,9 @@ def measure_once(csv_path: Path, run_number: int) -> dict:
     return {
         "run": run_number,
         "elapsed_ms": round(elapsed_ms, 3),
-        "line_count": line_count,
+        "metrics": {
+            "line_count": line_count,
+        },
     }
 
 
@@ -71,14 +77,14 @@ def validate_samples(project_root: Path) -> None:
 
 
 def print_sample_result(sample_result: dict) -> None:
-    print(f"sample={sample_result['sample']}")
-    print(f"file={sample_result['file']}")
-    print(f"expected_data_rows={sample_result['expected_data_rows']}")
+    print(f"sample={sample_result['name']}")
+    print(f"input={sample_result['input']}")
+    print(f"expected_data_rows={sample_result['expected']['data_rows']}")
     for run in sample_result["runs"]:
         print(
             f"run={run['run']} "
             f"elapsed_ms={run['elapsed_ms']:.3f} "
-            f"line_count={run['line_count']}"
+            f"line_count={run['metrics']['line_count']}"
         )
 
     summary = sample_result["summary"]
@@ -100,9 +106,11 @@ def run_benchmark(project_root: Path) -> dict:
             for run_number in range(1, MEASURE_RUNS + 1)
         ]
         sample_result = {
-            "sample": sample["name"],
-            "file": sample["file"],
-            "expected_data_rows": sample["expected_data_rows"],
+            "name": sample["name"],
+            "input": sample["file"],
+            "expected": {
+                "data_rows": sample["expected_data_rows"],
+            },
             "runs": runs,
             "summary": summarize_runs(runs),
         }
@@ -110,8 +118,14 @@ def run_benchmark(project_root: Path) -> dict:
         print_sample_result(sample_result)
 
     return {
-        "benchmark": BENCHMARK,
+        "type": "langbench_result",
+        "schema_version": SCHEMA_VERSION,
+        "project": PROJECT,
+        "experiment": EXPERIMENT,
+        "experiment_label": EXPERIMENT_LABEL,
         "language": LANGUAGE,
+        "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "status": "success",
         "samples": samples,
     }
 

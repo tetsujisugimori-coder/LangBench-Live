@@ -2,8 +2,11 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 
-const BENCHMARK = "csv_line_count";
+const PROJECT = "LangBench Live";
+const EXPERIMENT = "csv_line_count";
+const EXPERIMENT_LABEL = "CSV行数カウント";
 const LANGUAGE = "javascript";
+const SCHEMA_VERSION = "1.0";
 const MEASURE_RUNS = 3;
 const SAMPLES = [
   { name: "small", file: "data/readingTest_small.csv", expected_data_rows: 1000 },
@@ -37,7 +40,9 @@ async function measureOnce(csvPath, runNumber) {
   return {
     run: runNumber,
     elapsed_ms: roundMs(elapsedMs),
-    line_count: lineCount,
+    metrics: {
+      line_count: lineCount,
+    },
   };
 }
 
@@ -73,12 +78,12 @@ function validateSamples(projectRoot) {
 }
 
 function printSampleResult(sampleResult) {
-  console.log(`sample=${sampleResult.sample}`);
-  console.log(`file=${sampleResult.file}`);
-  console.log(`expected_data_rows=${sampleResult.expected_data_rows}`);
+  console.log(`sample=${sampleResult.name}`);
+  console.log(`input=${sampleResult.input}`);
+  console.log(`expected_data_rows=${sampleResult.expected.data_rows}`);
   for (const run of sampleResult.runs) {
     console.log(
-      `run=${run.run} elapsed_ms=${run.elapsed_ms.toFixed(3)} line_count=${run.line_count}`
+      `run=${run.run} elapsed_ms=${run.elapsed_ms.toFixed(3)} line_count=${run.metrics.line_count}`
     );
   }
 
@@ -104,9 +109,11 @@ async function runBenchmark(projectRoot) {
     }
 
     const sampleResult = {
-      sample: sample.name,
-      file: sample.file,
-      expected_data_rows: sample.expected_data_rows,
+      name: sample.name,
+      input: sample.file,
+      expected: {
+        data_rows: sample.expected_data_rows,
+      },
       runs,
       summary: summarizeRuns(runs),
     };
@@ -115,10 +122,27 @@ async function runBenchmark(projectRoot) {
   }
 
   return {
-    benchmark: BENCHMARK,
+    type: "langbench_result",
+    schema_version: SCHEMA_VERSION,
+    project: PROJECT,
+    experiment: EXPERIMENT,
+    experiment_label: EXPERIMENT_LABEL,
     language: LANGUAGE,
+    created_at: getLocalIsoTimestamp(),
+    status: "success",
     samples,
   };
+}
+
+function getLocalIsoTimestamp() {
+  const date = new Date();
+  const timezoneOffsetMinutes = -date.getTimezoneOffset();
+  const offsetSign = timezoneOffsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffsetMinutes = Math.abs(timezoneOffsetMinutes);
+  const offsetHours = String(Math.floor(absoluteOffsetMinutes / 60)).padStart(2, "0");
+  const offsetMinutes = String(absoluteOffsetMinutes % 60).padStart(2, "0");
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return `${localDate.toISOString().slice(0, 19)}${offsetSign}${offsetHours}:${offsetMinutes}`;
 }
 
 function saveResult(result, outputPath) {

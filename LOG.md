@@ -162,3 +162,27 @@
   * Python版の結果が `python_result.json` に保存されることを確認。
   * JavaScript版の結果が `javascript_result.json` に保存されることを確認。
   * JavaScript版の実行で `python_result.json` が変更されないことを確認。
+
+## 2026-07-03 LangBench結果JSON共通メタ情報追加
+
+* 対象: Python版 / JavaScript版の結果JSON出力形式
+* 変更対象ファイル:
+  * `benchmarks/line_count/python/main.py`
+  * `benchmarks/line_count/javascript/main.js`
+  * `LOG.md`
+* 変更内容:
+  * LangBench結果JSONに共通メタ情報を追加した。
+  * `type: "langbench_result"` を追加した。
+  * `schema_version: "1.0"` を追加した。
+  * `project: "LangBench Live"` を追加した。
+  * `experiment: "csv_line_count"` を追加した。
+  * `experiment_label: "CSV行数カウント"` を追加した。
+  * Python版とJavaScript版の結果JSON構造をそろえた。
+  * samples内を `name`, `input`, `expected.data_rows`, `runs[].metrics.line_count`, `summary` の共通形式に変更した。
+* 確認コマンド:
+  * `python benchmarks/line_count/python/main.py`
+  * `node benchmarks/line_count/javascript/main.js`
+* 確認結果:
+  * `python_result.json` のルートに `type`, `schema_version`, `project`, `experiment`, `language`, `samples` が保存されることを確認。
+  * `javascript_result.json` のルートに `type`, `schema_version`, `project`, `experiment`, `language`, `samples` が保存されることを確認。
+  * Python版とJavaScript版で `small` / `medium` / `large` が各3回測定され、`summary.average_ms` と `summary.median_ms` が保存されることを確認。

@@ -67,18 +67,28 @@ Python版は `results/results/python_result.json`、JavaScript版は `results/re
 
 ```json
 {
-  "benchmark": "csv_line_count",
+  "type": "langbench_result",
+  "schema_version": "1.0",
+  "project": "LangBench Live",
+  "experiment": "csv_line_count",
+  "experiment_label": "CSV行数カウント",
   "language": "python",
+  "created_at": "2026-07-03T00:00:00+09:00",
+  "status": "success",
   "samples": [
     {
-      "sample": "small",
-      "file": "data/readingTest_small.csv",
-      "expected_data_rows": 1000,
+      "name": "small",
+      "input": "data/readingTest_small.csv",
+      "expected": {
+        "data_rows": 1000
+      },
       "runs": [
         {
           "run": 1,
           "elapsed_ms": 1.234,
-          "line_count": 1001
+          "metrics": {
+            "line_count": 1001
+          }
         }
       ],
       "summary": {
