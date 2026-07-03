@@ -5,3 +5,5 @@ data/readingTest_large.csv
 
 # Generated benchmark results
 results/result.json
+results/results/python_result.json
+results/results/javascript_result.json

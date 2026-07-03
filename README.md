@@ -18,8 +18,12 @@ LANGBENCH-LIVE/
     line_count/
       python/
         main.py
+      javascript/
+        main.js
   results/
-    result.json
+    results/
+      python_result.json
+      javascript_result.json
   tools/
     create_sample_csv.py
   README.md
@@ -30,6 +34,12 @@ LANGBENCH-LIVE/
 
 ```bash
 python benchmarks/line_count/python/main.py
+```
+
+JavaScript版はNode.jsで実行します。
+
+```bash
+node benchmarks/line_count/javascript/main.js
 ```
 
 ## CSV生成スクリプト
@@ -53,16 +63,33 @@ python tools/create_sample_csv.py
 
 ## 出力されるJSON
 
-`results/result.json` に次の形式で保存されます。
+Python版は `results/results/python_result.json`、JavaScript版は `results/results/javascript_result.json` に保存されます。
 
 ```json
 {
-  "benchmark_id": "line_count",
-  "file": "readingTest.csv",
-  "language": "Python",
-  "status": "success",
-  "rows": 10,
-  "elapsed_ms": 1.234
+  "benchmark": "csv_line_count",
+  "language": "python",
+  "samples": [
+    {
+      "sample": "small",
+      "file": "data/readingTest_small.csv",
+      "expected_data_rows": 1000,
+      "runs": [
+        {
+          "run": 1,
+          "elapsed_ms": 1.234,
+          "line_count": 1001
+        }
+      ],
+      "summary": {
+        "count": 3,
+        "average_ms": 1.234,
+        "median_ms": 1.234,
+        "fastest_ms": 1.000,
+        "slowest_ms": 1.500
+      }
+    }
+  ]
 }
 ```
 

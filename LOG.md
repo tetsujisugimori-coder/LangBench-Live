@@ -135,3 +135,30 @@
 * 確認結果:
   * 3種類のCSVについて各3回の測定結果が出力されることを確認。
   * `result.json` に `samples` 配列、`runs` 配列、`summary` が保存されることを確認。
+
+## 2026-07-03
+
+* 対象: JavaScript版のCSV行数カウントベンチマーク追加
+* 変更対象ファイル:
+  * `benchmarks/line_count/python/main.py`
+  * `benchmarks/line_count/javascript/main.js`
+  * `README.md`
+  * `.gitignore`
+  * `LOG.md`
+* 変更内容:
+  * JavaScript版のCSV行数カウントを追加した。
+  * Python版 `main.py` に合わせて、`small` / `medium` / `large` を各3回測定する構成にした。
+  * Python版の結果ファイルを `results/results/python_result.json` に保存するようにした。
+  * JavaScript版の結果保存先を `results/results/javascript_result.json` にした。
+  * Node.jsの `fs.createReadStream` と `readline` を使い、CSVをストリームで1行ずつ読み込む方式にした。
+  * Python版とJavaScript版の `summary` に `median_ms` を追加した。
+* 確認コマンド:
+  * `python tools/create_sample_csv.py`
+  * `python benchmarks/line_count/python/main.py`
+  * `node benchmarks/line_count/javascript/main.js`
+* 確認結果:
+  * Python版とJavaScript版で `small` / `medium` / `large` の行数が一致することを確認。
+  * 各サンプルが3回ずつ測定されることを確認。
+  * Python版の結果が `python_result.json` に保存されることを確認。
+  * JavaScript版の結果が `javascript_result.json` に保存されることを確認。
+  * JavaScript版の実行で `python_result.json` が変更されないことを確認。

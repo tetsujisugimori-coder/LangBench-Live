@@ -38,9 +38,12 @@ def measure_once(csv_path: Path, run_number: int) -> dict:
 
 def summarize_runs(runs: list[dict]) -> dict:
     elapsed_values = [run["elapsed_ms"] for run in runs]
+    sorted_elapsed_values = sorted(elapsed_values)
+    middle_index = len(sorted_elapsed_values) // 2
     return {
         "count": len(runs),
         "average_ms": round(sum(elapsed_values) / len(elapsed_values), 3),
+        "median_ms": round(sorted_elapsed_values[middle_index], 3),
         "fastest_ms": round(min(elapsed_values), 3),
         "slowest_ms": round(max(elapsed_values), 3),
     }
@@ -82,6 +85,7 @@ def print_sample_result(sample_result: dict) -> None:
     print(
         f"summary count={summary['count']} "
         f"average_ms={summary['average_ms']:.3f} "
+        f"median_ms={summary['median_ms']:.3f} "
         f"fastest_ms={summary['fastest_ms']:.3f} "
         f"slowest_ms={summary['slowest_ms']:.3f}"
     )
@@ -117,7 +121,7 @@ def main() -> int:
         project_root = get_project_root()
         validate_samples(project_root)
         result = run_benchmark(project_root)
-        save_result(result, project_root / "results" / "result.json")
+        save_result(result, project_root / "results" / "results" / "python_result.json")
     except Exception as error:
         print("status=error", file=sys.stderr)
         print(f"message={error}", file=sys.stderr)
