@@ -12,7 +12,7 @@
 
 * `data/readingTest.csv`
 * `benchmarks/line_count/python/main.py`
-* `results/result.json`
+* `results` 配下の結果JSON
 * `README.md`
 * `LOG.md`
 
@@ -21,8 +21,8 @@
 * `python benchmarks/line_count/python/main.py` で実行できること
 * CSVのヘッダー行を除いたデータ行数を数えられること
 * 処理時間がミリ秒で表示されること
-* `results/result.json` が作成または更新されること
-* `result.json` に `benchmark_id`, `file`, `language`, `status`, `rows`, `elapsed_ms` が保存されること
+* `results` 配下の結果JSONが作成または更新されること
+* 結果JSONに `benchmark_id`, `file`, `language`, `status`, `rows`, `elapsed_ms` が保存されること
 
 ### 未対応・今後の検討事項
 
@@ -37,7 +37,7 @@
 
 * `tools/create_sample_csv.py` を、`small` / `medium` / `large` の3種類のCSVを固定生成する構成に変更した
 * 生成されるサンプルCSVはリポジトリにコミットせず、ローカルで生成する方針をREADMEに追記した
-* 生成CSVと `results/result.json` を `.gitignore` に追加した
+* 生成CSVと結果JSONを `.gitignore` に追加した
 
 ### 変更したファイル
 
@@ -103,7 +103,7 @@
 
 * `benchmarks/line_count/python/main.py`
 * `data/readingTest.csv`
-* `results/result.json`
+* `results` 配下の結果JSON
 * `README.md`
 * `LOG.md`
 
@@ -112,7 +112,7 @@
 * `python benchmarks/line_count/python/main.py` で実行できること
 * `data/readingTest.csv` を読み込めること
 * CSVのヘッダー行を除いたデータ行数を数えられること
-* `results/result.json` が作成または更新されること
+* `results` 配下の結果JSONが作成または更新されること
 
 ### 未対応・今後の検討事項
 
@@ -128,13 +128,13 @@
 * 変更対象ファイル:
   * `benchmarks/line_count/python/main.py`
   * `LOG.md`
-* 変更内容: small / medium / large の3種類のCSVを対象に、それぞれ3回ずつ `elapsed_ms` と `line_count` を測定し、`summary` とともに `result.json` に保存するように変更。
+* 変更内容: small / medium / large の3種類のCSVを対象に、それぞれ3回ずつ `elapsed_ms` と `line_count` を測定し、`summary` とともに結果JSONに保存するように変更。
 * 確認コマンド:
   * `python tools/create_sample_csv.py`
   * `python benchmarks/line_count/python/main.py`
 * 確認結果:
   * 3種類のCSVについて各3回の測定結果が出力されることを確認。
-  * `result.json` に `samples` 配列、`runs` 配列、`summary` が保存されることを確認。
+  * 結果JSONに `samples` 配列、`runs` 配列、`summary` が保存されることを確認。
 
 ## 2026-07-03
 
@@ -148,8 +148,8 @@
 * 変更内容:
   * JavaScript版のCSV行数カウントを追加した。
   * Python版 `main.py` に合わせて、`small` / `medium` / `large` を各3回測定する構成にした。
-  * Python版の結果ファイルを `results/results/python_result.json` に保存するようにした。
-  * JavaScript版の結果保存先を `results/results/javascript_result.json` にした。
+  * Python版の結果ファイルを `results/python_result.json` に保存するようにした。
+  * JavaScript版の結果保存先を `results/javascript_result.json` にした。
   * Node.jsの `fs.createReadStream` と `readline` を使い、CSVをストリームで1行ずつ読み込む方式にした。
   * Python版とJavaScript版の `summary` に `median_ms` を追加した。
 * 確認コマンド:
@@ -186,3 +186,47 @@
   * `python_result.json` のルートに `type`, `schema_version`, `project`, `experiment`, `language`, `samples` が保存されることを確認。
   * `javascript_result.json` のルートに `type`, `schema_version`, `project`, `experiment`, `language`, `samples` が保存されることを確認。
   * Python版とJavaScript版で `small` / `medium` / `large` が各3回測定され、`summary.average_ms` と `summary.median_ms` が保存されることを確認。
+
+## 2026-07-04 LangBench結果JSON保存先と実行環境メタ情報修正
+
+* 対象: Python版 / JavaScript版の結果JSON出力形式と保存先
+* 変更対象ファイル:
+  * `benchmarks/line_count/python/main.py`
+  * `benchmarks/line_count/javascript/main.js`
+  * `README.md`
+  * `LOG.md`
+* 変更内容:
+  * Python版の保存先を `results/python_result.json` に変更した。
+  * JavaScript版の保存先を `results/javascript_result.json` に変更した。
+  * `created_at`, `execution`, `runtime`, `environment` を結果JSONのトップレベルに保存するようにした。
+  * 各 sample に `input_file`, `input_file_size_bytes`, `line_count`, `average_ms`, `median_ms` を追加し、既存の `input`, `runs`, `summary` は維持した。
+  * `runner` は `vscode_terminal_powershell`、`runner_label` は `VSCode Terminal / PowerShell` に固定した。
+* 確認コマンド:
+  * `python benchmarks/line_count/python/main.py`
+  * `node benchmarks/line_count/javascript/main.js`
+* 確認結果:
+  * Python版の実行で `results/python_result.json` が作成・更新されることを確認。
+  * JavaScript版の実行で `results/javascript_result.json` が作成・更新されることを確認。
+  * 両方の結果JSONに `created_at`, `execution.cwd`, `execution.argv`, `execution.command`, `execution.script_path`, `runtime.version`, `environment.cpu_model`, `environment.cpu_threads`, `environment.memory_total_bytes` が保存されることを確認。
+  * 各 sample に `input_file_size_bytes`, `line_count`, `average_ms`, `median_ms` が保存され、既存の `runs`, `summary.average_ms`, `summary.median_ms` が維持されることを確認。
+  * Python版の `environment.memory_total_bytes` は標準ライブラリのみでは取得しない方針のため `null` として保存されることを確認。
+
+## 2026-07-04 LangBench結果JSON environment OSキー統一
+
+* 対象: Python版 / JavaScript版の結果JSON `environment`
+* 変更対象ファイル:
+  * `benchmarks/line_count/python/main.py`
+  * `benchmarks/line_count/javascript/main.js`
+  * `LOG.md`
+* 変更内容:
+  * Python版とJavaScript版のOS関連キーを `os_name`, `os_platform`, `os_version` に統一した。
+  * Python版は `platform.system()`, `sys.platform`, `platform.version()` を保存するようにした。
+  * JavaScript版は `os.platform()` を `os_platform` に保存し、`win32` は `os_name: "Windows"` として保存するようにした。
+  * JavaScript版の `os_release` は `os_version` に統一した。
+* 確認コマンド:
+  * `python benchmarks/line_count/python/main.py`
+  * `node benchmarks/line_count/javascript/main.js`
+* 確認結果:
+  * Python版とJavaScript版の実行で `results/python_result.json` と `results/javascript_result.json` が作成・更新されることを確認。
+  * 両方の結果JSONで `environment` に `os_name`, `os_platform`, `os_version`, `cpu_model`, `cpu_threads`, `memory_total_bytes` が保存されることを確認。
+  * JavaScript版の結果JSONに `environment.os_release` が出力されないことを確認。

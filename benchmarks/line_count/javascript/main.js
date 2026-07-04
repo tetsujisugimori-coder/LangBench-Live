@@ -1,4 +1,5 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const readline = require("readline");
 
@@ -7,6 +8,9 @@ const EXPERIMENT = "csv_line_count";
 const EXPERIMENT_LABEL = "CSV行数カウント";
 const LANGUAGE = "javascript";
 const SCHEMA_VERSION = "1.0";
+const RESULT_FILE = "javascript_result.json";
+const RUNNER = "vscode_terminal_powershell";
+const RUNNER_LABEL = "VSCode Terminal / PowerShell";
 const MEASURE_RUNS = 3;
 const SAMPLES = [
   { name: "small", file: "data/readingTest_small.csv", expected_data_rows: 1000 },
@@ -65,6 +69,55 @@ function roundMs(value) {
   return Math.round(value * 1000) / 1000;
 }
 
+function safeValue(getter, fallback = null) {
+  try {
+    const value = getter();
+    return value === "" || value === undefined ? fallback : value;
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function buildMetadata() {
+  const cpus = safeValue(() => os.cpus(), []);
+  const osPlatform = safeValue(() => os.platform(), "unknown");
+  return {
+    execution: {
+      runner: RUNNER,
+      runner_label: RUNNER_LABEL,
+      cwd: process.cwd(),
+      argv: process.argv,
+      command: process.argv.map(quoteCommandPart).join(" "),
+      script_path: __filename,
+    },
+    runtime: {
+      name: "node",
+      version: process.version,
+    },
+    environment: {
+      os_name: getOsName(osPlatform),
+      os_platform: osPlatform,
+      os_version: safeValue(() => os.release(), "unknown"),
+      cpu_model: cpus.length > 0 ? cpus[0].model : "unknown",
+      cpu_threads: cpus.length > 0 ? cpus.length : null,
+      memory_total_bytes: safeValue(() => os.totalmem(), null),
+    },
+  };
+}
+
+function getOsName(osPlatform) {
+  const osNames = {
+    win32: "Windows",
+    darwin: "macOS",
+    linux: "Linux",
+  };
+  return osNames[osPlatform] || osPlatform || "unknown";
+}
+
+function quoteCommandPart(value) {
+  return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
+}
+
 function validateSamples(projectRoot) {
   const missingFiles = SAMPLES
     .map((sample) => sample.file)
@@ -111,16 +164,23 @@ async function runBenchmark(projectRoot) {
     const sampleResult = {
       name: sample.name,
       input: sample.file,
+      input_file: sample.file,
+      input_file_size_bytes: safeValue(() => fs.statSync(csvPath).size, null),
       expected: {
         data_rows: sample.expected_data_rows,
       },
       runs,
-      summary: summarizeRuns(runs),
     };
+    const summary = summarizeRuns(runs);
+    sampleResult.summary = summary;
+    sampleResult.line_count = runs[runs.length - 1].metrics.line_count;
+    sampleResult.average_ms = summary.average_ms;
+    sampleResult.median_ms = summary.median_ms;
     samples.push(sampleResult);
     printSampleResult(sampleResult);
   }
 
+  const metadata = buildMetadata();
   return {
     type: "langbench_result",
     schema_version: SCHEMA_VERSION,
@@ -130,6 +190,7 @@ async function runBenchmark(projectRoot) {
     language: LANGUAGE,
     created_at: getLocalIsoTimestamp(),
     status: "success",
+    ...metadata,
     samples,
   };
 }
@@ -155,7 +216,7 @@ async function main() {
     const projectRoot = getProjectRoot();
     validateSamples(projectRoot);
     const result = await runBenchmark(projectRoot);
-    saveResult(result, path.join(projectRoot, "results", "results", "javascript_result.json"));
+    saveResult(result, path.join(projectRoot, "results", RESULT_FILE));
   } catch (error) {
     console.error("status=error");
     console.error(`message=${error.message}`);

@@ -21,9 +21,8 @@ LANGBENCH-LIVE/
       javascript/
         main.js
   results/
-    results/
-      python_result.json
-      javascript_result.json
+    python_result.json
+    javascript_result.json
   tools/
     create_sample_csv.py
   README.md
@@ -63,7 +62,7 @@ python tools/create_sample_csv.py
 
 ## 出力されるJSON
 
-Python版は `results/results/python_result.json`、JavaScript版は `results/results/javascript_result.json` に保存されます。
+Python版は `results/python_result.json`、JavaScript版は `results/javascript_result.json` に保存されます。
 
 ```json
 {
@@ -75,10 +74,35 @@ Python版は `results/results/python_result.json`、JavaScript版は `results/re
   "language": "python",
   "created_at": "2026-07-03T00:00:00+09:00",
   "status": "success",
+  "execution": {
+    "runner": "vscode_terminal_powershell",
+    "runner_label": "VSCode Terminal / PowerShell",
+    "cwd": "C:/Users/...",
+    "argv": ["python", "benchmarks/line_count/python/main.py"],
+    "command": "python benchmarks/line_count/python/main.py",
+    "script_path": "C:/Users/.../benchmarks/line_count/python/main.py"
+  },
+  "runtime": {
+    "name": "python",
+    "version": "3.x.x"
+  },
+  "environment": {
+    "os_name": "Windows",
+    "os_platform": "win32",
+    "os_version": "10.0.x",
+    "cpu_model": "Intel(R) Core(TM) ...",
+    "cpu_threads": 20,
+    "memory_total_bytes": null
+  },
   "samples": [
     {
       "name": "small",
       "input": "data/readingTest_small.csv",
+      "input_file": "data/readingTest_small.csv",
+      "input_file_size_bytes": 12345,
+      "line_count": 1001,
+      "average_ms": 1.234,
+      "median_ms": 1.234,
       "expected": {
         "data_rows": 1000
       },

@@ -1,5 +1,8 @@
 import csv
 import json
+import os
+import platform
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -11,6 +14,9 @@ EXPERIMENT = "csv_line_count"
 EXPERIMENT_LABEL = "CSV行数カウント"
 LANGUAGE = "python"
 SCHEMA_VERSION = "1.0"
+RESULT_FILE = "python_result.json"
+RUNNER = "vscode_terminal_powershell"
+RUNNER_LABEL = "VSCode Terminal / PowerShell"
 MEASURE_RUNS = 3
 SAMPLES = [
     {"name": "small", "file": "data/readingTest_small.csv", "expected_data_rows": 1000},
@@ -38,6 +44,40 @@ def measure_once(csv_path: Path, run_number: int) -> dict:
         "elapsed_ms": round(elapsed_ms, 3),
         "metrics": {
             "line_count": line_count,
+        },
+    }
+
+
+def safe_value(getter, fallback=None):
+    try:
+        value = getter()
+    except Exception:
+        return fallback
+    return value if value not in ("", None) else fallback
+
+
+def build_metadata() -> dict:
+    argv = [Path(sys.executable).name, *sys.argv]
+    return {
+        "execution": {
+            "runner": RUNNER,
+            "runner_label": RUNNER_LABEL,
+            "cwd": str(Path.cwd()),
+            "argv": argv,
+            "command": subprocess.list2cmdline(argv),
+            "script_path": str(Path(__file__).resolve()),
+        },
+        "runtime": {
+            "name": "python",
+            "version": safe_value(platform.python_version, "unknown"),
+        },
+        "environment": {
+            "os_name": safe_value(platform.system, "unknown"),
+            "os_platform": safe_value(lambda: sys.platform, "unknown"),
+            "os_version": safe_value(platform.version, "unknown"),
+            "cpu_model": safe_value(platform.processor, "unknown"),
+            "cpu_threads": safe_value(os.cpu_count, None),
+            "memory_total_bytes": None,
         },
     }
 
@@ -108,15 +148,22 @@ def run_benchmark(project_root: Path) -> dict:
         sample_result = {
             "name": sample["name"],
             "input": sample["file"],
+            "input_file": sample["file"],
+            "input_file_size_bytes": safe_value(lambda: csv_path.stat().st_size, None),
             "expected": {
                 "data_rows": sample["expected_data_rows"],
             },
             "runs": runs,
-            "summary": summarize_runs(runs),
         }
+        summary = summarize_runs(runs)
+        sample_result["summary"] = summary
+        sample_result["line_count"] = runs[-1]["metrics"]["line_count"]
+        sample_result["average_ms"] = summary["average_ms"]
+        sample_result["median_ms"] = summary["median_ms"]
         samples.append(sample_result)
         print_sample_result(sample_result)
 
+    metadata = build_metadata()
     return {
         "type": "langbench_result",
         "schema_version": SCHEMA_VERSION,
@@ -126,6 +173,7 @@ def run_benchmark(project_root: Path) -> dict:
         "language": LANGUAGE,
         "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "status": "success",
+        **metadata,
         "samples": samples,
     }
 
@@ -135,7 +183,7 @@ def main() -> int:
         project_root = get_project_root()
         validate_samples(project_root)
         result = run_benchmark(project_root)
-        save_result(result, project_root / "results" / "results" / "python_result.json")
+        save_result(result, project_root / "results" / RESULT_FILE)
     except Exception as error:
         print("status=error", file=sys.stderr)
         print(f"message={error}", file=sys.stderr)
