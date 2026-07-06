@@ -290,3 +290,73 @@
 ### 確認コマンド
 
 * `node benchmarks/jit_numeric_array_sum/javascript/main.js`
+
+## 2026-07-06 JavaScript 関数呼び出しJIT観察用ベンチマーク追加
+
+### 今回変更した概要
+
+* 既存の `jit_numeric_array_sum` を元に、関数呼び出しを含むJavaScript数値計算ベンチマーク `jit_function_numeric_sum` を追加した
+* CSV読み込みとは別カテゴリのCPU寄りベンチマークとして、`benchmarks/jit_function_numeric_sum/javascript/main.js` を追加した
+* 100万件の数値配列を測定前に1回だけ生成し、各iterationで `sumTransformedArray(values)` の実行時間を測定する構成にした
+* `sumTransformedArray` では各要素に対して `transformValue(value)` を呼び出し、`value * 2 + 1` の戻り値を合計する
+* 配列生成時間は `setup_ms` として記録し、各iterationの `elapsed_ms` は関数呼び出しを含む合計処理のみを対象にした
+* 計算結果が最適化で消されないように、各iterationの `checksum` を結果JSONに保存する構成にした
+
+### 変更したファイル
+
+* `benchmarks/jit_function_numeric_sum/javascript/main.js`
+* `.gitignore`
+* `LOG.md`
+
+### 出力
+
+* 出力ファイルは `results/jit_function_javascript_result.json`
+* トップレベルに `language`, `engine`, `benchmark`, `array_size`, `iterations`, `setup_ms`, `results`, `summary`, `environment` を保存する
+* `benchmark` と `experiment` は `jit_function_numeric_sum`
+* `ARRAY_SIZE` が `1000000` の場合、期待する `checksum` は `1000000000000`
+
+### 確認コマンド
+
+* `node benchmarks/jit_function_numeric_sum/javascript/main.js`
+
+### 確認結果
+
+* `status=success` が表示されることを確認
+* `results/jit_function_javascript_result.json` が作成されることを確認
+* JSONとして読み取れることを確認
+* `results` に50回分のiterationが保存されることを確認
+* 各iterationの `checksum` が `1000000000000` になることを確認
+
+## 2026-07-07 JavaScript オブジェクト配列JIT観察用ベンチマーク追加
+
+### 今回変更した概要
+
+* 単純な数値配列と比べて、オブジェクト配列を扱う場合の処理時間変化を観察するため、JavaScript版の `jit_object_numeric_sum` ベンチマークを追加した
+* `benchmarks/jit_object_numeric_sum/javascript/main.js` を追加した
+* 1,000,000件の `{ value: 数値 }` 形式のオブジェクト配列を測定前に1回だけ生成し、`setup_ms` として記録する構成にした
+* 各iterationでは全要素の `value` を合計し、`elapsed_ms` と `checksum` を `results` に保存する構成にした
+* `expected_checksum` は `500000500000` とし、checksumが一致しない場合は結果JSONの `status` を `failed` にする構成にした
+* 既存のJavaScript JIT系ベンチマークと同じ形式で `engine`, `execution`, `runtime`, `environment`, `summary` を保存する構成にした
+
+### 変更したファイル
+
+* `benchmarks/jit_object_numeric_sum/javascript/main.js`
+* `.gitignore`
+* `LOG.md`
+
+### 出力
+
+* 出力ファイルは `results/jit_object_javascript_result.json`
+* トップレベルに `project`, `benchmark`, `experiment`, `language`, `created_at`, `status`, `engine`, `execution`, `runtime`, `environment`, `output_file`, `array_size`, `iterations`, `setup_ms`, `expected_checksum`, `results`, `summary` を保存する
+
+### 確認コマンド
+
+* `node benchmarks/jit_object_numeric_sum/javascript/main.js`
+
+### 確認結果
+
+* `status=success` が表示されることを確認
+* `results/jit_object_javascript_result.json` が作成されることを確認
+* JSONとして読み取れることを確認
+* `results` に50回分のiterationが保存されることを確認
+* 各iterationの `checksum` が `500000500000` になることを確認
