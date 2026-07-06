@@ -230,3 +230,36 @@
   * Python版とJavaScript版の実行で `results/python_result.json` と `results/javascript_result.json` が作成・更新されることを確認。
   * 両方の結果JSONで `environment` に `os_name`, `os_platform`, `os_version`, `cpu_model`, `cpu_threads`, `memory_total_bytes` が保存されることを確認。
   * JavaScript版の結果JSONに `environment.os_release` が出力されないことを確認。
+
+## 2026-07-05 LangBench C版CSV行数カウント追加
+
+### 今回変更した概要
+
+* C版のCSV行数カウント測定コードを `benchmarks/line_count/c/main.c` として追加した
+* C版は `fprintf` による手書きJSONで `results/c_result.json` を出力する構成にした
+* `small` / `medium` / `large` のCSVを対象に、それぞれ3回ずつ測定する構成にした
+* C版の結果JSONには、既存形式に合わせた `samples` と、各測定結果を並べた `results` 配列を保存する構成にした
+* CSV行数は既存のPython版・JavaScript版と同じくヘッダー行を含めてカウントする
+
+### 変更したファイル
+
+* `benchmarks/line_count/c/main.c`
+* `README.md`
+* `LOG.md`
+
+### 測定条件
+
+* コンパイル時間は測定に含めない
+* 測定時間はCSV読み込み開始直前から、`fgets` による読み込みと行数カウントが完了した直後までを対象にする
+* 測定ごとにCSVファイルを開き直す
+* 外部JSONライブラリは使わず、JSONは `fprintf` で出力する
+
+### 確認コマンド
+
+* `gcc benchmarks/line_count/c/main.c -o benchmarks/line_count/c/main.exe`
+* `.\benchmarks\line_count\c\main.exe`
+
+### 今後の検討事項
+
+* 将来的にはRUN側でC版のコンパイル、実行、JSON統合を自動化する可能性がある
+* `fprintf` でJSONを手書きしているため、将来ファイルパスや任意文字列の項目が増える場合はJSON文字列エスケープ処理を追加する必要がある

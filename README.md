@@ -20,9 +20,12 @@ LANGBENCH-LIVE/
         main.py
       javascript/
         main.js
+      c/
+        main.c
   results/
     python_result.json
     javascript_result.json
+    c_result.json
   tools/
     create_sample_csv.py
   README.md
@@ -39,6 +42,13 @@ JavaScript版はNode.jsで実行します。
 
 ```bash
 node benchmarks/line_count/javascript/main.js
+```
+
+C版はPowerShellでコンパイルしてから実行します。
+
+```bash
+gcc benchmarks/line_count/c/main.c -o benchmarks/line_count/c/main.exe
+.\benchmarks\line_count\c\main.exe
 ```
 
 ## CSV生成スクリプト
@@ -62,7 +72,8 @@ python tools/create_sample_csv.py
 
 ## 出力されるJSON
 
-Python版は `results/python_result.json`、JavaScript版は `results/javascript_result.json` に保存されます。
+Python版は `results/python_result.json`、JavaScript版は `results/javascript_result.json`、C版は `results/c_result.json` に保存されます。
+C版は `fprintf` でJSONを手書きし、既存形式に合わせた `samples` と、各測定をフラットに並べた `results` を出力します。
 
 ```json
 {
