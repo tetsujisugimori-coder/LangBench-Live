@@ -10,6 +10,7 @@ results/results/javascript_result.json
 results/python_result.json
 results/javascript_result.json
 results/c_result.json
+results/jit_javascript_result.json
 
 # Compiled benchmark binaries
 benchmarks/line_count/c/main.exe

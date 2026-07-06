@@ -263,3 +263,30 @@
 
 * 将来的にはRUN側でC版のコンパイル、実行、JSON統合を自動化する可能性がある
 * `fprintf` でJSONを手書きしているため、将来ファイルパスや任意文字列の項目が増える場合はJSON文字列エスケープ処理を追加する必要がある
+
+## 2026-07-06 JavaScript JIT観察用ベンチマーク追加
+
+### 今回変更した概要
+
+* Node.js / V8 のJIT効果を観察するため、JavaScript版の `jit_numeric_array_sum` ベンチマークを追加した
+* CSV読み込みとは別カテゴリのCPU寄りベンチマークとして、`benchmarks/jit_numeric_array_sum/javascript/main.js` を追加した
+* 1,000,000件の数値配列を測定前に1回だけ生成し、同じ合計関数を50回実行する構成にした
+* 配列生成時間は `setup_ms` として記録し、各iterationの `elapsed_ms` は合計処理のみを対象にした
+* warmup専用の捨て回は入れず、1回目から50回目までをそのまま `results` 配列に保存する構成にした
+* 計算結果が最適化で消されないように、各iterationの `checksum` を結果JSONに保存する構成にした
+
+### 変更したファイル
+
+* `benchmarks/jit_numeric_array_sum/javascript/main.js`
+* `.gitignore`
+* `LOG.md`
+
+### 出力
+
+* 出力ファイルは `results/jit_javascript_result.json`
+* トップレベルに `language`, `engine`, `benchmark`, `array_size`, `iterations`, `setup_ms`, `results` を保存する
+* `engine` には取得できる範囲で Node.js のバージョンと V8 のバージョンを保存する
+
+### 確認コマンド
+
+* `node benchmarks/jit_numeric_array_sum/javascript/main.js`
