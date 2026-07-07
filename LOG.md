@@ -360,3 +360,43 @@
 * JSONとして読み取れることを確認
 * `results` に50回分のiterationが保存されることを確認
 * 各iterationの `checksum` が `500000500000` になることを確認
+
+## 2026-07-07 Python 関数呼び出し数値合計ベンチマーク追加
+
+### 今回変更した概要
+
+* JavaScript版 `jit_function_numeric_sum` と同じ処理を行うPython版ベンチマークを追加した
+* `benchmarks/jit_function_numeric_sum/python/main.py` を追加した
+* 1,000,000件の数値配列を測定前に1回だけ生成し、配列生成時間を `setup_ms` として記録する構成にした
+* 各iterationでは各要素に対して `transform_value(value)` を呼び出し、`value * 2 + 1` の戻り値を合計する構成にした
+* 測定回数は50回とし、各iterationの `elapsed_ms` と `checksum` を `results` に保存する構成にした
+* `expected_checksum` は `1000000000000` とし、checksumが一致しない場合は結果JSONの `status` を `failed` にする構成にした
+* `summary` に `count`, `average_ms`, `median_ms`, `fastest_ms`, `slowest_ms`, `first_iteration_ms`, `average_ms_excluding_first` を保存する構成にした
+* Python標準ライブラリのみを使用する構成にした
+
+### 変更したファイル
+
+* `benchmarks/jit_function_numeric_sum/python/main.py`
+* `.gitignore`
+* `LOG.md`
+
+### 出力
+
+* 出力ファイルは `results/jit_function_python_result.json`
+* トップレベルに `type`, `schema_version`, `project`, `benchmark`, `experiment`, `language`, `created_at`, `status`, `engine`, `execution`, `runtime`, `environment`, `output_file`, `array_size`, `iterations`, `setup_ms`, `expected_checksum`, `results`, `summary` を保存する
+
+### 実行方法
+
+* `python benchmarks/jit_function_numeric_sum/python/main.py`
+
+### 確認コマンド
+
+* `python benchmarks/jit_function_numeric_sum/python/main.py`
+
+### 確認結果
+
+* `status=success` が表示されること
+* `results/jit_function_python_result.json` が作成されること
+* JSONとして読み取れること
+* `results` に50回分のiterationが保存されること
+* 各iterationの `checksum` が `1000000000000` になること
