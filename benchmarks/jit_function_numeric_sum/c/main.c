@@ -22,9 +22,15 @@
 #define RUNNER "vscode_terminal_powershell"
 #define RUNNER_LABEL "VSCode Terminal / PowerShell"
 #define EXPECTED_CHECKSUM 1000000000000LL
-#define COMPILE_COMMAND "gcc benchmarks/jit_function_numeric_sum/c/main.c -o benchmarks/jit_function_numeric_sum/c/main.exe"
-#define OPTIMIZATION_LEVEL "none"
 #define PATH_BUFFER_SIZE 4096
+
+#ifndef LANGBENCH_OPTIMIZATION_LEVEL
+#define LANGBENCH_OPTIMIZATION_LEVEL "none"
+#endif
+
+#ifndef LANGBENCH_COMPILE_COMMAND
+#define LANGBENCH_COMPILE_COMMAND "unknown"
+#endif
 
 typedef struct {
     int iteration;
@@ -386,8 +392,12 @@ static void write_result_json(
     fprintf(output, "    \"compiler_version\": ");
     write_json_string(output, compiler_version());
     fprintf(output, ",\n");
-    fprintf(output, "    \"compile_command\": \"%s\",\n", COMPILE_COMMAND);
-    fprintf(output, "    \"optimization_level\": \"%s\"\n", OPTIMIZATION_LEVEL);
+    fprintf(output, "    \"compile_command\": ");
+    write_json_string(output, LANGBENCH_COMPILE_COMMAND);
+    fprintf(output, ",\n");
+    fprintf(output, "    \"optimization_level\": ");
+    write_json_string(output, LANGBENCH_OPTIMIZATION_LEVEL);
+    fprintf(output, "\n");
     fprintf(output, "  },\n");
     fprintf(output, "  \"execution\": {\n");
     fprintf(output, "    \"runner\": \"%s\",\n", RUNNER);
@@ -432,8 +442,12 @@ static void write_result_json(
     fprintf(output, "    \"compiler_version\": ");
     write_json_string(output, compiler_version());
     fprintf(output, ",\n");
-    fprintf(output, "    \"compile_command\": \"%s\",\n", COMPILE_COMMAND);
-    fprintf(output, "    \"optimization_level\": \"%s\"\n", OPTIMIZATION_LEVEL);
+    fprintf(output, "    \"compile_command\": ");
+    write_json_string(output, LANGBENCH_COMPILE_COMMAND);
+    fprintf(output, ",\n");
+    fprintf(output, "    \"optimization_level\": ");
+    write_json_string(output, LANGBENCH_OPTIMIZATION_LEVEL);
+    fprintf(output, "\n");
     fprintf(output, "  },\n");
     fprintf(output, "  \"output_file\": ");
     write_json_string(output, output_file);

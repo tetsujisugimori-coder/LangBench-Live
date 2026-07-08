@@ -445,3 +445,52 @@
 * JSONとして読み取れること
 * `results` に50回分のiterationが保存されること
 * 各iterationの `checksum` が `1000000000000` になること
+
+## 2026-07-08 C 関数呼び出し数値合計ベンチマーク コンパイル条件自動記録
+
+### 今回変更した概要
+
+* C版 `jit_function_numeric_sum` の結果JSONに、実際のコンパイル条件を記録できるようにした
+* 当初は `LANGBENCH_OPTIMIZATION_LEVEL` と `LANGBENCH_COMPILE_COMMAND` をgccの `-D` で渡す方式を試したが、PowerShell、gcc、Cプリプロセッサ間の引用符エスケープが壊れやすいため廃止した
+* `run_benchmark.ps1` がgccを引数配列で実行し、ベンチマーク実行後に結果JSONを読み込んで `engine` と `compilation` の `compile_command` と `optimization_level` を更新する構成にした
+* PowerShell用の `benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1` を追加した
+* スクリプトは `none`, `O0`, `O1`, `O2`, `O3` を受け取り、gccの最適化オプションと結果JSONの記録へ反映する
+* コンパイル失敗時は `main.exe` を実行せず、`main.exe` 失敗時は結果JSONを更新しない構成にした
+* JSON更新後に再読込し、記録した `compile_command` と `optimization_level` を検証する構成にした
+* 更新後のJSONはUTF-8 BOMなしで保存し、既存のJSON取り込み処理で読み込めるようにした
+
+### 変更したファイル
+
+* `benchmarks/jit_function_numeric_sum/c/main.c`
+* `benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1`
+* `LOG.md`
+
+### 使用方法
+
+* 最適化なし: `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel none`
+* O0: `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O0`
+* O1: `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O1`
+* O2: `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O2`
+* O3: `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O3`
+
+### 確認コマンド
+
+* `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel none`
+* `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O0`
+* `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O1`
+* `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O2`
+* `powershell -ExecutionPolicy Bypass -File benchmarks/jit_function_numeric_sum/c/run_benchmark.ps1 -OptimizationLevel O3`
+
+### 確認結果
+
+* `none` で実行した結果JSONに `optimization_level: "none"` が記録されることを確認
+* `none` で実行した結果JSONの `compile_command` に最適化オプションが含まれないことを確認
+* `O0`, `O1`, `O2`, `O3` で実行した結果JSONに、それぞれ `optimization_level: "O0"`, `"O1"`, `"O2"`, `"O3"` が記録されることを確認
+* `O2` で実行した結果JSONに `optimization_level: "O2"` が記録されることを確認
+* `O2` の結果JSONの `compile_command` に `-O2` が含まれることを確認
+* `O3` の結果JSONの `compile_command` に `-O3` が含まれることを確認
+* `engine` と `compilation` の `compile_command` と `optimization_level` が一致することを確認
+* JSONとして読み取れることを確認
+* checksum mismatch が0件であることを確認
+* `results` が50件保持され、`summary` が保持されることを確認
+* 今回の確認実行では `summary.average_ms` が `none: 1.364`, `O0: 1.373`, `O1: 0.419`, `O2: 0.416`, `O3: 0.436` となり、`O2` と `O3` の測定時間に差が出ることを確認
