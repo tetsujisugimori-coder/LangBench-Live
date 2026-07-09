@@ -521,3 +521,43 @@
 * `results/jit_numeric_array_sum_python_result.json`
 * `results/jit_numeric_array_sum_c_result.json`
 * `results/jit_numeric_array_sum_javascript_result.json`
+
+## 2026-07-09 数値配列合計ベンチマーク 総合所要時間追加
+
+### 変更内容
+
+* 3言語をJavaScript、Python、Cの順に実行する共通PowerShellランナーを追加した
+* PowerShellから見たプロセス全体の所要時間を `timing.process_total_ms` に追加した
+* 50件の `results[].elapsed_ms` の実測値合計を `timing.benchmark_total_ms` に追加した
+* 既存の配列生成時間を `timing.setup_ms` にも記録し、ルートの `setup_ms` は互換性のため維持した
+* C版ではコンパイルと実行を分離し、合計を `timing.build_and_process_total_ms` に追加した
+* Python版とJavaScript版の `timing.build_and_process_total_ms` は `null` とした
+
+### 実行確認
+
+* `benchmarks/jit_numeric_array_sum/run_all.ps1` から3言語を順次実行した
+* 3言語の `process_total_ms` が数値であることを確認した
+* 各言語の `timing.setup_ms` がルートの `setup_ms` と一致することを確認した
+* 各言語の `timing.benchmark_total_ms` が50件の実測値合計と一致することを確認した
+* C版だけ `build_and_process_total_ms` が数値であることを確認した
+* 全150件の `checksum` が `499999500000` と一致することを確認した
+* C単独ランナーから実行した場合も、C結果JSONの `timing` を更新するようにした
+
+## 2026-07-09 C版 初回・再実行時間の分離
+
+### 変更内容
+
+* C版を1回コンパイルし、生成された同じ実行ファイルを再コンパイルせず2回実行するようにした
+* コンパイル直後の初回実行時間を `timing.first_process_total_ms` に追加した
+* 同じ実行ファイルの再実行時間を `timing.repeat_process_total_ms` に追加した
+* コンパイル時間と初回実行時間の合計を `timing.build_and_first_process_total_ms` に追加した
+* C版の旧 `timing.process_total_ms` と `timing.build_and_process_total_ms` は、意味を明確にするため新項目へ置き換えた
+
+### 実行確認
+
+* `c/run_c.ps1` の単独実行でコンパイルと2回のプロセス実行が成功することを確認した
+* 初回と再実行が同一の `main.exe` を使用し、間に再コンパイルがないことを確認した
+* 最終JSONが2回目の実行結果であり、全50件のchecksumが `499999500000` と一致することを確認した
+* `build_and_first_process_total_ms` が `compile_ms + first_process_total_ms` と一致することを確認した
+* `benchmark_total_ms` が2回目の50件の `elapsed_ms` 合計と一致することを確認した
+* 初回と再実行の差は、実行ファイル起動時のOSキャッシュやセキュリティ検査などを含む外部要因として観測できる
