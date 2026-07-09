@@ -10,7 +10,9 @@ results/results/javascript_result.json
 results/python_result.json
 results/javascript_result.json
 results/c_result.json
-results/jit_javascript_result.json
+results/jit_numeric_array_sum_javascript_result.json
+results/jit_numeric_array_sum_python_result.json
+results/jit_numeric_array_sum_c_result.json
 results/jit_function_javascript_result.json
 results/jit_function_python_result.json
 results/jit_function_c_result.json
@@ -19,3 +21,4 @@ results/jit_object_javascript_result.json
 # Compiled benchmark binaries
 benchmarks/line_count/c/main.exe
 benchmarks/jit_function_numeric_sum/c/main.exe
+benchmarks/jit_numeric_array_sum/c/main.exe

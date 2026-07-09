@@ -8,7 +8,7 @@ const LANGUAGE = "javascript";
 const BENCHMARK = "jit_numeric_array_sum";
 const ARRAY_SIZE = 1_000_000;
 const ITERATIONS = 50;
-const RESULT_FILE = "jit_javascript_result.json";
+const RESULT_FILE = "jit_numeric_array_sum_javascript_result.json";
 const RUNNER = "vscode_terminal_powershell";
 const RUNNER_LABEL = "VSCode Terminal / PowerShell";
 
@@ -57,7 +57,11 @@ function summarizeResults(results) {
   return {
     count: results.length,
     average_ms: roundMs(totalMs / results.length),
-    median_ms: roundMs(sortedElapsedValues[middleIndex]),
+    median_ms: roundMs(
+      sortedElapsedValues.length % 2 === 0
+        ? (sortedElapsedValues[middleIndex - 1] + sortedElapsedValues[middleIndex]) / 2
+        : sortedElapsedValues[middleIndex],
+    ),
     fastest_ms: roundMs(Math.min(...elapsedValues)),
     slowest_ms: roundMs(Math.max(...elapsedValues)),
   };
@@ -89,6 +93,13 @@ function buildMetadata(projectRoot) {
     runtime: {
       name: "node",
       version: process.version,
+    },
+    build: {
+      required: false,
+      compiler: null,
+      compiler_version: null,
+      compile_command: null,
+      compile_ms: null,
     },
     environment: {
       os_name: getOsName(os.platform()),

@@ -494,3 +494,30 @@
 * checksum mismatch が0件であることを確認
 * `results` が50件保持され、`summary` が保持されることを確認
 * 今回の確認実行では `summary.average_ms` が `none: 1.364`, `O0: 1.373`, `O1: 0.419`, `O2: 0.416`, `O3: 0.436` となり、`O2` と `O3` の測定時間に差が出ることを確認
+
+## 2026-07-09 数値配列合計ベンチマーク Python/C版追加
+
+### 変更内容
+
+* `jit_numeric_array_sum` にPython版とC版を追加した
+* C版を `-O2 -std=c11 -Wall -Wextra` でビルドするPowerShellランナーを追加した
+* PowerShell側でGCCプロセスのコンパイル時間だけを計測し、C結果の `build.compile_ms` に記録した
+* Python版、C版、JavaScript版に共通の `build` 項目を追加した
+* Cの合計値には、32ビット整数の範囲を超える `499999500000` を安全に保持するため `int64_t` を使用した
+* JavaScript版の偶数件の中央値を、ソート後の中央2件の平均へ修正した
+* Python版とC版も同じ中央値計算を使用する
+
+### 実行確認
+
+* Python版、C版、JavaScript版がすべて `status=success` で終了した
+* 各結果の `array_size` は1000000、`iterations` と `results` 件数は50だった
+* 全言語の全反復で `checksum` が `499999500000` と一致した
+* Python版とJavaScript版の `compile_ms` は `null`、C版は数値になった
+* C版はコンパイラ警告なしでビルドされた
+* 確認時のCコンパイル時間は `758.492 ms` だった
+
+### 生成JSON
+
+* `results/jit_numeric_array_sum_python_result.json`
+* `results/jit_numeric_array_sum_c_result.json`
+* `results/jit_numeric_array_sum_javascript_result.json`
