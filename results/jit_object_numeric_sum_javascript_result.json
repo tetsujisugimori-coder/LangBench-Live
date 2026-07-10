@@ -1,0 +1,317 @@
+{
+  "type": "langbench_result",
+  "schema_version": "1.0",
+  "project": "LangBench Live",
+  "benchmark": "jit_object_numeric_sum",
+  "experiment": "jit_object_numeric_sum",
+  "experiment_id": "20260710_225338_jit_object_numeric_sum",
+  "run_id": "20260710_225338_062_javascript_jit_object_numeric_sum",
+  "language": "javascript",
+  "created_at": "2026-07-10T22:53:38+09:00",
+  "status": "success",
+  "engine": {
+    "runtime": "node",
+    "node_version": "v24.14.1",
+    "v8_version": "13.6.233.17-node.44"
+  },
+  "execution": {
+    "runner": "vscode_terminal_powershell",
+    "runner_label": "VSCode Terminal / PowerShell",
+    "cwd": "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live",
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\javascript\\main.js"
+    ],
+    "command": "\"C:\\Program Files\\nodejs\\node.exe\" C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\javascript\\main.js",
+    "script_path": "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\javascript\\main.js"
+  },
+  "runtime": {
+    "name": "node",
+    "version": "v24.14.1"
+  },
+  "environment": {
+    "os_name": "Windows",
+    "os_platform": "win32",
+    "os_version": "10.0.26200",
+    "cpu_model": "Intel(R) Core(TM) i7-14650HX",
+    "cpu_threads": 24,
+    "memory_total_bytes": 16869351424
+  },
+  "output_file": "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\results\\jit_object_numeric_sum_javascript_result.json",
+  "array_size": 1000000,
+  "iterations": 50,
+  "warmup_iterations": 5,
+  "setup_ms": 40.363,
+  "warmup_ms": 24.513,
+  "expected_checksum": 500000500000,
+  "results": [
+    {
+      "iteration": 1,
+      "elapsed_ms": 1.729,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 2,
+      "elapsed_ms": 1.861,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 3,
+      "elapsed_ms": 1.798,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 4,
+      "elapsed_ms": 1.913,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 5,
+      "elapsed_ms": 1.755,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 6,
+      "elapsed_ms": 1.822,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 7,
+      "elapsed_ms": 1.856,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 8,
+      "elapsed_ms": 1.7,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 9,
+      "elapsed_ms": 1.645,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 10,
+      "elapsed_ms": 1.712,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 11,
+      "elapsed_ms": 1.781,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 12,
+      "elapsed_ms": 1.679,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 13,
+      "elapsed_ms": 1.743,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 14,
+      "elapsed_ms": 1.993,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 15,
+      "elapsed_ms": 2.218,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 16,
+      "elapsed_ms": 1.99,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 17,
+      "elapsed_ms": 2.065,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 18,
+      "elapsed_ms": 1.811,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 19,
+      "elapsed_ms": 1.936,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 20,
+      "elapsed_ms": 2.083,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 21,
+      "elapsed_ms": 1.935,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 22,
+      "elapsed_ms": 1.889,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 23,
+      "elapsed_ms": 2.088,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 24,
+      "elapsed_ms": 1.823,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 25,
+      "elapsed_ms": 1.834,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 26,
+      "elapsed_ms": 2.175,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 27,
+      "elapsed_ms": 1.959,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 28,
+      "elapsed_ms": 1.731,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 29,
+      "elapsed_ms": 1.843,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 30,
+      "elapsed_ms": 1.873,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 31,
+      "elapsed_ms": 1.939,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 32,
+      "elapsed_ms": 1.993,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 33,
+      "elapsed_ms": 1.926,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 34,
+      "elapsed_ms": 1.726,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 35,
+      "elapsed_ms": 1.733,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 36,
+      "elapsed_ms": 1.791,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 37,
+      "elapsed_ms": 1.625,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 38,
+      "elapsed_ms": 1.604,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 39,
+      "elapsed_ms": 1.749,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 40,
+      "elapsed_ms": 1.642,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 41,
+      "elapsed_ms": 1.789,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 42,
+      "elapsed_ms": 2.374,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 43,
+      "elapsed_ms": 2.537,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 44,
+      "elapsed_ms": 2.174,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 45,
+      "elapsed_ms": 1.892,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 46,
+      "elapsed_ms": 1.825,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 47,
+      "elapsed_ms": 1.81,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 48,
+      "elapsed_ms": 1.956,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 49,
+      "elapsed_ms": 1.804,
+      "checksum": 500000500000
+    },
+    {
+      "iteration": 50,
+      "elapsed_ms": 1.817,
+      "checksum": 500000500000
+    }
+  ],
+  "summary": {
+    "count": 50,
+    "average_ms": 1.879,
+    "median_ms": 1.83,
+    "fastest_ms": 1.604,
+    "slowest_ms": 2.537
+  },
+  "timing": {
+    "process_startup_ms": null,
+    "setup_ms": 40.363,
+    "warmup_ms": 24.513,
+    "compile_ms": null,
+    "benchmark_total_ms": 93.946,
+    "postprocess_ms": 0.097,
+    "result_write_ms": 0.898,
+    "runtime_total_ms": 159.817,
+    "end_to_end_total_ms": null
+  }
+}

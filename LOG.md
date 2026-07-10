@@ -346,7 +346,7 @@
 
 ### 出力
 
-* 出力ファイルは `results/jit_object_javascript_result.json`
+* 出力ファイルは `results/jit_object_numeric_sum_javascript_result.json`
 * トップレベルに `project`, `benchmark`, `experiment`, `language`, `created_at`, `status`, `engine`, `execution`, `runtime`, `environment`, `output_file`, `array_size`, `iterations`, `setup_ms`, `expected_checksum`, `results`, `summary` を保存する
 
 ### 確認コマンド
@@ -356,7 +356,7 @@
 ### 確認結果
 
 * `status=success` が表示されることを確認
-* `results/jit_object_javascript_result.json` が作成されることを確認
+* `results/jit_object_numeric_sum_javascript_result.json` が作成されることを確認
 * JSONとして読み取れることを確認
 * `results` に50回分のiterationが保存されることを確認
 * 各iterationの `checksum` が `500000500000` になることを確認
