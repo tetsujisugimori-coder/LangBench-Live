@@ -22,9 +22,7 @@
 #define PATH_BUFFER_SIZE 4096
 
 typedef struct {
-    int iteration;
     double elapsed_ms;
-    int64_t checksum;
 } IterationResult;
 
 typedef struct {
@@ -78,15 +76,21 @@ static void local_iso_timestamp(char *buffer, size_t size) {
     time_t now = time(NULL);
     struct tm local_time;
     char date[32];
-    char zone[8];
+    TIME_ZONE_INFORMATION timezone;
+    DWORD timezone_id;
+    LONG bias;
+    int offset_minutes;
+    char sign;
     localtime_s(&local_time, &now);
     strftime(date, sizeof(date), "%Y-%m-%dT%H:%M:%S", &local_time);
-    strftime(zone, sizeof(zone), "%z", &local_time);
-    if (strlen(zone) == 5) {
-        snprintf(buffer, size, "%s%c%c%c:%c%c", date, zone[0], zone[1], zone[2], zone[3], zone[4]);
-    } else {
-        snprintf(buffer, size, "%s", date);
-    }
+    timezone_id = GetTimeZoneInformation(&timezone);
+    bias = timezone.Bias;
+    if (timezone_id == TIME_ZONE_ID_STANDARD) bias += timezone.StandardBias;
+    if (timezone_id == TIME_ZONE_ID_DAYLIGHT) bias += timezone.DaylightBias;
+    offset_minutes = (int)-bias;
+    sign = offset_minutes >= 0 ? '+' : '-';
+    if (offset_minutes < 0) offset_minutes = -offset_minutes;
+    snprintf(buffer, size, "%s%c%02d:%02d", date, sign, offset_minutes / 60, offset_minutes % 60);
 }
 
 static void cpu_model(char *buffer, DWORD size) {
@@ -95,7 +99,7 @@ static void cpu_model(char *buffer, DWORD size) {
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
             "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &key) != ERROR_SUCCESS ||
         RegQueryValueExA(key, "ProcessorNameString", NULL, &type, (LPBYTE)buffer, &size) != ERROR_SUCCESS) {
-        snprintf(buffer, size, "unknown");
+        buffer[0] = '\0';
     }
     if (key != NULL) {
         RegCloseKey(key);
@@ -103,7 +107,18 @@ static void cpu_model(char *buffer, DWORD size) {
 }
 
 static void os_version(char *buffer, size_t size) {
-    snprintf(buffer, size, "unknown");
+    (void)size;
+    buffer[0] = '\0';
+}
+
+static const char *architecture_name(WORD architecture) {
+    switch (architecture) {
+        case PROCESSOR_ARCHITECTURE_AMD64: return "x64";
+        case PROCESSOR_ARCHITECTURE_ARM64: return "arm64";
+        case PROCESSOR_ARCHITECTURE_INTEL: return "x86";
+        case PROCESSOR_ARCHITECTURE_ARM: return "arm";
+        default: return NULL;
+    }
 }
 
 static void build_timestamp_id(char *buffer, size_t size) {
@@ -128,14 +143,13 @@ static void build_run_id(char *buffer, size_t size) {
     snprintf(
         buffer,
         size,
-        "%04d%02d%02d_%02d%02d%02d_%03d_%s_%s",
+        "%04d%02d%02d_%02d%02d%02d_%s_%s",
         st.wYear,
         st.wMonth,
         st.wDay,
         st.wHour,
         st.wMinute,
         st.wSecond,
-        st.wMilliseconds,
         LANGUAGE,
         BENCHMARK
     );
@@ -202,13 +216,13 @@ int main(int argc, char *argv[]) {
     double setup_ms;
     double warmup_start;
     double warmup_ms;
+    double measurement_ms;
     double benchmark_total_ms;
     char cwd[PATH_BUFFER_SIZE];
-    char exe_path[PATH_BUFFER_SIZE];
     char output_path[PATH_BUFFER_SIZE];
     char created_at[48];
-    char cpu_name[256] = "unknown";
-    char version[64] = "unknown";
+    char cpu_name[256] = "";
+    char version[64] = "";
     char experiment_id[256];
     char run_id[256];
     SYSTEM_INFO system_info;
@@ -222,7 +236,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "status=error\nmessage=expected compile_ms, compiler version, compile command, and source path\n");
         return 1;
     }
-
     get_experiment_and_run_id(argc, argv, experiment_id, sizeof(experiment_id), run_id, sizeof(run_id));
 
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) {
@@ -268,18 +281,16 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "status=error\nmessage=checksum mismatch\n");
             return 1;
         }
-        results[iteration].iteration = iteration + 1;
         results[iteration].elapsed_ms = elapsed;
-        results[iteration].checksum = checksum;
         sorted[iteration] = elapsed;
         total_ms += elapsed;
     }
-    benchmark_total_ms = round_ms(total_ms);
+    measurement_ms = round_ms(total_ms);
+    benchmark_total_ms = round_ms(setup_ms + warmup_ms + measurement_ms);
     free(values);
     qsort(sorted, ITERATIONS, sizeof(sorted[0]), compare_double);
 
-    if (GetCurrentDirectoryA(sizeof(cwd), cwd) == 0 ||
-        GetModuleFileNameA(NULL, exe_path, sizeof(exe_path)) == 0) {
+    if (GetCurrentDirectoryA(sizeof(cwd), cwd) == 0) {
         fprintf(stderr, "status=error\nmessage=failed to obtain execution paths\n");
         return 1;
     }
@@ -293,7 +304,7 @@ int main(int argc, char *argv[]) {
     local_iso_timestamp(created_at, sizeof(created_at));
     cpu_model(cpu_name, sizeof(cpu_name));
     os_version(version, sizeof(version));
-    GetSystemInfo(&system_info);
+    GetNativeSystemInfo(&system_info);
     memory.dwLength = sizeof(memory);
     if (!GlobalMemoryStatusEx(&memory)) {
         memory.ullTotalPhys = 0;
@@ -310,53 +321,45 @@ int main(int argc, char *argv[]) {
     fprintf(output, "  \"schema_version\": \"%s\",\n", SCHEMA_VERSION);
     fprintf(output, "  \"project\": \"%s\",\n", PROJECT);
     fprintf(output, "  \"benchmark\": \"%s\",\n", BENCHMARK);
-    fprintf(output, "  \"experiment\": \"%s\",\n", BENCHMARK);
     fprintf(output, "  \"experiment_id\": "); write_json_string(output, experiment_id); fprintf(output, ",\n");
     fprintf(output, "  \"run_id\": "); write_json_string(output, run_id); fprintf(output, ",\n");
     fprintf(output, "  \"language\": \"%s\",\n", LANGUAGE);
     fprintf(output, "  \"created_at\": "); write_json_string(output, created_at); fprintf(output, ",\n");
     fprintf(output, "  \"status\": \"success\",\n");
-    fprintf(output, "  \"engine\": {\"runtime\": \"native\", \"compiler\": \"gcc\"},\n");
+    fprintf(output, "  \"engine\": {\n    \"runtime\": \"native\",\n    \"runtime_version\": null\n  },\n");
     fprintf(output, "  \"execution\": {\n    \"runner\": \"%s\",\n    \"runner_label\": \"%s\",\n    \"cwd\": ", RUNNER, RUNNER_LABEL); write_json_string(output, cwd); fprintf(output, ",\n");
     fprintf(output, "    \"argv\": [\n");
     for (iteration = 0; iteration < argc; iteration++) {
         fprintf(output, "      "); write_json_string(output, argv[iteration]);
         fprintf(output, "%s\n", iteration == argc - 1 ? "" : ",");
     }
-    fprintf(output, "    ],\n");
-    fprintf(output, "    \"command\": "); write_json_string(output, exe_path); fprintf(output, ",\n");
-    fprintf(output, "    \"script_path\": "); write_json_string(output, argv[4]); fprintf(output, "\n  },\n");
-    fprintf(output, "  \"runtime\": {\"name\": \"native\", \"version\": null},\n");
-    fprintf(output, "  \"build\": {\n    \"required\": true,\n    \"compiler\": \"gcc\",\n    \"compiler_version\": "); write_json_string(output, argv[2]); fprintf(output, ",\n");
-    fprintf(output, "    \"compile_command\": "); write_json_string(output, argv[3]); fprintf(output, ",\n    \"compile_ms\": %.3f\n  },\n", compile_ms);
-    fprintf(output, "  \"environment\": {\n    \"os_name\": \"Windows\",\n    \"os_platform\": \"win32\",\n    \"os_version\": "); write_json_string(output, version); fprintf(output, ",\n");
-    fprintf(output, "    \"cpu_model\": "); write_json_string(output, cpu_name); fprintf(output, ",\n    \"cpu_threads\": %lu,\n    \"memory_total_bytes\": %" PRIu64 "\n  },\n", system_info.dwNumberOfProcessors, (uint64_t)memory.ullTotalPhys);
-    fprintf(output, "  \"output_file\": "); write_json_string(output, output_path); fprintf(output, ",\n");
-    fprintf(output, "  \"array_size\": %d,\n", ARRAY_SIZE);
-    fprintf(output, "  \"iterations\": %d,\n", ITERATIONS);
-    fprintf(output, "  \"warmup_iterations\": %d,\n", WARMUP_ITERATIONS);
-    fprintf(output, "  \"setup_ms\": %.3f,\n", setup_ms);
-    fprintf(output, "  \"warmup_ms\": %.3f,\n", warmup_ms);
-    fprintf(output, "  \"expected_checksum\": %" PRId64 ",\n", EXPECTED_CHECKSUM);
-    fprintf(output, "  \"results\": [\n");
+    fprintf(output, "    ]\n  },\n");
+    fprintf(output, "  \"environment\": {\n    \"os\": \"Windows\",\n    \"os_version\": ");
+    if (version[0] == '\0') fputs("null", output); else write_json_string(output, version);
+    fprintf(output, ",\n    \"architecture\": ");
+    if (architecture_name(system_info.wProcessorArchitecture) == NULL) fputs("null", output); else write_json_string(output, architecture_name(system_info.wProcessorArchitecture));
+    fprintf(output, ",\n    \"cpu\": ");
+    if (cpu_name[0] == '\0') fputs("null", output); else write_json_string(output, cpu_name);
+    fprintf(output, ",\n    \"logical_processors\": %lu,\n    \"memory_bytes\": ", system_info.dwNumberOfProcessors);
+    if (memory.ullTotalPhys == 0) fputs("null", output); else fprintf(output, "%" PRIu64, (uint64_t)memory.ullTotalPhys);
+    fprintf(output, "\n  },\n");
+    fprintf(output, "  \"build\": {\n    \"required\": true,\n    \"compiler\": \"gcc\",\n    \"compiler_version\": "); write_json_string(output, argv[2]);
+    fprintf(output, ",\n    \"compile_command\": "); write_json_string(output, argv[3]);
+    fprintf(output, ",\n    \"compile_ms\": %.3f,\n    \"source_path\": ", compile_ms); write_json_string(output, argv[4]);
+    fprintf(output, "\n  },\n");
+    fprintf(output, "  \"config\": {\n    \"item_count\": %d,\n    \"warmup_iterations\": %d,\n    \"measurement_iterations\": %d,\n    \"numeric_type\": \"integer\",\n    \"value_field\": \"value\"\n  },\n", ARRAY_SIZE, WARMUP_ITERATIONS, ITERATIONS);
+    fprintf(output, "  \"timing\": {\n    \"process_startup_ms\": null,\n    \"setup_ms\": %.3f,\n    \"warmup_ms\": %.3f,\n    \"measurement_ms\": %.3f,\n    \"benchmark_total_ms\": %.3f\n  },\n", setup_ms, warmup_ms, measurement_ms, benchmark_total_ms);
+    fprintf(output, "  \"results\": {\n    \"samples_ms\": [\n");
     for (iteration = 0; iteration < ITERATIONS; iteration++) {
-        fprintf(output, "    {\"iteration\": %d, \"elapsed_ms\": %.3f, \"checksum\": %" PRId64 "}%s\n",
-            results[iteration].iteration,
-            results[iteration].elapsed_ms,
-            results[iteration].checksum,
-            iteration == ITERATIONS - 1 ? "" : ",");
+        fprintf(output, "      %.3f%s\n", results[iteration].elapsed_ms, iteration == ITERATIONS - 1 ? "" : ",");
     }
-    fprintf(output, "  ],\n");
-    fprintf(output, "  \"summary\": {\n    \"count\": %d,\n    \"average_ms\": %.3f,\n    \"median_ms\": %.3f,\n    \"fastest_ms\": %.3f,\n    \"slowest_ms\": %.3f\n  },\n",
-        ITERATIONS,
-        round_ms(total_ms / ITERATIONS),
-        round_ms((sorted[ITERATIONS / 2 - 1] + sorted[ITERATIONS / 2]) / 2.0),
+    fprintf(output, "    ],\n    \"min_ms\": %.3f,\n    \"max_ms\": %.3f,\n    \"mean_ms\": %.3f,\n    \"median_ms\": %.3f\n  },\n",
         sorted[0],
-        sorted[ITERATIONS - 1]);
-    fprintf(output, "  \"timing\": {\n    \"process_startup_ms\": null,\n    \"setup_ms\": %.3f,\n    \"warmup_ms\": %.3f,\n    \"compile_ms\": null,\n    \"benchmark_total_ms\": %.3f,\n    \"postprocess_ms\": null,\n    \"result_write_ms\": null,\n    \"runtime_total_ms\": null,\n    \"end_to_end_total_ms\": null\n  }\n}\n",
-        setup_ms,
-        warmup_ms,
-        benchmark_total_ms);
+        sorted[ITERATIONS - 1],
+        round_ms(total_ms / ITERATIONS),
+        round_ms((sorted[ITERATIONS / 2 - 1] + sorted[ITERATIONS / 2]) / 2.0));
+    fprintf(output, "  \"validation\": {\n    \"checksum\": %" PRId64 ",\n    \"expected_checksum\": %" PRId64 ",\n    \"tolerance\": 0,\n    \"passed\": true\n  },\n", EXPECTED_CHECKSUM, EXPECTED_CHECKSUM);
+    fprintf(output, "  \"error\": null\n}\n");
 
     if (fclose(output) != 0) {
         fprintf(stderr, "status=error\nmessage=failed to close result file\n");

@@ -58,8 +58,7 @@ function generateExperimentId() {
 
 function generateRunId() {
   const now = new Date();
-  const ms = String(now.getMilliseconds()).padStart(3, "0");
-  return `${formatDate(now)}_${ms}_${LANGUAGE}_${BENCHMARK}`;
+  return `${formatDate(now)}_${LANGUAGE}_${BENCHMARK}`;
 }
 
 function formatDate(date) {
@@ -89,21 +88,20 @@ function sumObjectValues(values) {
   return total;
 }
 
-function summarizeResults(results) {
-  const elapsedValues = results.map((result) => result.elapsed_ms);
-  const sortedElapsedValues = [...elapsedValues].sort((a, b) => a - b);
-  const totalMs = elapsedValues.reduce((sum, value) => sum + value, 0);
+function summarizeSamples(samplesMs) {
+  const sortedElapsedValues = [...samplesMs].sort((a, b) => a - b);
+  const totalMs = samplesMs.reduce((sum, value) => sum + value, 0);
   const middleIndex = Math.floor(sortedElapsedValues.length / 2);
   const medianMs = sortedElapsedValues.length % 2 === 0
     ? (sortedElapsedValues[middleIndex - 1] + sortedElapsedValues[middleIndex]) / 2
     : sortedElapsedValues[middleIndex];
 
   return {
-    count: results.length,
-    average_ms: roundMs(totalMs / results.length),
+    samples_ms: samplesMs,
+    min_ms: roundMs(Math.min(...samplesMs)),
+    max_ms: roundMs(Math.max(...samplesMs)),
+    mean_ms: roundMs(totalMs / samplesMs.length),
     median_ms: roundMs(medianMs),
-    fastest_ms: roundMs(Math.min(...elapsedValues)),
-    slowest_ms: roundMs(Math.max(...elapsedValues)),
   };
 }
 
@@ -116,7 +114,6 @@ function buildMetadata(projectRoot, status, experimentId, runId) {
     schema_version: SCHEMA_VERSION,
     project: PROJECT,
     benchmark: BENCHMARK,
-    experiment: BENCHMARK,
     experiment_id: experimentId,
     run_id: runId,
     language: LANGUAGE,
@@ -124,7 +121,9 @@ function buildMetadata(projectRoot, status, experimentId, runId) {
     status,
     engine: {
       runtime: "node",
-      node_version: process.version,
+      runtime_version: process.version,
+      compiler: null,
+      compiler_version: null,
       v8_version: process.versions.v8,
     },
     execution: {
@@ -132,22 +131,16 @@ function buildMetadata(projectRoot, status, experimentId, runId) {
       runner_label: RUNNER_LABEL,
       cwd: process.cwd(),
       argv: process.argv,
-      command: process.argv.map(quoteCommandPart).join(" "),
-      script_path: __filename,
-    },
-    runtime: {
-      name: "node",
-      version: process.version,
     },
     environment: {
-      os_name: getOsName(osPlatform),
-      os_platform: osPlatform,
+      os: getOsName(osPlatform),
       os_version: os.release(),
-      cpu_model: cpus.length > 0 ? cpus[0].model : null,
-      cpu_threads: cpus.length > 0 ? cpus.length : null,
-      memory_total_bytes: os.totalmem(),
+      architecture: os.arch() || null,
+      cpu: cpus.length > 0 ? cpus[0].model : null,
+      logical_processors: cpus.length > 0 ? cpus.length : null,
+      memory_bytes: os.totalmem() || null,
     },
-    output_file: path.join(projectRoot, "results", RESULT_FILE),
+    build: null,
   };
 }
 
@@ -158,10 +151,6 @@ function getOsName(osPlatform) {
     linux: "Linux",
   };
   return osNames[osPlatform] || osPlatform;
-}
-
-function quoteCommandPart(value) {
-  return /\s/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value;
 }
 
 function getLocalIsoTimestamp() {
@@ -180,8 +169,34 @@ function saveResult(result, outputPath) {
   fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
 }
 
-function getStatus(results) {
-  return results.every((result) => result.checksum === EXPECTED_CHECKSUM) ? "success" : "failed";
+function buildConfig() {
+  return {
+    item_count: ARRAY_SIZE,
+    warmup_iterations: WARMUP_ITERATIONS,
+    measurement_iterations: ITERATIONS,
+    numeric_type: "integer",
+    value_field: "value",
+  };
+}
+
+function emptyTiming() {
+  return {
+    process_startup_ms: null,
+    setup_ms: null,
+    warmup_ms: null,
+    measurement_ms: null,
+    benchmark_total_ms: null,
+  };
+}
+
+function emptyResults() {
+  return {
+    samples_ms: [],
+    min_ms: null,
+    max_ms: null,
+    mean_ms: null,
+    median_ms: null,
+  };
 }
 
 function runBenchmark(projectRoot, experimentId, runId) {
@@ -191,59 +206,62 @@ function runBenchmark(projectRoot, experimentId, runId) {
 
   const warmupStartNs = nowNs();
   for (let warmup = 0; warmup < WARMUP_ITERATIONS; warmup += 1) {
-    const checksum = sumObjectValues(values);
-    if (checksum !== EXPECTED_CHECKSUM) {
-      throw new Error(`warmup checksum mismatch: ${checksum}`);
+    const warmupChecksum = sumObjectValues(values);
+    if (warmupChecksum !== EXPECTED_CHECKSUM) {
+      throw new Error(`warmup checksum mismatch: ${warmupChecksum}`);
     }
   }
   const warmupMs = elapsedMs(warmupStartNs, nowNs());
 
-  const results = [];
-  for (let iteration = 1; iteration <= ITERATIONS; iteration += 1) {
+  const samplesMs = [];
+  let checksum = null;
+  for (let iteration = 0; iteration < ITERATIONS; iteration += 1) {
     const iterationStartNs = nowNs();
-    const checksum = sumObjectValues(values);
+    checksum = sumObjectValues(values);
     const iterationElapsedMs = elapsedMs(iterationStartNs, nowNs());
     if (checksum !== EXPECTED_CHECKSUM) {
       throw new Error(`checksum mismatch: ${checksum}`);
     }
-    results.push({ iteration, elapsed_ms: iterationElapsedMs, checksum });
+    samplesMs.push(iterationElapsedMs);
   }
 
-  const status = getStatus(results);
-  const benchmarkTotalMs = roundMs(results.reduce((sum, item) => sum + item.elapsed_ms, 0));
-  const postprocessStartNs = nowNs();
-  const summary = summarizeResults(results);
-  const postprocessMs = elapsedMs(postprocessStartNs, nowNs());
+  const measurementMs = roundMs(samplesMs.reduce((sum, value) => sum + value, 0));
+  const benchmarkTotalMs = roundMs(setupMs + warmupMs + measurementMs);
 
   return {
-    ...buildMetadata(projectRoot, status, experimentId, runId),
-    array_size: ARRAY_SIZE,
-    iterations: ITERATIONS,
-    warmup_iterations: WARMUP_ITERATIONS,
-    setup_ms: setupMs,
-    warmup_ms: warmupMs,
-    expected_checksum: EXPECTED_CHECKSUM,
-    results,
-    summary,
+    ...buildMetadata(projectRoot, "success", experimentId, runId),
+    config: buildConfig(),
     timing: {
       process_startup_ms: null,
       setup_ms: setupMs,
       warmup_ms: warmupMs,
-      compile_ms: null,
+      measurement_ms: measurementMs,
       benchmark_total_ms: benchmarkTotalMs,
-      postprocess_ms: postprocessMs,
-      result_write_ms: null,
-      runtime_total_ms: null,
-      end_to_end_total_ms: null,
     },
+    results: summarizeSamples(samplesMs),
+    validation: {
+      checksum,
+      expected_checksum: EXPECTED_CHECKSUM,
+      tolerance: 0,
+      passed: checksum === EXPECTED_CHECKSUM,
+    },
+    error: null,
   };
 }
 
 function buildErrorResult(projectRoot, status, message, errorType, experimentId, runId) {
   return {
     ...buildMetadata(projectRoot, status, experimentId, runId),
-    error_message: message,
-    error_type: errorType,
+    config: buildConfig(),
+    timing: emptyTiming(),
+    results: emptyResults(),
+    validation: {
+      checksum: null,
+      expected_checksum: EXPECTED_CHECKSUM,
+      tolerance: 0,
+      passed: false,
+    },
+    error: { type: errorType, message },
   };
 }
 
@@ -255,18 +273,6 @@ function main() {
   try {
     const result = runBenchmark(projectRoot, experimentId, runId);
     const outputPath = path.join(projectRoot, "results", RESULT_FILE);
-
-    const resultWriteStartNs = nowNs();
-    saveResult(result, outputPath);
-    const resultWriteMs = elapsedMs(resultWriteStartNs, nowNs());
-    result.timing.result_write_ms = resultWriteMs;
-    result.timing.runtime_total_ms = roundMs(
-      result.timing.setup_ms +
-        result.timing.warmup_ms +
-        result.timing.benchmark_total_ms +
-        result.timing.postprocess_ms +
-        result.timing.result_write_ms
-    );
 
     saveResult(result, outputPath);
     console.log(`status=${result.status}`);

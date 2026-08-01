@@ -1,324 +1,124 @@
 {
-    "type":  "langbench_result",
-    "schema_version":  "1.0",
-    "project":  "LangBench Live",
-    "benchmark":  "jit_object_numeric_sum",
-    "experiment":  "jit_object_numeric_sum",
-    "experiment_id":  "20260710_225121_jit_object_numeric_sum",
-    "run_id":  "20260710_225121_150_c_jit_object_numeric_sum",
-    "language":  "c",
-    "created_at":  "2026-07-10T22:51:21+09:00",
-    "status":  "success",
-    "engine":  {
-                   "runtime":  "native",
-                   "compiler":  "gcc"
-               },
-    "execution":  {
-                      "runner":  "vscode_terminal_powershell",
-                      "runner_label":  "VSCode Terminal / PowerShell",
-                      "cwd":  "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live",
-                      "argv":  [
-                                   "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.exe",
-                                   "681.446",
-                                   "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0",
-                                   "gcc C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c -O2 -std=c11 -Wall -Wextra -o C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.exe",
-                                   "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c"
-                               ],
-                      "command":  "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.exe",
-                      "script_path":  "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c"
-                  },
-    "runtime":  {
-                    "name":  "native",
-                    "version":  null
-                },
-    "build":  {
-                  "required":  true,
-                  "compiler":  "gcc",
-                  "compiler_version":  "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0",
-                  "compile_command":  "gcc C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c -O2 -std=c11 -Wall -Wextra -o C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.exe",
-                  "compile_ms":  681.446
-              },
-    "environment":  {
-                        "os_name":  "Windows",
-                        "os_platform":  "win32",
-                        "os_version":  "unknown",
-                        "cpu_model":  "Intel(R) Core(TM) i7-14650HX",
-                        "cpu_threads":  24,
-                        "memory_total_bytes":  16869351424
-                    },
-    "output_file":  "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\results\\jit_object_numeric_sum_c_result.json",
-    "array_size":  1000000,
-    "iterations":  50,
-    "warmup_iterations":  5,
-    "setup_ms":  0.537,
-    "warmup_ms":  0.613,
-    "expected_checksum":  500000500000,
-    "results":  [
-                    {
-                        "iteration":  1,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  2,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  3,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  4,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  5,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  6,
-                        "elapsed_ms":  0.108,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  7,
-                        "elapsed_ms":  0.122,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  8,
-                        "elapsed_ms":  0.131,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  9,
-                        "elapsed_ms":  0.121,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  10,
-                        "elapsed_ms":  0.120,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  11,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  12,
-                        "elapsed_ms":  0.105,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  13,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  14,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  15,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  16,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  17,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  18,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  19,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  20,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  21,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  22,
-                        "elapsed_ms":  0.105,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  23,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  24,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  25,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  26,
-                        "elapsed_ms":  0.108,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  27,
-                        "elapsed_ms":  0.105,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  28,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  29,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  30,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  31,
-                        "elapsed_ms":  0.105,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  32,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  33,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  34,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  35,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  36,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  37,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  38,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  39,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  40,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  41,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  42,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  43,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  44,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  45,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  46,
-                        "elapsed_ms":  0.109,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  47,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  48,
-                        "elapsed_ms":  0.104,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  49,
-                        "elapsed_ms":  0.108,
-                        "checksum":  500000500000
-                    },
-                    {
-                        "iteration":  50,
-                        "elapsed_ms":  0.109,
-                        "checksum":  500000500000
-                    }
-                ],
-    "summary":  {
-                    "count":  50,
-                    "average_ms":  0.106,
-                    "median_ms":  0.104,
-                    "fastest_ms":  0.104,
-                    "slowest_ms":  0.131
-                },
-    "timing":  {
-                   "compile_ms":  681.446,
-                   "first_process_total_ms":  1423.191,
-                   "repeat_process_total_ms":  16.585,
-                   "build_and_first_process_total_ms":  2104.637,
-                   "setup_ms":  0.537,
-                   "warmup_ms":  0.613,
-                   "benchmark_total_ms":  5.304
-               }
+  "type": "langbench_result",
+  "schema_version": "1.0",
+  "project": "LangBench Live",
+  "benchmark": "jit_object_numeric_sum",
+  "experiment_id": "20260801_210909_jit_object_numeric_sum",
+  "run_id": "20260801_210912_c_jit_object_numeric_sum",
+  "language": "c",
+  "created_at": "2026-08-01T21:09:15+09:00",
+  "status": "success",
+  "engine": {
+    "runtime": "native",
+    "runtime_version": null
+  },
+  "execution": {
+    "runner": "vscode_terminal_powershell",
+    "runner_label": "VSCode Terminal / PowerShell",
+    "cwd": "C:\\LangBench-Live",
+    "argv": [
+      "C:\\Temp\\langbench-jit-object.exe",
+      "720.739",
+      "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0",
+      "gcc C:\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c -O2 -std=c11 -Wall -Wextra -o C:\\Temp\\langbench-jit-object.exe",
+      "C:\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c",
+      "--experiment-id=20260801_210909_jit_object_numeric_sum",
+      "--run-id=20260801_210912_c_jit_object_numeric_sum"
+    ]
+  },
+  "environment": {
+    "os": "Windows",
+    "os_version": null,
+    "architecture": "x64",
+    "cpu": "Intel(R) Core(TM) i7-14650HX",
+    "logical_processors": 24,
+    "memory_bytes": 16869351424
+  },
+  "build": {
+    "required": true,
+    "compiler": "gcc",
+    "compiler_version": "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0",
+    "compile_command": "gcc C:\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c -O2 -std=c11 -Wall -Wextra -o C:\\Temp\\langbench-jit-object.exe",
+    "compile_ms": 720.739,
+    "source_path": "C:\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\c\\main.c"
+  },
+  "config": {
+    "item_count": 1000000,
+    "warmup_iterations": 5,
+    "measurement_iterations": 50,
+    "numeric_type": "integer",
+    "value_field": "value"
+  },
+  "timing": {
+    "process_startup_ms": null,
+    "setup_ms": 0.691,
+    "warmup_ms": 0.882,
+    "measurement_ms": 5.154,
+    "benchmark_total_ms": 6.727
+  },
+  "results": {
+    "samples_ms": [
+      0.157,
+      0.109,
+      0.096,
+      0.096,
+      0.096,
+      0.096,
+      0.096,
+      0.096,
+      0.096,
+      0.096,
+      0.096,
+      0.099,
+      0.104,
+      0.104,
+      0.104,
+      0.104,
+      0.102,
+      0.104,
+      0.104,
+      0.104,
+      0.108,
+      0.102,
+      0.096,
+      0.096,
+      0.096,
+      0.106,
+      0.104,
+      0.107,
+      0.105,
+      0.104,
+      0.107,
+      0.105,
+      0.104,
+      0.104,
+      0.105,
+      0.104,
+      0.104,
+      0.104,
+      0.104,
+      0.113,
+      0.104,
+      0.104,
+      0.104,
+      0.105,
+      0.104,
+      0.106,
+      0.102,
+      0.096,
+      0.096,
+      0.096
+    ],
+    "min_ms": 0.096,
+    "max_ms": 0.157,
+    "mean_ms": 0.103,
+    "median_ms": 0.104
+  },
+  "validation": {
+    "checksum": 500000500000,
+    "expected_checksum": 500000500000,
+    "tolerance": 0,
+    "passed": true
+  },
+  "error": null
 }
