@@ -1,7 +1,6 @@
 import json
 import os
 import platform
-import subprocess
 import sys
 import time
 from datetime import datetime
@@ -46,8 +45,7 @@ def generate_experiment_id() -> str:
 
 def generate_run_id() -> str:
     now = datetime.now().astimezone()
-    ms = int(now.microsecond / 1000)
-    return f"{now:%Y%m%d_%H%M%S}_{ms:03d}_{LANGUAGE}_{BENCHMARK}"
+    return f"{now:%Y%m%d_%H%M%S}_{LANGUAGE}_{BENCHMARK}"
 
 
 def get_experiment_id() -> str:
@@ -77,9 +75,8 @@ def sum_object_values(values: list[dict[str, int]]) -> int:
     return total
 
 
-def summarize_results(results: list[dict]) -> dict:
-    elapsed_values = [item["elapsed_ms"] for item in results]
-    sorted_elapsed_values = sorted(elapsed_values)
+def summarize_samples(samples_ms: list[float]) -> dict:
+    sorted_elapsed_values = sorted(samples_ms)
     middle_index = len(sorted_elapsed_values) // 2
     median = (
         (sorted_elapsed_values[middle_index - 1] + sorted_elapsed_values[middle_index]) / 2
@@ -88,11 +85,11 @@ def summarize_results(results: list[dict]) -> dict:
     )
 
     return {
-        "count": len(results),
-        "average_ms": round_ms(sum(elapsed_values) / len(elapsed_values)),
+        "samples_ms": samples_ms,
+        "min_ms": round_ms(min(samples_ms)),
+        "max_ms": round_ms(max(samples_ms)),
+        "mean_ms": round_ms(sum(samples_ms) / len(samples_ms)),
         "median_ms": round_ms(median),
-        "fastest_ms": round_ms(min(elapsed_values)),
-        "slowest_ms": round_ms(max(elapsed_values)),
     }
 
 
@@ -103,7 +100,6 @@ def build_metadata(project_root: Path, status: str, experiment_id: str, run_id: 
         "schema_version": SCHEMA_VERSION,
         "project": PROJECT,
         "benchmark": BENCHMARK,
-        "experiment": BENCHMARK,
         "experiment_id": experiment_id,
         "run_id": run_id,
         "language": LANGUAGE,
@@ -111,46 +107,72 @@ def build_metadata(project_root: Path, status: str, experiment_id: str, run_id: 
         "status": status,
         "engine": {
             "runtime": "python",
-            "python_version": platform.python_version(),
+            "runtime_version": platform.python_version(),
+            "compiler": None,
+            "compiler_version": None,
             "python_implementation": platform.python_implementation(),
-            "executable": str(Path(sys.executable)),
         },
         "execution": {
             "runner": RUNNER,
             "runner_label": RUNNER_LABEL,
             "cwd": str(Path.cwd()),
             "argv": argv,
-            "command": subprocess.list2cmdline(argv),
-            "script_path": str(Path(__file__).resolve()),
-        },
-        "runtime": {
-            "name": "python",
-            "version": platform.python_version(),
-        },
-        "build": {
-            "required": False,
-            "compiler": None,
-            "compiler_version": None,
-            "compile_command": None,
-            "compile_ms": None,
         },
         "environment": {
-            "os_name": platform.system() or None,
-            "os_platform": sys.platform,
+            "os": platform.system() or None,
             "os_version": platform.version() or None,
-            "cpu_model": platform.processor() or None,
-            "cpu_threads": os.cpu_count(),
-            "memory_total_bytes": None,
+            "architecture": platform.machine() or None,
+            "cpu": platform.processor() or None,
+            "logical_processors": os.cpu_count(),
+            "memory_bytes": None,
         },
-        "output_file": str(project_root / "results" / RESULT_FILE),
     }
 
 
 def build_error_result(project_root: Path, status: str, message: str, error_type: str, experiment_id: str, run_id: str) -> dict:
-    result = build_metadata(project_root, status, experiment_id, run_id)
-    result["error_message"] = message
-    result["error_type"] = error_type
-    return result
+    return {
+        **build_metadata(project_root, status, experiment_id, run_id),
+        "config": build_config(),
+        "timing": empty_timing(),
+        "results": empty_results(),
+        "validation": {
+            "checksum": None,
+            "expected_checksum": EXPECTED_CHECKSUM,
+            "tolerance": 0,
+            "passed": False,
+        },
+        "error": {"type": error_type, "message": message},
+    }
+
+
+def build_config() -> dict:
+    return {
+        "item_count": ARRAY_SIZE,
+        "warmup_iterations": WARMUP_ITERATIONS,
+        "measurement_iterations": ITERATIONS,
+        "numeric_type": "integer",
+        "value_field": "value",
+    }
+
+
+def empty_timing() -> dict:
+    return {
+        "process_startup_ms": None,
+        "setup_ms": None,
+        "warmup_ms": None,
+        "measurement_ms": None,
+        "benchmark_total_ms": None,
+    }
+
+
+def empty_results() -> dict:
+    return {
+        "samples_ms": [],
+        "min_ms": None,
+        "max_ms": None,
+        "mean_ms": None,
+        "median_ms": None,
+    }
 
 
 def run_benchmark(project_root: Path, experiment_id: str, run_id: str) -> dict:
@@ -165,49 +187,37 @@ def run_benchmark(project_root: Path, experiment_id: str, run_id: str) -> dict:
             raise RuntimeError(f"warmup checksum mismatch: {checksum}")
     warmup_ms = elapsed_ms(warmup_start_ns, time.perf_counter_ns())
 
-    results = []
-    for iteration in range(1, ITERATIONS + 1):
+    samples_ms = []
+    checksum = None
+    for _ in range(ITERATIONS):
         iteration_start_ns = time.perf_counter_ns()
         checksum = sum_object_values(values)
         iteration_ms = elapsed_ms(iteration_start_ns, time.perf_counter_ns())
         if checksum != EXPECTED_CHECKSUM:
             raise RuntimeError(f"checksum mismatch: {checksum}")
-        results.append(
-            {
-                "iteration": iteration,
-                "elapsed_ms": iteration_ms,
-                "checksum": checksum,
-            }
-        )
+        samples_ms.append(iteration_ms)
 
-    benchmark_total_ms = round_ms(sum(item["elapsed_ms"] for item in results))
-    postprocess_start_ns = time.perf_counter_ns()
-    summary = summarize_results(results)
-    result = {
+    measurement_ms = round_ms(sum(samples_ms))
+    benchmark_total_ms = round_ms(setup_ms + warmup_ms + measurement_ms)
+    return {
         **build_metadata(project_root, "success", experiment_id, run_id),
-        "array_size": ARRAY_SIZE,
-        "iterations": ITERATIONS,
-        "warmup_iterations": WARMUP_ITERATIONS,
-        "setup_ms": setup_ms,
-        "warmup_ms": warmup_ms,
-        "expected_checksum": EXPECTED_CHECKSUM,
-        "results": results,
-        "summary": summary,
+        "config": build_config(),
         "timing": {
             "process_startup_ms": None,
             "setup_ms": setup_ms,
             "warmup_ms": warmup_ms,
-            "compile_ms": None,
+            "measurement_ms": measurement_ms,
             "benchmark_total_ms": benchmark_total_ms,
-            "postprocess_ms": None,
-            "result_write_ms": None,
-            "runtime_total_ms": None,
-            "end_to_end_total_ms": None,
         },
+        "results": summarize_samples(samples_ms),
+        "validation": {
+            "checksum": checksum,
+            "expected_checksum": EXPECTED_CHECKSUM,
+            "tolerance": 0,
+            "passed": checksum == EXPECTED_CHECKSUM,
+        },
+        "error": None,
     }
-    postprocess_ms = elapsed_ms(postprocess_start_ns, time.perf_counter_ns())
-    result["timing"]["postprocess_ms"] = postprocess_ms
-    return result
 
 
 def save_result(result: dict, output_path: Path) -> None:
@@ -225,18 +235,6 @@ def main() -> int:
     try:
         result = run_benchmark(project_root, experiment_id, run_id)
         output_path = project_root / "results" / RESULT_FILE
-
-        result_write_start_ns = time.perf_counter_ns()
-        save_result(result, output_path)
-        result_write_ms = elapsed_ms(result_write_start_ns, time.perf_counter_ns())
-        result["timing"]["result_write_ms"] = result_write_ms
-        result["timing"]["runtime_total_ms"] = round_ms(
-            result["timing"]["setup_ms"]
-            + result["timing"]["warmup_ms"]
-            + result["timing"]["benchmark_total_ms"]
-            + result["timing"]["postprocess_ms"]
-            + result["timing"]["result_write_ms"]
-        )
 
         save_result(result, output_path)
         print(f"status={result['status']}")

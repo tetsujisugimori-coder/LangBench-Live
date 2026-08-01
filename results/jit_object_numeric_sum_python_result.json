@@ -3,323 +3,114 @@
   "schema_version": "1.0",
   "project": "LangBench Live",
   "benchmark": "jit_object_numeric_sum",
-  "experiment": "jit_object_numeric_sum",
-  "experiment_id": "20260710_225433_jit_object_numeric_sum",
-  "run_id": "20260710_225433_743_python_jit_object_numeric_sum",
+  "experiment_id": "20260801_130000_jit_object_numeric_sum",
+  "run_id": "20260801_201439_python_jit_object_numeric_sum",
   "language": "python",
-  "created_at": "2026-07-10T22:54:35.513+09:00",
+  "created_at": "2026-08-01T20:14:41.723+09:00",
   "status": "success",
   "engine": {
     "runtime": "python",
-    "python_version": "3.14.6",
-    "python_implementation": "CPython",
-    "executable": "C:\\Users\\tetsu\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
+    "runtime_version": "3.14.6",
+    "compiler": null,
+    "compiler_version": null,
+    "python_implementation": "CPython"
   },
   "execution": {
     "runner": "vscode_terminal_powershell",
     "runner_label": "VSCode Terminal / PowerShell",
-    "cwd": "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live",
+    "cwd": "C:\\LangBench-Live",
     "argv": [
-      "C:\\Users\\tetsu\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
-      ".\\benchmarks\\jit_object_numeric_sum\\python\\main.py"
-    ],
-    "command": "C:\\Users\\tetsu\\AppData\\Local\\Programs\\Python\\Python314\\python.exe .\\benchmarks\\jit_object_numeric_sum\\python\\main.py",
-    "script_path": "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\benchmarks\\jit_object_numeric_sum\\python\\main.py"
-  },
-  "runtime": {
-    "name": "python",
-    "version": "3.14.6"
-  },
-  "build": {
-    "required": false,
-    "compiler": null,
-    "compiler_version": null,
-    "compile_command": null,
-    "compile_ms": null
+      "python",
+      "benchmarks/jit_object_numeric_sum/python/main.py",
+      "--experiment-id=20260801_130000_jit_object_numeric_sum",
+      "--run-id=20260801_201439_python_jit_object_numeric_sum"
+    ]
   },
   "environment": {
-    "os_name": "Windows",
-    "os_platform": "win32",
+    "os": "Windows",
     "os_version": "10.0.26200",
-    "cpu_model": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
-    "cpu_threads": 24,
-    "memory_total_bytes": null
+    "architecture": "AMD64",
+    "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "logical_processors": 24,
+    "memory_bytes": null
   },
-  "output_file": "C:\\Users\\tetsu\\Documents\\Codex\\LangBench-Live\\results\\jit_object_numeric_sum_python_result.json",
-  "array_size": 1000000,
-  "iterations": 50,
-  "warmup_iterations": 5,
-  "setup_ms": 189.909,
-  "warmup_ms": 143.49,
-  "expected_checksum": 500000500000,
-  "results": [
-    {
-      "iteration": 1,
-      "elapsed_ms": 29.087,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 2,
-      "elapsed_ms": 27.498,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 3,
-      "elapsed_ms": 28.714,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 4,
-      "elapsed_ms": 28.595,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 5,
-      "elapsed_ms": 29.987,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 6,
-      "elapsed_ms": 26.959,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 7,
-      "elapsed_ms": 28.332,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 8,
-      "elapsed_ms": 28.469,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 9,
-      "elapsed_ms": 28.078,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 10,
-      "elapsed_ms": 26.942,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 11,
-      "elapsed_ms": 27.825,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 12,
-      "elapsed_ms": 28.542,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 13,
-      "elapsed_ms": 27.199,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 14,
-      "elapsed_ms": 28.548,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 15,
-      "elapsed_ms": 28.806,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 16,
-      "elapsed_ms": 29.249,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 17,
-      "elapsed_ms": 27.838,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 18,
-      "elapsed_ms": 27.965,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 19,
-      "elapsed_ms": 27.972,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 20,
-      "elapsed_ms": 30.857,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 21,
-      "elapsed_ms": 28.705,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 22,
-      "elapsed_ms": 29.219,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 23,
-      "elapsed_ms": 28.558,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 24,
-      "elapsed_ms": 29.488,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 25,
-      "elapsed_ms": 28.325,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 26,
-      "elapsed_ms": 28.933,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 27,
-      "elapsed_ms": 29.584,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 28,
-      "elapsed_ms": 28.669,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 29,
-      "elapsed_ms": 29.54,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 30,
-      "elapsed_ms": 28.26,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 31,
-      "elapsed_ms": 27.832,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 32,
-      "elapsed_ms": 27.815,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 33,
-      "elapsed_ms": 28.142,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 34,
-      "elapsed_ms": 28.626,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 35,
-      "elapsed_ms": 27.937,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 36,
-      "elapsed_ms": 28.572,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 37,
-      "elapsed_ms": 29.954,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 38,
-      "elapsed_ms": 29.363,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 39,
-      "elapsed_ms": 28.532,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 40,
-      "elapsed_ms": 28.758,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 41,
-      "elapsed_ms": 29.071,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 42,
-      "elapsed_ms": 30.303,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 43,
-      "elapsed_ms": 29.692,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 44,
-      "elapsed_ms": 28.41,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 45,
-      "elapsed_ms": 30.288,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 46,
-      "elapsed_ms": 29.279,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 47,
-      "elapsed_ms": 29.298,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 48,
-      "elapsed_ms": 28.414,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 49,
-      "elapsed_ms": 28.622,
-      "checksum": 500000500000
-    },
-    {
-      "iteration": 50,
-      "elapsed_ms": 29.436,
-      "checksum": 500000500000
-    }
-  ],
-  "summary": {
-    "count": 50,
-    "average_ms": 28.702,
-    "median_ms": 28.608,
-    "fastest_ms": 26.942,
-    "slowest_ms": 30.857
+  "config": {
+    "item_count": 1000000,
+    "warmup_iterations": 5,
+    "measurement_iterations": 50,
+    "numeric_type": "integer",
+    "value_field": "value"
   },
   "timing": {
     "process_startup_ms": null,
-    "setup_ms": 189.909,
-    "warmup_ms": 143.49,
-    "compile_ms": null,
-    "benchmark_total_ms": 1435.087,
-    "postprocess_ms": 68.726,
-    "result_write_ms": 1.423,
-    "runtime_total_ms": 1838.635,
-    "end_to_end_total_ms": null
-  }
+    "setup_ms": 209.269,
+    "warmup_ms": 170.656,
+    "measurement_ms": 1664.426,
+    "benchmark_total_ms": 2044.351
+  },
+  "results": {
+    "samples_ms": [
+      35.394,
+      33.401,
+      33.761,
+      33.178,
+      32.169,
+      32.858,
+      33.948,
+      32.582,
+      32.463,
+      32.683,
+      33.34,
+      32.454,
+      32.98,
+      33.039,
+      33.449,
+      33.62,
+      31.759,
+      33.175,
+      32.81,
+      33.537,
+      33.829,
+      34.344,
+      33.776,
+      32.584,
+      33.327,
+      33.691,
+      32.847,
+      32.631,
+      34.147,
+      33.581,
+      32.791,
+      35.943,
+      32.653,
+      33.082,
+      33.009,
+      32.506,
+      31.875,
+      32.626,
+      32.975,
+      32.864,
+      34.742,
+      34.102,
+      32.977,
+      33.1,
+      34.17,
+      34.718,
+      33.021,
+      33.801,
+      32.145,
+      33.969
+    ],
+    "min_ms": 31.759,
+    "max_ms": 35.943,
+    "mean_ms": 33.289,
+    "median_ms": 33.091
+  },
+  "validation": {
+    "checksum": 500000500000,
+    "expected_checksum": 500000500000,
+    "tolerance": 0,
+    "passed": true
+  },
+  "error": null
 }

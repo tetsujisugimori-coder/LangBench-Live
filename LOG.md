@@ -561,3 +561,73 @@
 * `build_and_first_process_total_ms` が `compile_ms + first_process_total_ms` と一致することを確認した
 * `benchmark_total_ms` が2回目の50件の `elapsed_ms` 合計と一致することを確認した
 * 初回と再実行の差は、実行ファイル起動時のOSキャッシュやセキュリティ検査などを含む外部要因として観測できる
+
+## 2026-08-01 LangBench結果JSON正式仕様統一
+
+### 目的
+
+* C・Python・JavaScriptの `jit_object_numeric_sum` 結果をMemo Nexusから自動取込・比較・グラフ表示できる共通構造へ統一した
+* 言語ごとの差分を抑えるため、ルートキーの名前、型、順序と、取得不能値の `null` 表現を統一した
+
+### 仕様変更
+
+* ルートキーを `type`, `schema_version`, `project`, `benchmark`, `experiment_id`, `run_id`, `language`, `created_at`, `status`, `engine`, `execution`, `environment`, `config`, `timing`, `results`, `validation`, `error` の順へ統一した
+* 重複していた `experiment` を新規出力から廃止し、処理名を `benchmark: "jit_object_numeric_sum"` に統一した
+* `experiment_id` を3言語共通の `YYYYMMDD_HHMMSS_<benchmark>`、`run_id` を各起動固有の `YYYYMMDD_HHMMSS_<language>_<benchmark>` と定義した
+* 1回のプログラム起動を1 runとし、50回の内部測定を `results.samples_ms` に格納した
+* `array_size` を `config.item_count`、`iterations` を `config.measurement_iterations` へ変更した。測定件数50、ウォームアップ5、計算内容は変更していない
+* `timing` を `process_startup_ms`, `setup_ms`, `warmup_ms`, `measurement_ms`, `benchmark_total_ms` へ統一した
+* `measurement_ms` を `samples_ms` の合計、`benchmark_total_ms` をsetup・warmup・measurementの合計とした。JSON生成・保存時間と環境情報取得時間は含めない
+* `results` を `samples_ms`, `min_ms`, `max_ms`, `mean_ms`, `median_ms` へ統一し、偶数件の中央値は中央2値の平均とした
+* 1回分のchecksum、期待値、許容誤差、判定結果を `validation` へまとめた。各反復でも期待値との一致を確認する
+* 成功時は `error: null`、Python・JavaScriptで安全に結果化できる失敗時は `status: "error"` と `error.type` / `error.message` を出力する
+* Cの取得不能なOSバージョンなどは `unknown` や0ではなく `null` とした
+* 結果ファイル名は既存の `jit_object_numeric_sum_<language>_result.json` を維持した
+
+### IDと共通ランナー
+
+* `benchmarks/jit_object_numeric_sum/run_all.ps1` を追加し、1つの `experiment_id` をPython、JavaScript、Cへ渡すようにした
+* C単独ランナーも `ExperimentId` と `RunId` を受け取れるようにした
+* ユーザーの既存未追跡 `main.exe` を上書きしないよう、Cランナーは一時EXEを生成して実行後に削除する
+
+### 後方互換
+
+* `tools/validate_result_json.py` に正式JSONの検証と旧結果の正規化処理を追加した
+* `samples` → `samples_ms`、`min` / `max` / `mean` / `median` → `_ms`付きキー、`iterations` / `repeat_count` → `measurement_iterations`、`array_size` / `object_count` / `data_size` → `item_count`、`total_ms` → `benchmark_total_ms`、旧ルートまたは反復内 `checksum` → `validation.checksum`、`experiment` → `benchmark` の読替に対応した
+* 新しく生成するJSONには旧キーを出力しない
+
+### 変更したファイル
+
+* `benchmarks/jit_object_numeric_sum/python/main.py`
+* `benchmarks/jit_object_numeric_sum/javascript/main.js`
+* `benchmarks/jit_object_numeric_sum/c/main.c`
+* `benchmarks/jit_object_numeric_sum/c/run_c.ps1`
+* `benchmarks/jit_object_numeric_sum/run_all.ps1`
+* `tools/validate_result_json.py`
+* `tests/test_result_schema.py`
+* `results/jit_object_numeric_sum_python_result.json`
+* `results/jit_object_numeric_sum_javascript_result.json`
+* `results/jit_object_numeric_sum_c_result.json`
+* `README.md`
+* `LOG.md`
+
+### 実行したテストと結果
+
+* `python benchmarks/jit_object_numeric_sum/python/main.py --experiment-id=... --run-id=...`: 成功
+* `node benchmarks/jit_object_numeric_sum/javascript/main.js --experiment-id=... --run-id=...`: 成功
+* `gcc benchmarks/jit_object_numeric_sum/c/main.c -O2 -std=c11 -Wall -Wextra -o <一時EXE>`: 警告なしで成功
+* 一時EXEへ共通 `experiment_id` / C用 `run_id` を渡した実行: 成功
+* `powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/jit_object_numeric_sum/run_all.ps1 -ExperimentId 20260801_130000_jit_object_numeric_sum`: 3言語と検証が成功
+* `python -B tools/validate_result_json.py` に3結果JSONを指定: `validated=3`
+* `python -B -m unittest discover -s tests -v`: 3件成功
+* `node --check benchmarks/jit_object_numeric_sum/javascript/main.js`: 成功
+* `git diff --check`: 成功
+* 全言語で `samples_ms` 50件、`measurement_ms` とサンプル合計、`benchmark_total_ms` と3区間合計、checksum `500000500000`、`validation.passed: true`、成功時 `error: null` を確認した
+* 指定された既存未追跡ファイル群はテスト前後のSHA-256集約値が一致し、内容が変更されていないことを確認した
+
+### 未確認事項・残課題
+
+* C版は結果ファイルを開く前に発生する初期化・メモリ確保・タイマー取得エラーでは、安全なエラーJSONを保存できないため標準エラー出力のみとなる
+* `process_startup_ms` は対象プログラム内から正確に取得できないため、3言語とも `null` とした
+* CのOSバージョンは信頼できるAPIで取得していないため推測せず `null` とした
+* Memo Nexusへの実取り込みは接続先がこのリポジトリにないため未確認

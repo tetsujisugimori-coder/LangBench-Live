@@ -72,73 +72,94 @@ python tools/create_sample_csv.py
 
 ## 出力されるJSON
 
-Python版は `results/python_result.json`、JavaScript版は `results/javascript_result.json`、C版は `results/c_result.json` に保存されます。
-C版は `fprintf` でJSONを手書きし、既存形式に合わせた `samples` と、各測定をフラットに並べた `results` を出力します。
+`jit_object_numeric_sum` の結果は、既存のファイル命名規則に従って次へ保存されます。
+
+* Python: `results/jit_object_numeric_sum_python_result.json`
+* JavaScript: `results/jit_object_numeric_sum_javascript_result.json`
+* C: `results/jit_object_numeric_sum_c_result.json`
+
+3言語を同じ実験条件で比較する場合は、共通ランナーを使用します。ランナーが1つの `experiment_id` を生成して各言語へ渡します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File benchmarks/jit_object_numeric_sum/run_all.ps1
+```
+
+単独実行時は各プログラムが `experiment_id` と `run_id` を生成します。外部から指定する場合は `--experiment-id=<ID>` および `--run-id=<ID>`（C版ランナーでは `-ExperimentId` および `-RunId`）を使用します。
+
+### 結果JSON正式仕様（schema 1.0）
+
+新しく生成する結果JSONのルート構造とキー順は次の形式に統一しています。
 
 ```json
 {
   "type": "langbench_result",
   "schema_version": "1.0",
   "project": "LangBench Live",
-  "experiment": "csv_line_count",
-  "experiment_label": "CSV行数カウント",
+  "benchmark": "jit_object_numeric_sum",
+  "experiment_id": "20260712_073000_jit_object_numeric_sum",
+  "run_id": "20260712_073018_python_jit_object_numeric_sum",
   "language": "python",
-  "created_at": "2026-07-03T00:00:00+09:00",
+  "created_at": "2026-07-12T07:30:18+09:00",
   "status": "success",
+  "engine": {
+    "runtime": "python",
+    "runtime_version": "3.x.x",
+    "compiler": null,
+    "compiler_version": null,
+    "python_implementation": "CPython"
+  },
   "execution": {
     "runner": "vscode_terminal_powershell",
     "runner_label": "VSCode Terminal / PowerShell",
     "cwd": "C:/Users/...",
-    "argv": ["python", "benchmarks/line_count/python/main.py"],
-    "command": "python benchmarks/line_count/python/main.py",
-    "script_path": "C:/Users/.../benchmarks/line_count/python/main.py"
-  },
-  "runtime": {
-    "name": "python",
-    "version": "3.x.x"
+    "argv": ["python", "benchmarks/jit_object_numeric_sum/python/main.py"]
   },
   "environment": {
-    "os_name": "Windows",
-    "os_platform": "win32",
+    "os": "Windows",
     "os_version": "10.0.x",
-    "cpu_model": "Intel(R) Core(TM) ...",
-    "cpu_threads": 20,
-    "memory_total_bytes": null
+    "architecture": "AMD64",
+    "cpu": null,
+    "logical_processors": 20,
+    "memory_bytes": null
   },
-  "samples": [
-    {
-      "name": "small",
-      "input": "data/readingTest_small.csv",
-      "input_file": "data/readingTest_small.csv",
-      "input_file_size_bytes": 12345,
-      "line_count": 1001,
-      "average_ms": 1.234,
-      "median_ms": 1.234,
-      "expected": {
-        "data_rows": 1000
-      },
-      "runs": [
-        {
-          "run": 1,
-          "elapsed_ms": 1.234,
-          "metrics": {
-            "line_count": 1001
-          }
-        }
-      ],
-      "summary": {
-        "count": 3,
-        "average_ms": 1.234,
-        "median_ms": 1.234,
-        "fastest_ms": 1.000,
-        "slowest_ms": 1.500
-      }
-    }
-  ]
+  "config": {
+    "item_count": 1000000,
+    "warmup_iterations": 5,
+    "measurement_iterations": 3,
+    "numeric_type": "integer",
+    "value_field": "value"
+  },
+  "timing": {
+    "process_startup_ms": null,
+    "setup_ms": 120.125,
+    "warmup_ms": 48.5,
+    "measurement_ms": 28.49,
+    "benchmark_total_ms": 197.115
+  },
+  "results": {
+    "samples_ms": [9.5, 9.48, 9.51],
+    "min_ms": 9.48,
+    "max_ms": 9.51,
+    "mean_ms": 9.497,
+    "median_ms": 9.5
+  },
+  "validation": {
+    "checksum": 500000500000,
+    "expected_checksum": 500000500000,
+    "tolerance": 0,
+    "passed": true
+  },
+  "error": null
 }
 ```
 
-エラーが発生した場合は、`status` が `"error"` になり、可能であれば `message` にエラー内容が保存されます。
+`benchmark` は処理名であり、同じ処理を行う3言語で同じ値です。旧 `experiment` キーは廃止しました。`experiment_id` は同じ条件で比較するC・Python・JavaScriptの共通グループID、`run_id` は言語ごとの1回のプログラム起動を表すIDです。プログラム内部の50回の本測定は50 runではなく、1 run内の `results.samples_ms` へ格納されます。
+
+`timing.setup_ms` はデータ生成、`warmup_ms` はウォームアップ全体、`measurement_ms` は本測定全体を表します。`benchmark_total_ms` はこの3値の合計で、プロセス起動、環境情報取得、JSON生成、ログ出力、ファイル保存は含みません。正確に測れない `process_startup_ms` は `null` です。
+
+`validation.checksum` は全反復の合計ではなく1回分の計算結果です。各反復が同じ値になることを実行中に確認し、期待値との一致を `passed` に保存します。取得不能値は空文字や `unknown` ではなく `null` とします。成功時の `error` も `null` です。
+
+言語間の比較結果、ランキング、Python比などの派生値は個別の結果JSONへ含めません。Memo Nexusなどの読込側で複数JSONから算出します。`tools/validate_result_json.py` は正式形式を検証し、補助関数 `normalize_legacy_result` では旧 `samples`、`min`、`max`、`mean`、`median`、`iterations`、`array_size`、`object_count`、`total_ms`、ルート直下の `checksum`、`experiment` を読み替えられます。
 
 ## 今後の予定
 
