@@ -8,7 +8,7 @@ from typing import Any
 ROOT_KEYS = [
     "type", "schema_version", "project", "benchmark", "experiment_id", "run_id",
     "language", "created_at", "status", "engine", "execution", "environment",
-    "config", "timing", "results", "validation", "error",
+    "build", "config", "timing", "results", "validation", "error",
 ]
 LANGUAGES = {"c", "python", "javascript"}
 EXPERIMENT_ID_PATTERN = re.compile(r"^\d{8}_\d{6}_jit_object_numeric_sum$")
@@ -21,6 +21,10 @@ def first(mapping: dict[str, Any], *names: str) -> Any:
         if name in mapping:
             return mapping[name]
     return None
+
+
+def is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 def normalize_legacy_result(document: dict[str, Any]) -> dict[str, Any]:
@@ -80,41 +84,87 @@ def validate(document: dict[str, Any], path: Path) -> list[str]:
     if document.get("status") not in {"success", "error"}:
         errors.append(f"{path}: invalid status")
 
+    language = document.get("language")
+    build = document.get("build")
+    if language in {"python", "javascript"}:
+        if build is not None:
+            errors.append(f"{path}: {language} build must be null")
+    elif language == "c":
+        if not isinstance(build, dict):
+            errors.append(f"{path}: C build must be an object")
+        else:
+            if build.get("required") is not True:
+                errors.append(f"{path}: C build.required must be true")
+            for name in ("compiler", "compiler_version", "compile_command", "source_path"):
+                if not isinstance(build.get(name), str) or not build[name].strip():
+                    errors.append(f"{path}: C build.{name} must be a non-empty string")
+            compile_ms = build.get("compile_ms")
+            if not is_number(compile_ms) or compile_ms < 0:
+                errors.append(f"{path}: C build.compile_ms must be a non-negative number")
+
     config = document.get("config") or {}
     timing = document.get("timing") or {}
     results = document.get("results") or {}
     validation = document.get("validation") or {}
-    samples = results.get("samples_ms") or []
+    raw_samples = results.get("samples_ms")
+    samples = raw_samples if isinstance(raw_samples, list) else []
     iterations = config.get("measurement_iterations")
-    if len(samples) != iterations:
-        errors.append(f"{path}: samples_ms length does not match measurement_iterations")
-    if samples and not math.isclose(timing.get("measurement_ms"), sum(samples), abs_tol=0.01):
-        errors.append(f"{path}: measurement_ms does not match samples_ms sum")
-    if samples:
-        expected_statistics = {
-            "min_ms": min(samples),
-            "max_ms": max(samples),
-            "mean_ms": sum(samples) / len(samples),
-            "median_ms": (
-                sorted(samples)[len(samples) // 2]
-                if len(samples) % 2 else
-                sum(sorted(samples)[len(samples) // 2 - 1:len(samples) // 2 + 1]) / 2
-            ),
-        }
-        for name, expected in expected_statistics.items():
-            if not math.isclose(results.get(name), expected, abs_tol=0.001):
-                errors.append(f"{path}: results.{name} is inconsistent")
-    timing_parts = [timing.get(name) for name in ("setup_ms", "warmup_ms", "measurement_ms")]
-    if all(isinstance(value, (int, float)) for value in timing_parts):
-        if not math.isclose(timing.get("benchmark_total_ms"), sum(timing_parts), abs_tol=0.01):
-            errors.append(f"{path}: benchmark_total_ms does not match timing components")
     if document.get("status") == "success":
+        if not isinstance(raw_samples, list):
+            errors.append(f"{path}: successful result samples_ms must be an array")
+        if len(samples) != iterations:
+            errors.append(f"{path}: samples_ms length does not match measurement_iterations")
+        if not samples:
+            errors.append(f"{path}: successful result samples_ms must not be empty")
+        if samples:
+            measurement_ms = timing.get("measurement_ms")
+            if not is_number(measurement_ms) or not math.isclose(measurement_ms, sum(samples), abs_tol=0.01):
+                errors.append(f"{path}: measurement_ms does not match samples_ms sum")
+            expected_statistics = {
+                "min_ms": min(samples),
+                "max_ms": max(samples),
+                "mean_ms": sum(samples) / len(samples),
+                "median_ms": (
+                    sorted(samples)[len(samples) // 2]
+                    if len(samples) % 2 else
+                    sum(sorted(samples)[len(samples) // 2 - 1:len(samples) // 2 + 1]) / 2
+                ),
+            }
+            for name, expected in expected_statistics.items():
+                value = results.get(name)
+                if not is_number(value) or not math.isclose(value, expected, abs_tol=0.001):
+                    errors.append(f"{path}: results.{name} is inconsistent")
+        timing_parts = [timing.get(name) for name in ("setup_ms", "warmup_ms", "measurement_ms")]
+        benchmark_total_ms = timing.get("benchmark_total_ms")
+        if not all(is_number(value) for value in timing_parts) or not is_number(benchmark_total_ms):
+            errors.append(f"{path}: successful result timing values must be numbers")
+        else:
+            if not math.isclose(benchmark_total_ms, sum(timing_parts), abs_tol=0.01):
+                errors.append(f"{path}: benchmark_total_ms does not match timing components")
         if document.get("error") is not None:
             errors.append(f"{path}: successful result must have error: null")
         if validation.get("passed") is not True:
             errors.append(f"{path}: validation.passed is not true")
         if validation.get("checksum") != validation.get("expected_checksum"):
             errors.append(f"{path}: checksum mismatch")
+    elif document.get("status") == "error":
+        if raw_samples != []:
+            errors.append(f"{path}: error result must have an empty samples_ms array")
+        for name in ("min_ms", "max_ms", "mean_ms", "median_ms"):
+            if name not in results or results[name] is not None:
+                errors.append(f"{path}: error result results.{name} must be null")
+        for name in ("process_startup_ms", "setup_ms", "warmup_ms", "measurement_ms", "benchmark_total_ms"):
+            if name not in timing or timing[name] is not None:
+                errors.append(f"{path}: error result timing.{name} must be null")
+        if validation.get("passed") is not False:
+            errors.append(f"{path}: error result validation.passed must be false")
+        error = document.get("error")
+        if not isinstance(error, dict):
+            errors.append(f"{path}: error result must contain an error object")
+        else:
+            for name in ("type", "message"):
+                if not isinstance(error.get(name), str) or not error[name].strip():
+                    errors.append(f"{path}: error.{name} must be a non-empty string")
     return errors
 
 
@@ -130,7 +180,8 @@ def main() -> int:
         documents.append(document)
         all_errors.extend(validate(document, path))
     if documents:
-        root_types = [{key: type(doc.get(key)).__name__ for key in ROOT_KEYS} for doc in documents]
+        common_keys = [key for key in ROOT_KEYS if key != "build"]
+        root_types = [{key: type(doc.get(key)).__name__ for key in common_keys} for doc in documents]
         if any(types != root_types[0] for types in root_types[1:]):
             all_errors.append("root key types differ between languages")
         experiment_ids = {doc.get("experiment_id") for doc in documents}

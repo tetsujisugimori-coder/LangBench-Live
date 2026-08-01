@@ -140,6 +140,7 @@ function buildMetadata(projectRoot, status, experimentId, runId) {
       logical_processors: cpus.length > 0 ? cpus.length : null,
       memory_bytes: os.totalmem() || null,
     },
+    build: null,
   };
 }
 

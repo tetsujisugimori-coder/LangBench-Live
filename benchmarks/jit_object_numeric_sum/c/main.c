@@ -236,8 +236,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "status=error\nmessage=expected compile_ms, compiler version, compile command, and source path\n");
         return 1;
     }
-    (void)compile_ms;
-
     get_experiment_and_run_id(argc, argv, experiment_id, sizeof(experiment_id), run_id, sizeof(run_id));
 
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) {
@@ -328,7 +326,7 @@ int main(int argc, char *argv[]) {
     fprintf(output, "  \"language\": \"%s\",\n", LANGUAGE);
     fprintf(output, "  \"created_at\": "); write_json_string(output, created_at); fprintf(output, ",\n");
     fprintf(output, "  \"status\": \"success\",\n");
-    fprintf(output, "  \"engine\": {\n    \"runtime\": \"native\",\n    \"runtime_version\": null,\n    \"compiler\": \"gcc\",\n    \"compiler_version\": "); write_json_string(output, argv[2]); fprintf(output, "\n  },\n");
+    fprintf(output, "  \"engine\": {\n    \"runtime\": \"native\",\n    \"runtime_version\": null\n  },\n");
     fprintf(output, "  \"execution\": {\n    \"runner\": \"%s\",\n    \"runner_label\": \"%s\",\n    \"cwd\": ", RUNNER, RUNNER_LABEL); write_json_string(output, cwd); fprintf(output, ",\n");
     fprintf(output, "    \"argv\": [\n");
     for (iteration = 0; iteration < argc; iteration++) {
@@ -344,6 +342,10 @@ int main(int argc, char *argv[]) {
     if (cpu_name[0] == '\0') fputs("null", output); else write_json_string(output, cpu_name);
     fprintf(output, ",\n    \"logical_processors\": %lu,\n    \"memory_bytes\": ", system_info.dwNumberOfProcessors);
     if (memory.ullTotalPhys == 0) fputs("null", output); else fprintf(output, "%" PRIu64, (uint64_t)memory.ullTotalPhys);
+    fprintf(output, "\n  },\n");
+    fprintf(output, "  \"build\": {\n    \"required\": true,\n    \"compiler\": \"gcc\",\n    \"compiler_version\": "); write_json_string(output, argv[2]);
+    fprintf(output, ",\n    \"compile_command\": "); write_json_string(output, argv[3]);
+    fprintf(output, ",\n    \"compile_ms\": %.3f,\n    \"source_path\": ", compile_ms); write_json_string(output, argv[4]);
     fprintf(output, "\n  },\n");
     fprintf(output, "  \"config\": {\n    \"item_count\": %d,\n    \"warmup_iterations\": %d,\n    \"measurement_iterations\": %d,\n    \"numeric_type\": \"integer\",\n    \"value_field\": \"value\"\n  },\n", ARRAY_SIZE, WARMUP_ITERATIONS, ITERATIONS);
     fprintf(output, "  \"timing\": {\n    \"process_startup_ms\": null,\n    \"setup_ms\": %.3f,\n    \"warmup_ms\": %.3f,\n    \"measurement_ms\": %.3f,\n    \"benchmark_total_ms\": %.3f\n  },\n", setup_ms, warmup_ms, measurement_ms, benchmark_total_ms);

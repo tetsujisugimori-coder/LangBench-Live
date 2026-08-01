@@ -126,6 +126,7 @@ def build_metadata(project_root: Path, status: str, experiment_id: str, run_id: 
             "logical_processors": os.cpu_count(),
             "memory_bytes": None,
         },
+        "build": None,
     }
 
 

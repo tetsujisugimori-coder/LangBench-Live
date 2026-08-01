@@ -631,3 +631,67 @@
 * `process_startup_ms` は対象プログラム内から正確に取得できないため、3言語とも `null` とした
 * CのOSバージョンは信頼できるAPIで取得していないため推測せず `null` とした
 * Memo Nexusへの実取り込みは接続先がこのリポジトリにないため未確認
+
+## 2026-08-01 PR #3 レビュー指摘対応
+
+### レビューで発見された問題
+
+* 正式なエラーJSONは `config.measurement_iterations: 50` と `results.samples_ms: []` を出力するが、検証器がstatusを区別せず件数一致を要求していたため必ず不合格になっていた
+* `run_id` は秒単位のため、同じ言語・ベンチマークを同一秒内に複数回起動すると重複し得る性質が明文化されていなかった
+* Cランナーから渡すコンパイル時間、コンパイラバージョン、コンパイルコマンド、ソースパスをC実装が正式JSONへ保持していなかった
+
+### エラーJSON検証
+
+* `status: "success"` では、サンプル件数、`measurement_ms`、min/max/mean/median、`benchmark_total_ms`、checksum、`validation.passed: true`、`error: null` を検証する
+* `status: "error"` では反復数とサンプル件数の一致を要求せず、空の `samples_ms`、nullの統計・timing、`validation.passed: false`、空でない `error.type` / `error.message` を検証する
+* Python版とJavaScript版が生成する正式エラー構造を模した正常系テストを追加した
+* `error: null`、`validation.passed: true`、サンプル混入、空のerror type/messageを拒否する異常系テストを追加した
+
+### 任意のbuildセクション
+
+* 正式ルートキーの `environment` と `config` の間へ `build` を追加した
+* PythonとJavaScriptは `build: null` とする
+* Cは `required`, `compiler`, `compiler_version`, `compile_command`, `compile_ms`, `source_path` を持つオブジェクトを出力する
+* Cの `engine` は `runtime` と `runtime_version` のみに整理し、コンパイラ情報は `build` へ集約した
+* 検証器はCの各build値と非負の `compile_ms` を検証し、言語間ルート型比較では仕様上型が異なる `build` だけを除外する
+
+### run_id
+
+* 形式 `YYYYMMDD_HHMMSS_<language>_<benchmark>` と生成処理は変更していない
+* 各起動を識別する秒単位の補助IDであり、同一秒内に重複し得るため単独のDB一意キーにしないことをREADMEへ追記した
+* 永続保存では `experiment_id`, `run_id`, `language`, `created_at`, 取込側IDなどを組み合わせる
+
+### 不要フォルダ
+
+* `font-comparison/` がGit未追跡であることを確認し、明示された削除許可に基づいて3ファイルを含むフォルダを削除した
+* `.gitignore` には追加していない
+
+### 変更ファイル
+
+* `README.md`
+* `LOG.md`
+* `benchmarks/jit_object_numeric_sum/python/main.py`
+* `benchmarks/jit_object_numeric_sum/javascript/main.js`
+* `benchmarks/jit_object_numeric_sum/c/main.c`
+* `tools/validate_result_json.py`
+* `tests/test_result_schema.py`
+* `results/jit_object_numeric_sum_python_result.json`
+* `results/jit_object_numeric_sum_javascript_result.json`
+* `results/jit_object_numeric_sum_c_result.json`
+
+### 実行したテストと結果
+
+* `python -B -m unittest discover -s tests -v`: 5件成功
+* `node --check benchmarks/jit_object_numeric_sum/javascript/main.js`: 成功
+* `gcc benchmarks/jit_object_numeric_sum/c/main.c -O2 -std=c11 -Wall -Wextra -o <一時EXE>`: 警告なしで成功
+* `powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/jit_object_numeric_sum/run_all.ps1`: 3言語実行成功
+* `python -B tools/validate_result_json.py` に3結果JSONを指定: `validated=3`
+* `git diff --check`: 成功
+* Python・JavaScriptの `build` がnull、Cのbuild情報が揃い `compile_ms` が0以上であることを確認した
+* 3言語の共通 `experiment_id`、正式形式の `run_id`、50サンプルとtiming・checksum整合性を確認した
+* 他の既存未追跡ファイルはテスト前後のSHA-256が一致し、変更されていないことを確認した
+
+### 残課題・未確認事項
+
+* `run_id` は仕様どおり単独では一意でないため、Memo Nexusなどの取込側で複合識別を実装する必要がある
+* Memo Nexusへの実取り込みは接続先がこのリポジトリにないため未確認
