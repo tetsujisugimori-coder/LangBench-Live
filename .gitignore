@@ -19,6 +19,9 @@ results/jit_function_c_result.json
 results/jit_object_numeric_sum_javascript_result.json
 results/jit_object_numeric_sum_python_result.json
 results/jit_object_numeric_sum_c_result.json
+results/function_call_numeric_sum_python_result.json
+results/function_call_numeric_sum_javascript_result.json
+results/function_call_numeric_sum_c_result.json
 
 # Compiled benchmark binaries
 benchmarks/line_count/c/main.exe
