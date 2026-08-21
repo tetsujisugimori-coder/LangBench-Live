@@ -72,6 +72,18 @@ python tools/create_sample_csv.py
 
 ## 出力されるJSON
 
+### function_call_numeric_sum
+
+`function_call_numeric_sum` は、1から1,000,000までの同じ整数配列を、ループ内で直接加算する `direct` と、ループごとに外部定義の加算関数を呼ぶ `function_call` で比較します。配列生成・確保、JSON生成、環境取得、出力は測定区間に含めません。各ケースは5回ウォームアップし50回測定します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File benchmarks/function_call_numeric_sum/run_all.ps1
+```
+
+C版は `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルします。加算関数はMSVCの`__declspec(noinline)`、GCC/Clangの`__attribute__((noinline))`でインライン化を抑制しますが、非対応コンパイラでの呼び出し保持は保証できません。JavaScriptではV8のJITがインライン化する場合があります。この実験は関数呼び出しを含む特定ループの比較であり、言語全体の性能を示すものではありません。
+
+結果は `results/function_call_numeric_sum_<language>_result.json` に保存します。`results.direct` と `results.function_call` はそれぞれのサンプルと統計値を持ち、`validation` は両ケースと期待値の合計（checksum）が一致したことを示します。
+
 `jit_object_numeric_sum` の結果は、既存のファイル命名規則に従って次へ保存されます。
 
 * Python: `results/jit_object_numeric_sum_python_result.json`

@@ -632,6 +632,14 @@
 * CのOSバージョンは信頼できるAPIで取得していないため推測せず `null` とした
 * Memo Nexusへの実取り込みは接続先がこのリポジトリにないため未確認
 
+## 2026-08-21 function_call_numeric_sum
+
+* C・Python・JavaScriptに `function_call_numeric_sum` を追加した。入力は1から1,000,000、期待合計は500000500000、各ケースはwarmup 5回・本測定50回である。
+* `direct` はループ内の直接加算、`function_call` はループ外の `add` 呼び出しによる加算で、配列生成はsetup、両ケースのwarmupとmeasurementを個別に計測する。
+* JSON正式仕様1.0をベンチマーク固有の2ケース結果へ拡張し、`results.direct`/`results.function_call`、両checksum、各統計値を検証器で検証する。
+* CはMSVC/GCC/Clangのnoinline属性で加算関数のインライン化を抑制する。V8のJIT最適化、CPythonの通常関数呼び出し、非対応Cコンパイラでは呼び出し保持を保証できない点が既知の制約である。
+* 変更: ベンチマーク実装・ランナー、JSON検証器、README、`.gitignore`。`run_all.ps1`、JSON検証、既存ユニットテスト、JavaScript構文検査を実行し成功した。
+
 ## 2026-08-01 PR #3 レビュー指摘対応
 
 ### レビューで発見された問題

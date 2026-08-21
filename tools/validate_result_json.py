@@ -11,8 +11,8 @@ ROOT_KEYS = [
     "build", "config", "timing", "results", "validation", "error",
 ]
 LANGUAGES = {"c", "python", "javascript"}
-EXPERIMENT_ID_PATTERN = re.compile(r"^\d{8}_\d{6}_jit_object_numeric_sum$")
-RUN_ID_PATTERN = re.compile(r"^\d{8}_\d{6}_(c|python|javascript)_jit_object_numeric_sum$")
+EXPERIMENT_ID_PATTERN = re.compile(r"^\d{8}_\d{6}_(jit_object_numeric_sum|function_call_numeric_sum)$")
+RUN_ID_PATTERN = re.compile(r"^\d{8}_\d{6}_(c|python|javascript)_(jit_object_numeric_sum|function_call_numeric_sum)$")
 TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 
 
@@ -70,7 +70,7 @@ def validate(document: dict[str, Any], path: Path) -> list[str]:
         errors.append(f"{path}: root keys/order do not match schema 1.0")
     if document.get("type") != "langbench_result" or document.get("schema_version") != "1.0":
         errors.append(f"{path}: invalid type or schema_version")
-    if document.get("benchmark") != "jit_object_numeric_sum" or "experiment" in document:
+    if document.get("benchmark") not in {"jit_object_numeric_sum", "function_call_numeric_sum"} or "experiment" in document:
         errors.append(f"{path}: invalid benchmark or deprecated experiment key")
     if document.get("language") not in LANGUAGES:
         errors.append(f"{path}: invalid language")
@@ -79,6 +79,8 @@ def validate(document: dict[str, Any], path: Path) -> list[str]:
     run_id_match = RUN_ID_PATTERN.fullmatch(document.get("run_id", ""))
     if not run_id_match or run_id_match.group(1) != document.get("language"):
         errors.append(f"{path}: invalid run_id")
+    if document.get("benchmark") == "function_call_numeric_sum":
+        return validate_function_call(document, path, errors)
     if not TIMESTAMP_PATTERN.fullmatch(document.get("created_at", "")):
         errors.append(f"{path}: created_at must include a timezone")
     if document.get("status") not in {"success", "error"}:
@@ -165,6 +167,26 @@ def validate(document: dict[str, Any], path: Path) -> list[str]:
             for name in ("type", "message"):
                 if not isinstance(error.get(name), str) or not error[name].strip():
                     errors.append(f"{path}: error.{name} must be a non-empty string")
+    return errors
+
+
+def validate_function_call(document: dict[str, Any], path: Path, errors: list[str]) -> list[str]:
+    config, timing, results, validation = (document.get("config") or {}, document.get("timing") or {}, document.get("results") or {}, document.get("validation") or {})
+    if config.get("cases") != ["direct", "function_call"]:
+        errors.append(f"{path}: function-call cases are invalid")
+    for case in ("direct", "function_call"):
+        values = results.get(case) or {}; samples = values.get("samples_ms")
+        if not isinstance(samples, list) or len(samples) != config.get("measurement_iterations") or not samples or not all(is_number(x) and math.isfinite(x) for x in samples):
+            errors.append(f"{path}: {case} samples are invalid")
+            continue
+        expected = {"min_ms": min(samples), "max_ms": max(samples), "mean_ms": sum(samples) / len(samples), "median_ms": (sorted(samples)[len(samples)//2-1] + sorted(samples)[len(samples)//2]) / 2}
+        for name, value in expected.items():
+            if not is_number(values.get(name)) or not math.isclose(values[name], value, abs_tol=0.001): errors.append(f"{path}: {case}.{name} is inconsistent")
+    timing_values = [timing.get(x) for x in ("setup_ms", "warmup_ms", "measurement_ms", "benchmark_total_ms")]
+    if not all(is_number(x) and math.isfinite(x) for x in timing_values) or not math.isclose(timing_values[3], sum(timing_values[:3]), abs_tol=0.01): errors.append(f"{path}: timing is invalid")
+    if not math.isclose(timing.get("measurement_ms", -1), sum(sum((results.get(c) or {}).get("samples_ms") or []) for c in ("direct", "function_call")), abs_tol=0.01): errors.append(f"{path}: measurement samples do not match")
+    if validation.get("direct_checksum") != validation.get("function_call_checksum") or validation.get("direct_checksum") != validation.get("expected_checksum") or validation.get("passed") is not True: errors.append(f"{path}: case checksum validation failed")
+    if document.get("status") != "success" or document.get("error") is not None: errors.append(f"{path}: function-call result must be successful")
     return errors
 
 
