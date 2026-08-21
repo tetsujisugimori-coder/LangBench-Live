@@ -163,5 +163,16 @@ int main(int argc, char *argv[]) {
     fprintf(out, "},\n  \"config\": {\"item_count\": %d, \"warmup_iterations\": %d, \"measurement_iterations\": %d, \"numeric_type\": \"integer\", \"value_field\": \"value\", \"cases\": [\"direct\", \"function_call\"]},\n  \"timing\": {\"process_startup_ms\": null, \"setup_ms\": %.3f, \"warmup_ms\": %.3f, \"measurement_ms\": %.3f, \"benchmark_total_ms\": %.3f},\n  \"results\": {\"direct\": ", ITEM_COUNT, WARMUP_ITERATIONS, MEASUREMENT_ITERATIONS, setup_ms, round_ms(direct_warmup + call_warmup), measurement_ms, round_ms(setup_ms + direct_warmup + call_warmup + measurement_ms));
     write_case(out, direct_samples); fprintf(out, ", \"function_call\": "); write_case(out, call_samples);
     fprintf(out, "},\n  \"validation\": {\"direct_checksum\": %" PRId64 ", \"function_call_checksum\": %" PRId64 ", \"expected_checksum\": %" PRId64 ", \"tolerance\": 0, \"passed\": true},\n  \"error\": null\n}\n", direct_checksum, call_checksum, EXPECTED_CHECKSUM);
-    fclose(out); free(values); puts("status=success"); return 0;
+    int write_failed = ferror(out);
+    if (fclose(out) != 0) {
+        write_failed = 1;
+    }
+    if (write_failed) {
+        free(values);
+        fprintf(stderr, "status=error\nmessage=failed to finish writing result JSON\n");
+        return 1;
+    }
+    free(values);
+    puts("status=success");
+    return 0;
 }

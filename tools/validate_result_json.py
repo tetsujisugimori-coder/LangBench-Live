@@ -15,12 +15,69 @@ TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(
 def is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
+def first(mapping: Any, *names: str) -> Any:
+    """Return the first present key without treating valid zero values as absent."""
+    if not isinstance(mapping, dict):
+        return None
+    for name in names:
+        if name in mapping:
+            return mapping[name]
+    return None
+
 def normalize_legacy_result(document: dict[str, Any]) -> dict[str, Any]:
     """Keep the public legacy comparison helper used by existing consumers."""
-    config, timing, results = document.get("config") or {}, document.get("timing") or {}, document.get("results")
-    samples = results.get("samples_ms", []) if isinstance(results, dict) else [item.get("elapsed_ms") for item in results or [] if isinstance(item, dict)]
-    validation = document.get("validation") or {}
-    return {"benchmark": document.get("benchmark") or document.get("experiment"), "item_count": config.get("item_count") or document.get("array_size"), "measurement_iterations": config.get("measurement_iterations") or document.get("iterations"), "samples_ms": samples, "measurement_ms": timing.get("measurement_ms") or round(sum(samples), 3), "benchmark_total_ms": timing.get("benchmark_total_ms") or timing.get("total_ms"), "checksum": validation.get("checksum") or (results[-1].get("checksum") if isinstance(results, list) else None), "expected_checksum": validation.get("expected_checksum") or document.get("expected_checksum")}
+    if not isinstance(document, dict):
+        document = {}
+    config = document.get("config")
+    timing = document.get("timing")
+    raw_results = document.get("results")
+    validation = document.get("validation")
+
+    if isinstance(raw_results, dict):
+        samples = first(raw_results, "samples_ms", "samples")
+    elif isinstance(raw_results, list):
+        samples = [item.get("elapsed_ms") for item in raw_results if isinstance(item, dict)]
+    else:
+        samples = first(document, "samples_ms", "samples")
+    if samples is None:
+        samples = []
+
+    legacy_checksums = [
+        item.get("checksum")
+        for item in raw_results
+        if isinstance(item, dict) and item.get("checksum") is not None
+    ] if isinstance(raw_results, list) else []
+    measurement_ms = first(timing, "measurement_ms")
+    if measurement_ms is None and samples:
+        try:
+            measurement_ms = round(sum(samples), 3)
+        except TypeError:
+            measurement_ms = None
+
+    return {
+        "benchmark": first(document, "benchmark", "experiment"),
+        "item_count": first(config, "item_count", "array_size", "object_count", "data_size")
+        if first(config, "item_count", "array_size", "object_count", "data_size") is not None
+        else first(document, "item_count", "array_size", "object_count", "data_size"),
+        "measurement_iterations": first(config, "measurement_iterations", "iterations", "repeat_count")
+        if first(config, "measurement_iterations", "iterations", "repeat_count") is not None
+        else first(document, "measurement_iterations", "iterations", "repeat_count"),
+        "samples_ms": samples,
+        "min_ms": first(raw_results, "min_ms", "min"),
+        "max_ms": first(raw_results, "max_ms", "max"),
+        "mean_ms": first(raw_results, "mean_ms", "mean"),
+        "median_ms": first(raw_results, "median_ms", "median"),
+        "measurement_ms": measurement_ms,
+        "benchmark_total_ms": first(timing, "benchmark_total_ms", "total_ms")
+        if first(timing, "benchmark_total_ms", "total_ms") is not None
+        else first(document, "benchmark_total_ms", "total_ms"),
+        "checksum": first(validation, "checksum")
+        if first(validation, "checksum") is not None
+        else (legacy_checksums[-1] if legacy_checksums else first(document, "checksum")),
+        "expected_checksum": first(validation, "expected_checksum")
+        if first(validation, "expected_checksum") is not None
+        else first(document, "expected_checksum"),
+    }
 
 def validate_build(document: dict[str, Any], errors: list[str], path: Path) -> None:
     language, build = document.get("language"), document.get("build")
@@ -56,11 +113,26 @@ def validate_common(document: Any, path: Path) -> list[str]:
         if not isinstance(error, dict) or not all(isinstance(error.get(name), str) and error[name].strip() for name in ("type", "message")):
             errors.append(f"{path}: error result requires type and message")
         results, timing, validation = document.get("results"), document.get("timing"), document.get("validation")
-        if not isinstance(results, dict) or results.get("samples_ms") != []:
+        required_statistics = ("samples_ms", "min_ms", "max_ms", "mean_ms", "median_ms")
+        if (
+            not isinstance(results, dict)
+            or any(name not in results for name in required_statistics)
+            or results.get("samples_ms") != []
+            or any(results.get(name) is not None for name in required_statistics[1:])
+        ):
             errors.append(f"{path}: error result samples must be empty")
-        if not isinstance(timing, dict) or any(timing.get(name) is not None for name in ("process_startup_ms", "setup_ms", "warmup_ms", "measurement_ms", "benchmark_total_ms")):
+        timing_names = ("process_startup_ms", "setup_ms", "warmup_ms", "measurement_ms", "benchmark_total_ms")
+        if (
+            not isinstance(timing, dict)
+            or any(name not in timing for name in timing_names)
+            or any(timing.get(name) is not None for name in timing_names)
+        ):
             errors.append(f"{path}: error result timing must be null")
-        if not isinstance(validation, dict) or validation.get("passed") is not False:
+        if (
+            not isinstance(validation, dict)
+            or any(name not in validation for name in ("checksum", "expected_checksum", "tolerance", "passed"))
+            or validation.get("passed") is not False
+        ):
             errors.append(f"{path}: error result validation must fail")
     validate_build(document, errors, path)
     return errors

@@ -1,9 +1,12 @@
 import copy
 import json
 import re
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
+from tools import validate_result_json
 from tools.validate_result_json import ROOT_KEYS, normalize_legacy_result, validate
 
 
@@ -155,6 +158,26 @@ class ResultSchemaTests(unittest.TestCase):
                 mutate(document)
                 self.assertTrue(validate(document, Path("invalid-error.json")))
 
+    def test_error_result_requires_all_null_statistics_and_timing_fields(self) -> None:
+        cases = {
+            "samples missing": lambda doc: doc["results"].pop("samples_ms"),
+            "min numeric": lambda doc: doc["results"].update(min_ms=0.0),
+            "min missing": lambda doc: doc["results"].pop("min_ms"),
+            "max numeric": lambda doc: doc["results"].update(max_ms=0.0),
+            "mean numeric": lambda doc: doc["results"].update(mean_ms=0.0),
+            "median numeric": lambda doc: doc["results"].update(median_ms=0.0),
+            "timing numeric": lambda doc: doc["timing"].update(setup_ms=0.0),
+            "timing missing": lambda doc: doc["timing"].pop("setup_ms"),
+            "passed missing": lambda doc: doc["validation"].pop("passed"),
+            "error type missing": lambda doc: doc["error"].pop("type"),
+            "error message missing": lambda doc: doc["error"].pop("message"),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name):
+                document = copy.deepcopy(build_error_document())
+                mutate(document)
+                self.assertTrue(validate(document, Path("invalid-error.json")))
+
     def test_legacy_object_result_is_normalized(self) -> None:
         legacy = {
             "experiment": "jit_object_numeric_sum",
@@ -177,6 +200,67 @@ class ResultSchemaTests(unittest.TestCase):
         self.assertEqual(1.75, normalized["benchmark_total_ms"])
         self.assertEqual(6, normalized["checksum"])
         self.assertEqual(6, normalized["expected_checksum"])
+
+    def test_legacy_normalization_variants_and_zero_values(self) -> None:
+        cases = {
+            "dict samples": (
+                {"benchmark": "b", "config": {"item_count": 0, "measurement_iterations": 0}, "results": {"samples": [0.0], "min": 0.0, "max": 0.0, "mean": 0.0, "median": 0.0}, "timing": {"total_ms": 0.0}, "validation": {"checksum": 0, "expected_checksum": 0}},
+                {"item_count": 0, "measurement_iterations": 0, "samples_ms": [0.0], "measurement_ms": 0.0, "benchmark_total_ms": 0.0, "checksum": 0},
+            ),
+            "root samples": (
+                {"experiment": "b", "object_count": 3, "repeat_count": 2, "samples_ms": [1.0], "total_ms": 1.0, "checksum": 1},
+                {"item_count": 3, "measurement_iterations": 2, "samples_ms": [1.0], "benchmark_total_ms": 1.0, "checksum": 1},
+            ),
+            "data size": (
+                {"data_size": 4, "iterations": 1, "samples": [2.0], "benchmark_total_ms": 2.0},
+                {"item_count": 4, "measurement_iterations": 1, "samples_ms": [2.0], "benchmark_total_ms": 2.0},
+            ),
+            "empty list": ({"results": []}, {"samples_ms": [], "checksum": None, "measurement_ms": None}),
+            "invalid": ({}, {"samples_ms": [], "item_count": None, "measurement_iterations": None}),
+        }
+        for name, (document, expected) in cases.items():
+            with self.subTest(name=name):
+                normalized = normalize_legacy_result(document)
+                for key, value in expected.items():
+                    self.assertEqual(value, normalized[key])
+
+    def test_cli_rejects_inconsistent_and_unreadable_documents(self) -> None:
+        base_documents = [json.loads(path.read_text(encoding="utf-8")) for path in RESULT_PATHS]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = []
+            for index, document in enumerate(base_documents):
+                path = root / f"{index}.json"
+                path.write_text(json.dumps(document), encoding="utf-8")
+                paths.append(path)
+
+            def invoke(selected: list[Path]) -> int:
+                old_argv = sys.argv
+                try:
+                    sys.argv = ["validate_result_json.py", *(str(path) for path in selected)]
+                    return validate_result_json.main()
+                finally:
+                    sys.argv = old_argv
+
+            self.assertEqual(0, invoke(paths))
+            mismatch = copy.deepcopy(base_documents[1])
+            mismatch["experiment_id"] = "20260802_130000_jit_object_numeric_sum"
+            paths[1].write_text(json.dumps(mismatch), encoding="utf-8")
+            self.assertEqual(1, invoke(paths))
+            mismatch = copy.deepcopy(base_documents[1])
+            mismatch["benchmark"] = "function_call_numeric_sum"
+            paths[1].write_text(json.dumps(mismatch), encoding="utf-8")
+            self.assertEqual(1, invoke(paths))
+            duplicate = copy.deepcopy(base_documents[1])
+            duplicate["language"] = "python"
+            duplicate["run_id"] = "20260801_130001_python_jit_object_numeric_sum"
+            paths[1].write_text(json.dumps(duplicate), encoding="utf-8")
+            self.assertEqual(1, invoke(paths))
+            paths[1].write_text("{", encoding="utf-8")
+            self.assertEqual(1, invoke(paths))
+            paths[1].write_text("[]", encoding="utf-8")
+            self.assertEqual(1, invoke(paths))
+            self.assertEqual(1, invoke([root / "missing.json"]))
 
 
 if __name__ == "__main__":
