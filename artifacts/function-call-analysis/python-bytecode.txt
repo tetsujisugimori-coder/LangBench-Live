@@ -1,0 +1,860 @@
+0:0-1:0               0       RESUME                   0
+
+1:0-1:11              2       LOAD_SMALL_INT           0
+1:0-1:11              4       LOAD_CONST               1 (None)
+1:0-1:11              6       IMPORT_NAME              0 (json)
+1:0-1:11              8       STORE_NAME               0 (json)
+
+2:0-2:9              10       LOAD_SMALL_INT           0
+2:0-2:9              12       LOAD_CONST               1 (None)
+2:0-2:9              14       IMPORT_NAME              1 (os)
+2:0-2:9              16       STORE_NAME               1 (os)
+
+3:0-3:15             18       LOAD_SMALL_INT           0
+3:0-3:15             20       LOAD_CONST               1 (None)
+3:0-3:15             22       IMPORT_NAME              2 (platform)
+3:0-3:15             24       STORE_NAME               2 (platform)
+
+4:0-4:10             26       LOAD_SMALL_INT           0
+4:0-4:10             28       LOAD_CONST               1 (None)
+4:0-4:10             30       IMPORT_NAME              3 (sys)
+4:0-4:10             32       STORE_NAME               3 (sys)
+
+5:0-5:11             34       LOAD_SMALL_INT           0
+5:0-5:11             36       LOAD_CONST               1 (None)
+5:0-5:11             38       IMPORT_NAME              4 (time)
+5:0-5:11             40       STORE_NAME               4 (time)
+
+6:0-6:29             42       LOAD_SMALL_INT           0
+6:0-6:29             44       LOAD_CONST               2 (('datetime',))
+6:0-6:29             46       IMPORT_NAME              5 (datetime)
+6:0-6:29             48       IMPORT_FROM              5 (datetime)
+6:0-6:29             50       STORE_NAME               5 (datetime)
+6:0-6:29             52       POP_TOP
+
+7:0-7:24             54       LOAD_SMALL_INT           0
+7:0-7:24             56       LOAD_CONST               3 (('Path',))
+7:0-7:24             58       IMPORT_NAME              6 (pathlib)
+7:0-7:24             60       IMPORT_FROM              7 (Path)
+7:0-7:24             62       STORE_NAME               7 (Path)
+7:0-7:24             64       POP_TOP
+
+9:10-9:26            66       LOAD_CONST               4 ('LangBench Live')
+9:0-9:7              68       STORE_NAME               8 (PROJECT)
+
+10:17-10:22          70       LOAD_CONST               5 ('1.0')
+10:0-10:14           72       STORE_NAME               9 (SCHEMA_VERSION)
+
+11:11-11:19          74       LOAD_CONST               6 ('python')
+11:0-11:8            76       STORE_NAME              10 (LANGUAGE)
+
+12:12-12:39          78       LOAD_CONST               7 ('function_call_numeric_sum')
+12:0-12:9            80       STORE_NAME              11 (BENCHMARK)
+
+13:13-13:22          82       LOAD_CONST               8 (1000000)
+13:0-13:10           84       STORE_NAME              12 (ITEM_COUNT)
+
+14:20-14:21          86       LOAD_SMALL_INT           5
+14:0-14:17           88       STORE_NAME              13 (WARMUP_ITERATIONS)
+
+15:25-15:27          90       LOAD_SMALL_INT          50
+15:0-15:22           92       STORE_NAME              14 (MEASUREMENT_ITERATIONS)
+
+16:20-16:30          94       LOAD_NAME               12 (ITEM_COUNT)
+16:34-16:44          96       LOAD_NAME               12 (ITEM_COUNT)
+16:47-16:48          98       LOAD_SMALL_INT           1
+16:34-16:48         100       BINARY_OP                0 (+)
+16:20-16:49         112       BINARY_OP                5 (*)
+16:53-16:54         124       LOAD_SMALL_INT           2
+16:20-16:54         126       BINARY_OP                2 (//)
+16:0-16:17          138       STORE_NAME              15 (EXPECTED_CHECKSUM)
+
+17:14-17:60         140       LOAD_CONST               9 ('function_call_numeric_sum_python_result.json')
+17:0-17:11          142       STORE_NAME              16 (RESULT_FILE)
+
+19:0-19:62          144       LOAD_CONST              10 (<code object project_root at 0x000002BFDA32A500, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 19>)
+19:0-19:62          146       MAKE_FUNCTION
+19:0-19:62          148       STORE_NAME              17 (project_root)
+
+20:0-20:55          150       LOAD_CONST              11 (<code object now_ms at 0x000002BFDA259DF0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 20>)
+20:0-20:55          152       MAKE_FUNCTION
+20:0-20:55          154       STORE_NAME              18 (now_ms)
+
+21:0-21:42          156       LOAD_CONST              12 (<code object rounded at 0x000002BFDA1E56B0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 21>)
+21:0-21:42          158       MAKE_FUNCTION
+21:0-21:42          160       STORE_NAME              19 (rounded)
+
+22:0-22:104         162       LOAD_CONST              13 (<code object arg at 0x000002BFDA32A2A0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 22>)
+22:0-22:104         164       MAKE_FUNCTION
+22:0-22:104         166       STORE_NAME              20 (arg)
+
+23:0-23:73          168       LOAD_CONST              14 (<code object stamp at 0x000002BFDA3C17F0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 23>)
+23:0-23:73          170       MAKE_FUNCTION
+23:0-23:73          172       STORE_NAME              21 (stamp)
+
+24:0-24:118         174       LOAD_CONST              15 (<code object experiment_id at 0x000002BFDA374C90, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 24>)
+24:0-24:118         176       MAKE_FUNCTION
+24:0-24:118         178       STORE_NAME              22 (experiment_id)
+
+25:0-25:108         180       LOAD_CONST              16 (<code object run_id at 0x000002BFDA332420, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 25>)
+25:0-25:108         182       MAKE_FUNCTION
+25:0-25:108         184       STORE_NAME              23 (run_id)
+
+27:0-30:16          186       LOAD_CONST              17 (<code object direct at 0x000002BFDA27E030, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 27>)
+27:0-30:16          188       MAKE_FUNCTION
+27:0-30:16          190       STORE_NAME              24 (direct)
+
+31:0-31:47          192       LOAD_CONST              18 (<code object add at 0x000002BFDA1E5E30, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 31>)
+31:0-31:47          194       MAKE_FUNCTION
+31:0-31:47          196       STORE_NAME              25 (add)
+
+32:0-35:16          198       LOAD_CONST              19 (<code object function_call at 0x000002BFDA259CE0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 32>)
+32:0-35:16          200       MAKE_FUNCTION
+32:0-35:16          202       STORE_NAME              26 (function_call)
+
+36:0-38:210         204       LOAD_CONST              20 (<code object stats at 0x000002BFDA0F84C0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 36>)
+36:0-38:210         206       MAKE_FUNCTION
+36:0-38:210         208       STORE_NAME              27 (stats)
+
+39:0-47:69          210       LOAD_CONST              21 (<code object measure at 0x000002BFDA129AC0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 39>)
+39:0-47:69          212       MAKE_FUNCTION
+39:0-47:69          214       STORE_NAME              28 (measure)
+
+48:0-49:838         216       LOAD_CONST              22 (<code object metadata at 0x000002BFDA18C980, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 48>)
+48:0-49:838         218       MAKE_FUNCTION
+48:0-49:838         220       STORE_NAME              29 (metadata)
+
+50:0-55:692         222       LOAD_CONST              23 (<code object run at 0x000002BFDA066590, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 50>)
+50:0-55:692         224       MAKE_FUNCTION
+50:0-55:692         226       STORE_NAME              30 (run)
+
+56:0-63:100         228       LOAD_CONST              24 (<code object main at 0x000002BFDA198AD0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 56>)
+56:0-63:100         230       MAKE_FUNCTION
+56:0-63:100         232       STORE_NAME              31 (main)
+
+64:3-64:11          234       LOAD_NAME               32 (__name__)
+64:15-64:25         236       LOAD_CONST              25 ('__main__')
+64:3-64:25          238       COMPARE_OP              88 (bool(==))
+64:3-64:25          242       POP_JUMP_IF_FALSE       14 (to L1)
+64:3-64:25          246       NOT_TAKEN
+64:33-64:43         248       LOAD_NAME               33 (SystemExit)
+64:33-64:43         250       PUSH_NULL
+64:44-64:48         252       LOAD_NAME               31 (main)
+64:44-64:48         254       PUSH_NULL
+64:44-64:50         256       CALL                     0
+64:33-64:51         264       CALL                     1
+64:27-64:51         272       RAISE_VARARGS            1
+64:3-64:25     L1:  274       LOAD_CONST               1 (None)
+64:3-64:25          276       RETURN_VALUE
+
+Disassembly of <code object project_root at 0x000002BFDA32A500, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 19>:
+19:0-19:0             0       RESUME                   0
+19:27-19:31           2       LOAD_GLOBAL              1 (Path + NULL)
+19:32-19:40          12       LOAD_GLOBAL              2 (__file__)
+19:27-19:41          22       CALL                     1
+19:27-19:49          30       LOAD_ATTR                5 (resolve + NULL|self)
+19:27-19:51          50       CALL                     0
+19:27-19:59          58       LOAD_ATTR                6 (parents)
+19:60-19:61          78       LOAD_SMALL_INT           3
+19:27-19:62          80       BINARY_OP               26 ([])
+19:20-19:62          92       RETURN_VALUE
+
+Disassembly of <code object now_ms at 0x000002BFDA259DF0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 20>:
+20:0-20:0             0       RESUME                   0
+20:21-20:25           2       LOAD_GLOBAL              0 (time)
+20:21-20:41          12       LOAD_ATTR                2 (perf_counter_ns)
+20:21-20:41          32       PUSH_NULL
+20:21-20:43          34       CALL                     0
+20:46-20:55          42       LOAD_CONST               0 (1000000)
+20:21-20:55          44       BINARY_OP               11 (/)
+20:14-20:55          56       RETURN_VALUE
+
+Disassembly of <code object rounded at 0x000002BFDA1E56B0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 21>:
+21:0-21:0             0       RESUME                   0
+21:27-21:32           2       LOAD_GLOBAL              1 (round + NULL)
+21:33-21:38          12       LOAD_FAST_BORROW         0 (value)
+21:40-21:41          14       LOAD_SMALL_INT           3
+21:27-21:42          16       CALL                     2
+21:20-21:42          24       RETURN_VALUE
+
+Disassembly of <code object arg at 0x000002BFDA32A2A0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 22>:
+  --                   0       MAKE_CELL                0 (name)
+
+22:0-22:0              2       RESUME                   0
+22:22-22:26            4       LOAD_GLOBAL              1 (next + NULL)
+22:27-22:97           14       LOAD_FAST_BORROW         0 (name)
+22:27-22:97           16       BUILD_TUPLE              1
+22:27-22:97           18       LOAD_CONST               0 (<code object <genexpr> at 0x000002BFDA217110, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 22>)
+22:27-22:97           20       MAKE_FUNCTION
+22:27-22:97           22       SET_FUNCTION_ATTRIBUTE   8 (closure)
+22:56-22:59           24       LOAD_GLOBAL              2 (sys)
+22:56-22:64           34       LOAD_ATTR                4 (argv)
+22:65-22:67           54       LOAD_CONST               1 (slice(1, None, None))
+22:56-22:68           56       BINARY_OP               26 ([])
+22:56-22:68           68       GET_ITER
+22:27-22:97           70       CALL                     0
+22:99-22:103          78       LOAD_CONST               2 (None)
+22:22-22:104          80       CALL                     2
+22:15-22:104          88       RETURN_VALUE
+
+Disassembly of <code object <genexpr> at 0x000002BFDA217110, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 22>:
+  --                  0       COPY_FREE_VARS           1
+
+22:?-22:?             2       RETURN_GENERATOR
+22:?-22:?             4       POP_TOP
+22:0-22:0      L1:    6       RESUME                   0
+22:27-22:97           8       LOAD_FAST                0 (.0)
+22:56-22:68    L2:   10       FOR_ITER                61 (to L5)
+22:51-22:52          14       STORE_FAST_LOAD_FAST    17 (x, x)
+22:72-22:84          16       LOAD_ATTR                1 (startswith + NULL|self)
+22:85-22:89          36       LOAD_DEREF               2 (name)
+22:92-22:95          38       LOAD_CONST               0 ('=')
+22:85-22:95          40       BINARY_OP                0 (+)
+22:72-22:96          52       CALL                     1
+22:72-22:96          60       TO_BOOL
+22:28-22:46    L3:   68       POP_JUMP_IF_TRUE         3 (to L4)
+22:28-22:46          72       NOT_TAKEN
+22:28-22:46          74       JUMP_BACKWARD           34 (to L2)
+22:28-22:29    L4:   78       LOAD_FAST_BORROW         1 (x)
+22:28-22:35          80       LOAD_ATTR                3 (split + NULL|self)
+22:36-22:39         100       LOAD_CONST               0 ('=')
+22:41-22:42         102       LOAD_SMALL_INT           1
+22:28-22:43         104       CALL                     2
+22:44-22:45         112       LOAD_SMALL_INT           1
+22:28-22:46         114       BINARY_OP               26 ([])
+22:28-22:46         126       YIELD_VALUE              0
+22:28-22:46         128       RESUME                   5
+22:28-22:46         130       POP_TOP
+22:28-22:46         132       JUMP_BACKWARD           63 (to L2)
+22:56-22:68    L5:  136       END_FOR
+22:56-22:68         138       POP_ITER
+22:56-22:68         140       LOAD_CONST               1 (None)
+22:56-22:68         142       RETURN_VALUE
+
+  --           L6:  144       CALL_INTRINSIC_1         3 (INTRINSIC_STOPITERATION_ERROR)
+  --                146       RERAISE                  1
+ExceptionTable:
+  L1 to L3 -> L6 [0] lasti
+  L4 to L6 -> L6 [0] lasti
+
+Disassembly of <code object stamp at 0x000002BFDA3C17F0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 23>:
+23:0-23:0             0       RESUME                   0
+23:20-23:28           2       LOAD_GLOBAL              0 (datetime)
+23:20-23:32          12       LOAD_ATTR                2 (now)
+23:20-23:32          32       PUSH_NULL
+23:20-23:34          34       CALL                     0
+23:20-23:45          42       LOAD_ATTR                5 (astimezone + NULL|self)
+23:20-23:47          62       CALL                     0
+23:20-23:56          70       LOAD_ATTR                7 (strftime + NULL|self)
+23:57-23:72          90       LOAD_CONST               0 ('%Y%m%d_%H%M%S')
+23:20-23:73          92       CALL                     1
+23:13-23:73         100       RETURN_VALUE
+
+Disassembly of <code object experiment_id at 0x000002BFDA374C90, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 24>:
+24:0-24:0               0       RESUME                   0
+24:28-24:31             2       LOAD_GLOBAL              1 (arg + NULL)
+24:32-24:49            12       LOAD_CONST               0 ('--experiment-id')
+24:28-24:50            14       CALL                     1
+24:28-24:118           22       COPY                     1
+24:28-24:118           24       TO_BOOL
+24:28-24:118           32       POP_JUMP_IF_TRUE        50 (to L1)
+24:28-24:118           36       NOT_TAKEN
+24:28-24:118           38       POP_TOP
+24:54-24:56            40       LOAD_GLOBAL              2 (os)
+24:54-24:63            50       LOAD_ATTR                4 (getenv)
+24:54-24:63            70       PUSH_NULL
+24:64-24:89            72       LOAD_CONST               1 ('LANGBENCH_EXPERIMENT_ID')
+24:54-24:90            74       CALL                     1
+24:28-24:118           82       COPY                     1
+24:28-24:118           84       TO_BOOL
+24:28-24:118           92       POP_JUMP_IF_TRUE        20 (to L1)
+24:28-24:118           96       NOT_TAKEN
+24:28-24:118           98       POP_TOP
+24:97-24:102          100       LOAD_GLOBAL              7 (stamp + NULL)
+24:97-24:104          110       CALL                     0
+24:96-24:105          118       FORMAT_SIMPLE
+24:105-24:106         120       LOAD_CONST               2 ('_')
+24:107-24:116         122       LOAD_GLOBAL              8 (BENCHMARK)
+24:106-24:117         132       FORMAT_SIMPLE
+24:94-24:118          134       BUILD_STRING             3
+24:21-24:118     L1:  136       RETURN_VALUE
+
+Disassembly of <code object run_id at 0x000002BFDA332420, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 25>:
+25:0-25:0              0       RESUME                   0
+25:21-25:24            2       LOAD_GLOBAL              1 (arg + NULL)
+25:25-25:35           12       LOAD_CONST               0 ('--run-id')
+25:21-25:36           14       CALL                     1
+25:21-25:108          22       COPY                     1
+25:21-25:108          24       TO_BOOL
+25:21-25:108          32       POP_JUMP_IF_TRUE        57 (to L1)
+25:21-25:108          36       NOT_TAKEN
+25:21-25:108          38       POP_TOP
+25:40-25:42           40       LOAD_GLOBAL              2 (os)
+25:40-25:49           50       LOAD_ATTR                4 (getenv)
+25:40-25:49           70       PUSH_NULL
+25:50-25:68           72       LOAD_CONST               1 ('LANGBENCH_RUN_ID')
+25:40-25:69           74       CALL                     1
+25:21-25:108          82       COPY                     1
+25:21-25:108          84       TO_BOOL
+25:21-25:108          92       POP_JUMP_IF_TRUE        27 (to L1)
+25:21-25:108          96       NOT_TAKEN
+25:21-25:108          98       POP_TOP
+25:76-25:81          100       LOAD_GLOBAL              7 (stamp + NULL)
+25:76-25:83          110       CALL                     0
+25:75-25:84          118       FORMAT_SIMPLE
+25:84-25:85          120       LOAD_CONST               2 ('_')
+25:86-25:94          122       LOAD_GLOBAL              8 (LANGUAGE)
+25:85-25:95          132       FORMAT_SIMPLE
+25:95-25:96          134       LOAD_CONST               2 ('_')
+25:97-25:106         136       LOAD_GLOBAL             10 (BENCHMARK)
+25:96-25:107         146       FORMAT_SIMPLE
+25:73-25:108         148       BUILD_STRING             5
+25:14-25:108    L1:  150       RETURN_VALUE
+
+Disassembly of <code object direct at 0x000002BFDA27E030, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 27>:
+27:0-27:0             0       RESUME                   0
+
+28:12-28:13           2       LOAD_SMALL_INT           0
+28:4-28:9             4       STORE_FAST               1 (total)
+
+29:17-29:23           6       LOAD_FAST_BORROW         0 (values)
+29:17-29:23           8       GET_ITER
+29:17-29:23    L1:   10       FOR_ITER                11 (to L2)
+29:8-29:13           14       STORE_FAST_LOAD_FAST    33 (value, total)
+29:34-29:39          16       LOAD_FAST_BORROW         2 (value)
+29:25-29:39          18       BINARY_OP               13 (+=)
+29:25-29:30          30       STORE_FAST               1 (total)
+29:25-29:30          32       JUMP_BACKWARD           13 (to L1)
+29:17-29:23    L2:   36       END_FOR
+29:17-29:23          38       POP_ITER
+
+30:11-30:16          40       LOAD_FAST_BORROW         1 (total)
+30:4-30:16           42       RETURN_VALUE
+
+Disassembly of <code object add at 0x000002BFDA1E5E30, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 31>:
+31:0-31:0             0       RESUME                   0
+31:32-31:39           2       LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (current, value)
+31:32-31:47           4       BINARY_OP                0 (+)
+31:25-31:47          16       RETURN_VALUE
+
+Disassembly of <code object function_call at 0x000002BFDA259CE0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 32>:
+32:0-32:0             0       RESUME                   0
+
+33:12-33:13           2       LOAD_SMALL_INT           0
+33:4-33:9             4       STORE_FAST               1 (total)
+
+34:17-34:23           6       LOAD_FAST_BORROW         0 (values)
+34:17-34:23           8       GET_ITER
+34:17-34:23    L1:   10       FOR_ITER                14 (to L2)
+34:8-34:13           14       STORE_FAST               2 (value)
+34:33-34:36          16       LOAD_GLOBAL              1 (add + NULL)
+34:37-34:42          26       LOAD_FAST_BORROW_LOAD_FAST_BORROW 18 (total, value)
+34:33-34:50          28       CALL                     2
+34:25-34:30          36       STORE_FAST               1 (total)
+34:25-34:30          38       JUMP_BACKWARD           16 (to L1)
+34:17-34:23    L2:   42       END_FOR
+34:17-34:23          44       POP_ITER
+
+35:11-35:16          46       LOAD_FAST_BORROW         1 (total)
+35:4-35:16           48       RETURN_VALUE
+
+Disassembly of <code object stats at 0x000002BFDA0F84C0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 36>:
+36:0-36:0               0       RESUME                   0
+
+37:14-37:20             2       LOAD_GLOBAL              1 (sorted + NULL)
+37:21-37:28            12       LOAD_FAST_BORROW         0 (samples)
+37:14-37:29            14       CALL                     1
+37:4-37:11             22       STORE_FAST               1 (ordered)
+37:37-37:40            24       LOAD_GLOBAL              3 (len + NULL)
+37:41-37:48            34       LOAD_FAST_BORROW         1 (ordered)
+37:37-37:49            36       CALL                     1
+37:53-37:54            44       LOAD_SMALL_INT           2
+37:37-37:54            46       BINARY_OP                2 (//)
+37:31-37:34            58       STORE_FAST               2 (mid)
+
+38:12-38:24            60       LOAD_CONST               1 ('samples_ms')
+38:26-38:33            62       LOAD_FAST_BORROW         0 (samples)
+38:35-38:43            64       LOAD_CONST               2 ('min_ms')
+38:45-38:52            66       LOAD_GLOBAL              5 (rounded + NULL)
+38:53-38:56            76       LOAD_GLOBAL              7 (min + NULL)
+38:57-38:64            86       LOAD_FAST_BORROW         0 (samples)
+38:53-38:65            88       CALL                     1
+38:45-38:66            96       CALL                     1
+38:68-38:76           104       LOAD_CONST               3 ('max_ms')
+38:78-38:85           106       LOAD_GLOBAL              5 (rounded + NULL)
+38:86-38:89           116       LOAD_GLOBAL              9 (max + NULL)
+38:90-38:97           126       LOAD_FAST_BORROW         0 (samples)
+38:86-38:98           128       CALL                     1
+38:78-38:99           136       CALL                     1
+38:101-38:110         144       LOAD_CONST               4 ('mean_ms')
+38:112-38:119         146       LOAD_GLOBAL              5 (rounded + NULL)
+38:120-38:123         156       LOAD_GLOBAL             11 (sum + NULL)
+38:124-38:131         166       LOAD_FAST_BORROW         0 (samples)
+38:120-38:132         168       CALL                     1
+38:135-38:138         176       LOAD_GLOBAL              3 (len + NULL)
+38:139-38:146         186       LOAD_FAST_BORROW         0 (samples)
+38:135-38:147         188       CALL                     1
+38:120-38:147         196       BINARY_OP               11 (/)
+38:112-38:148         208       CALL                     1
+38:150-38:161         216       LOAD_CONST               5 ('median_ms')
+38:163-38:170         218       LOAD_GLOBAL              5 (rounded + NULL)
+38:172-38:179         228       LOAD_FAST_BORROW_LOAD_FAST_BORROW 18 (ordered, mid)
+38:186-38:187         230       LOAD_SMALL_INT           1
+38:180-38:187         232       BINARY_OP               10 (-)
+38:172-38:188         244       BINARY_OP               26 ([])
+38:191-38:198         256       LOAD_FAST_BORROW_LOAD_FAST_BORROW 18 (ordered, mid)
+38:191-38:203         258       BINARY_OP               26 ([])
+38:172-38:203         270       BINARY_OP                0 (+)
+38:207-38:208         282       LOAD_SMALL_INT           2
+38:171-38:208         284       BINARY_OP               11 (/)
+38:163-38:209         296       CALL                     1
+38:11-38:210          304       BUILD_MAP                5
+38:4-38:210           306       RETURN_VALUE
+
+Disassembly of <code object measure at 0x000002BFDA129AC0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 39>:
+39:0-39:0             0       RESUME                   0
+
+40:19-40:25           2       LOAD_GLOBAL              1 (now_ms + NULL)
+40:19-40:27          12       CALL                     0
+40:4-40:16           20       STORE_FAST               2 (warmup_start)
+
+41:13-41:18          22       LOAD_GLOBAL              3 (range + NULL)
+41:19-41:36          32       LOAD_GLOBAL              4 (WARMUP_ITERATIONS)
+41:13-41:37          42       CALL                     1
+41:13-41:37          50       GET_ITER
+41:13-41:37    L1:   52       FOR_ITER                31 (to L3)
+41:8-41:9            56       STORE_FAST               3 (_)
+
+42:11-42:15          58       LOAD_FAST_BORROW         0 (case)
+42:11-42:15          60       PUSH_NULL
+42:16-42:22          62       LOAD_FAST_BORROW         1 (values)
+42:11-42:23          64       CALL                     1
+42:27-42:44          72       LOAD_GLOBAL              6 (EXPECTED_CHECKSUM)
+42:11-42:44          82       COMPARE_OP             119 (bool(!=))
+42:11-42:44          86       POP_JUMP_IF_TRUE         3 (to L2)
+42:11-42:44          90       NOT_TAKEN
+42:11-42:44          92       JUMP_BACKWARD           22 (to L1)
+42:52-42:64    L2:   96       LOAD_GLOBAL              9 (RuntimeError + NULL)
+42:65-42:91         106       LOAD_CONST               0 ('warmup checksum mismatch')
+42:52-42:92         108       CALL                     1
+42:46-42:92         116       RAISE_VARARGS            1
+
+41:13-41:37    L3:  118       END_FOR
+41:13-41:37         120       POP_ITER
+
+43:16-43:23         122       LOAD_GLOBAL             11 (rounded + NULL)
+43:24-43:30         132       LOAD_GLOBAL              1 (now_ms + NULL)
+43:24-43:32         142       CALL                     0
+43:35-43:47         150       LOAD_FAST_BORROW         2 (warmup_start)
+43:24-43:47         152       BINARY_OP               10 (-)
+43:16-43:48         164       CALL                     1
+43:4-43:13          172       STORE_FAST               4 (warmup_ms)
+43:60-43:62         174       BUILD_LIST               0
+43:50-43:57         176       STORE_FAST               5 (samples)
+43:75-43:79         178       LOAD_CONST               1 (None)
+43:64-43:72         180       STORE_FAST               6 (checksum)
+
+44:13-44:18         182       LOAD_GLOBAL              3 (range + NULL)
+44:19-44:41         192       LOAD_GLOBAL             12 (MEASUREMENT_ITERATIONS)
+44:13-44:42         202       CALL                     1
+44:13-44:42         210       GET_ITER
+44:13-44:42    L4:  212       FOR_ITER                82 (to L6)
+44:8-44:9           216       STORE_FAST               3 (_)
+
+45:16-45:22         218       LOAD_GLOBAL              1 (now_ms + NULL)
+45:16-45:24         228       CALL                     0
+45:8-45:13          236       STORE_FAST_LOAD_FAST   112 (start, case)
+45:37-45:41         238       PUSH_NULL
+45:42-45:48         240       LOAD_FAST_BORROW         1 (values)
+45:37-45:49         242       CALL                     1
+45:26-45:34         250       STORE_FAST_LOAD_FAST   101 (checksum, samples)
+45:51-45:65         252       LOAD_ATTR               15 (append + NULL|self)
+45:66-45:73         272       LOAD_GLOBAL             11 (rounded + NULL)
+45:74-45:80         282       LOAD_GLOBAL              1 (now_ms + NULL)
+45:74-45:82         292       CALL                     0
+45:85-45:90         300       LOAD_FAST_BORROW         7 (start)
+45:74-45:90         302       BINARY_OP               10 (-)
+45:66-45:91         314       CALL                     1
+45:51-45:92         322       CALL                     1
+45:51-45:92         330       POP_TOP
+
+46:11-46:19         332       LOAD_FAST_BORROW         6 (checksum)
+46:23-46:40         334       LOAD_GLOBAL              6 (EXPECTED_CHECKSUM)
+46:11-46:40         344       COMPARE_OP             119 (bool(!=))
+46:11-46:40         348       POP_JUMP_IF_TRUE         3 (to L5)
+46:11-46:40         352       NOT_TAKEN
+46:11-46:40         354       JUMP_BACKWARD           73 (to L4)
+46:48-46:60    L5:  358       LOAD_GLOBAL              9 (RuntimeError + NULL)
+46:61-46:80         368       LOAD_CONST               2 ('checksum mismatch')
+46:48-46:81         370       CALL                     1
+46:42-46:81         378       RAISE_VARARGS            1
+
+44:13-44:42    L6:  380       END_FOR
+44:13-44:42         382       POP_ITER
+
+47:11-47:20         384       LOAD_FAST_BORROW         4 (warmup_ms)
+47:22-47:29         386       LOAD_GLOBAL             11 (rounded + NULL)
+47:30-47:33         396       LOAD_GLOBAL             17 (sum + NULL)
+47:34-47:41         406       LOAD_FAST_BORROW         5 (samples)
+47:30-47:42         408       CALL                     1
+47:22-47:43         416       CALL                     1
+47:45-47:53         424       LOAD_FAST_BORROW         6 (checksum)
+47:55-47:60         426       LOAD_GLOBAL             19 (stats + NULL)
+47:61-47:68         436       LOAD_FAST_BORROW         5 (samples)
+47:55-47:69         438       CALL                     1
+47:11-47:69         446       BUILD_TUPLE              4
+47:4-47:69          448       RETURN_VALUE
+
+Disassembly of <code object metadata at 0x000002BFDA18C980, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 48>:
+48:0-48:0               0       RESUME                   0
+
+49:12-49:18             2       LOAD_CONST               0 ('type')
+49:19-49:37             4       LOAD_CONST               1 ('langbench_result')
+49:39-49:55             6       LOAD_CONST               2 ('schema_version')
+49:56-49:70             8       LOAD_GLOBAL              0 (SCHEMA_VERSION)
+49:72-49:81            18       LOAD_CONST               3 ('project')
+49:82-49:89            20       LOAD_GLOBAL              2 (PROJECT)
+49:91-49:102           30       LOAD_CONST               4 ('benchmark')
+49:103-49:112          32       LOAD_GLOBAL              4 (BENCHMARK)
+49:114-49:129          42       LOAD_CONST               5 ('experiment_id')
+49:130-49:133          44       LOAD_FAST                1 (eid)
+49:135-49:143          46       LOAD_CONST               6 ('run_id')
+49:144-49:147          48       LOAD_FAST                2 (rid)
+49:149-49:159          50       LOAD_CONST               7 ('language')
+49:160-49:168          52       LOAD_GLOBAL              6 (LANGUAGE)
+49:170-49:182          62       LOAD_CONST               8 ('created_at')
+49:183-49:191          64       LOAD_GLOBAL              8 (datetime)
+49:183-49:195          74       LOAD_ATTR               10 (now)
+49:183-49:195          94       PUSH_NULL
+49:183-49:197          96       CALL                     0
+49:183-49:208         104       LOAD_ATTR               13 (astimezone + NULL|self)
+49:183-49:210         124       CALL                     0
+49:183-49:220         132       LOAD_ATTR               15 (isoformat + NULL|self)
+49:230-49:244         152       LOAD_CONST               9 ('milliseconds')
+49:183-49:220         154       LOAD_CONST              10 (('timespec',))
+49:183-49:245         156       CALL_KW                  1
+49:247-49:255         164       LOAD_CONST              11 ('status')
+49:256-49:262         166       LOAD_FAST                0 (status)
+49:264-49:272         168       LOAD_CONST              12 ('engine')
+49:274-49:283         170       LOAD_CONST              13 ('runtime')
+49:284-49:292         172       LOAD_CONST              14 ('python')
+49:294-49:311         174       LOAD_CONST              15 ('runtime_version')
+49:312-49:320         176       LOAD_GLOBAL             16 (platform)
+49:312-49:335         186       LOAD_ATTR               18 (python_version)
+49:312-49:335         206       PUSH_NULL
+49:312-49:337         208       CALL                     0
+49:339-49:349         216       LOAD_CONST              16 ('compiler')
+49:350-49:354         218       LOAD_CONST              17 (None)
+49:356-49:374         220       LOAD_CONST              18 ('compiler_version')
+49:375-49:379         222       LOAD_CONST              17 (None)
+49:381-49:404         224       LOAD_CONST              19 ('python_implementation')
+49:405-49:413         226       LOAD_GLOBAL             16 (platform)
+49:405-49:435         236       LOAD_ATTR               20 (python_implementation)
+49:405-49:435         256       PUSH_NULL
+49:405-49:437         258       CALL                     0
+49:273-49:438         266       BUILD_MAP                5
+49:440-49:451         268       LOAD_CONST              20 ('execution')
+49:453-49:461         270       LOAD_CONST              21 ('runner')
+49:462-49:490         272       LOAD_CONST              22 ('vscode_terminal_powershell')
+49:492-49:506         274       LOAD_CONST              23 ('runner_label')
+49:507-49:537         276       LOAD_CONST              24 ('VSCode Terminal / PowerShell')
+49:539-49:544         278       LOAD_CONST              25 ('cwd')
+49:545-49:548         280       LOAD_GLOBAL             23 (str + NULL)
+49:549-49:553         290       LOAD_GLOBAL             24 (Path)
+49:549-49:557         300       LOAD_ATTR               26 (cwd)
+49:549-49:557         320       PUSH_NULL
+49:549-49:559         322       CALL                     0
+49:545-49:560         330       CALL                     1
+49:562-49:568         338       LOAD_CONST              26 ('argv')
+49:570-49:573         340       LOAD_GLOBAL             28 (sys)
+49:570-49:584         350       LOAD_ATTR               30 (executable)
+49:569-49:596         370       BUILD_LIST               1
+49:587-49:590         372       LOAD_GLOBAL             28 (sys)
+49:587-49:595         382       LOAD_ATTR               32 (argv)
+49:569-49:596         402       LIST_EXTEND              1
+49:452-49:597         404       BUILD_MAP                4
+49:599-49:612         406       LOAD_CONST              27 ('environment')
+49:614-49:618         408       LOAD_CONST              28 ('os')
+49:619-49:627         410       LOAD_GLOBAL             16 (platform)
+49:619-49:634         420       LOAD_ATTR               34 (system)
+49:619-49:634         440       PUSH_NULL
+49:619-49:636         442       CALL                     0
+49:619-49:644         450       COPY                     1
+49:619-49:644         452       TO_BOOL
+49:619-49:644         460       POP_JUMP_IF_TRUE         3 (to L1)
+49:619-49:644         464       NOT_TAKEN
+49:619-49:644         466       POP_TOP
+49:640-49:644         468       LOAD_CONST              17 (None)
+49:646-49:658    L1:  470       LOAD_CONST              29 ('os_version')
+49:659-49:667         472       LOAD_GLOBAL             16 (platform)
+49:659-49:675         482       LOAD_ATTR               36 (version)
+49:659-49:675         502       PUSH_NULL
+49:659-49:677         504       CALL                     0
+49:659-49:685         512       COPY                     1
+49:659-49:685         514       TO_BOOL
+49:659-49:685         522       POP_JUMP_IF_TRUE         3 (to L2)
+49:659-49:685         526       NOT_TAKEN
+49:659-49:685         528       POP_TOP
+49:681-49:685         530       LOAD_CONST              17 (None)
+49:687-49:701    L2:  532       LOAD_CONST              30 ('architecture')
+49:702-49:710         534       LOAD_GLOBAL             16 (platform)
+49:702-49:718         544       LOAD_ATTR               38 (machine)
+49:702-49:718         564       PUSH_NULL
+49:702-49:720         566       CALL                     0
+49:702-49:728         574       COPY                     1
+49:702-49:728         576       TO_BOOL
+49:702-49:728         584       POP_JUMP_IF_TRUE         3 (to L3)
+49:702-49:728         588       NOT_TAKEN
+49:702-49:728         590       POP_TOP
+49:724-49:728         592       LOAD_CONST              17 (None)
+49:730-49:735    L3:  594       LOAD_CONST              31 ('cpu')
+49:736-49:744         596       LOAD_GLOBAL             16 (platform)
+49:736-49:754         606       LOAD_ATTR               40 (processor)
+49:736-49:754         626       PUSH_NULL
+49:736-49:756         628       CALL                     0
+49:736-49:764         636       COPY                     1
+49:736-49:764         638       TO_BOOL
+49:736-49:764         646       POP_JUMP_IF_TRUE         3 (to L4)
+49:736-49:764         650       NOT_TAKEN
+49:736-49:764         652       POP_TOP
+49:760-49:764         654       LOAD_CONST              17 (None)
+49:766-49:786    L4:  656       LOAD_CONST              32 ('logical_processors')
+49:787-49:789         658       LOAD_GLOBAL             42 (os)
+49:787-49:799         668       LOAD_ATTR               44 (cpu_count)
+49:787-49:799         688       PUSH_NULL
+49:787-49:801         690       CALL                     0
+49:803-49:817         698       LOAD_CONST              33 ('memory_bytes')
+49:818-49:822         700       LOAD_CONST              17 (None)
+49:613-49:823         702       BUILD_MAP                6
+49:825-49:832         704       LOAD_CONST              34 ('build')
+49:833-49:837         706       LOAD_CONST              17 (None)
+49:11-49:838          708       BUILD_MAP               13
+49:4-49:838           710       RETURN_VALUE
+
+Disassembly of <code object run at 0x000002BFDA066590, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 50>:
+50:0-50:0               0       RESUME                   0
+
+51:18-51:24             2       LOAD_GLOBAL              1 (now_ms + NULL)
+51:18-51:26            12       CALL                     0
+51:4-51:15             20       STORE_FAST               2 (setup_start)
+51:37-51:41            22       LOAD_GLOBAL              3 (list + NULL)
+51:42-51:47            32       LOAD_GLOBAL              5 (range + NULL)
+51:48-51:49            42       LOAD_SMALL_INT           1
+51:51-51:61            44       LOAD_GLOBAL              6 (ITEM_COUNT)
+51:64-51:65            54       LOAD_SMALL_INT           1
+51:51-51:65            56       BINARY_OP                0 (+)
+51:42-51:66            68       CALL                     2
+51:37-51:67            76       CALL                     1
+51:28-51:34            84       STORE_FAST               3 (values)
+51:80-51:87            86       LOAD_GLOBAL              9 (rounded + NULL)
+51:88-51:94            96       LOAD_GLOBAL              1 (now_ms + NULL)
+51:88-51:96           106       CALL                     0
+51:99-51:110          114       LOAD_FAST_BORROW         2 (setup_start)
+51:88-51:110          116       BINARY_OP               10 (-)
+51:80-51:111          128       CALL                     1
+51:69-51:77           136       STORE_FAST               4 (setup_ms)
+
+52:68-52:75           138       LOAD_GLOBAL             11 (measure + NULL)
+52:76-52:82           148       LOAD_GLOBAL             12 (direct)
+52:84-52:90           158       LOAD_FAST_BORROW         3 (values)
+52:68-52:91           160       CALL                     2
+52:4-52:65            168       UNPACK_SEQUENCE          4
+52:4-52:17            172       STORE_FAST_STORE_FAST   86 (direct_warmup, direct_measurement)
+52:39-52:49           174       STORE_FAST_STORE_FAST  120 (direct_sum, direct_results)
+
+53:60-53:67           176       LOAD_GLOBAL             11 (measure + NULL)
+53:68-53:81           186       LOAD_GLOBAL             14 (function_call)
+53:83-53:89           196       LOAD_FAST_BORROW         3 (values)
+53:60-53:90           198       CALL                     2
+53:4-53:57            206       UNPACK_SEQUENCE          4
+53:4-53:15            210       STORE_FAST_STORE_FAST  154 (call_warmup, call_measurement)
+53:35-53:43           212       STORE_FAST_STORE_FAST  188 (call_sum, call_results)
+
+54:16-54:23           214       LOAD_GLOBAL              9 (rounded + NULL)
+54:24-54:37           224       LOAD_FAST_BORROW_LOAD_FAST_BORROW 89 (direct_warmup, call_warmup)
+54:24-54:51           226       BINARY_OP                0 (+)
+54:16-54:52           238       CALL                     1
+54:4-54:13            246       STORE_FAST              13 (warmup_ms)
+54:71-54:78           248       LOAD_GLOBAL              9 (rounded + NULL)
+54:79-54:97           258       LOAD_FAST_BORROW_LOAD_FAST_BORROW 106 (direct_measurement, call_measurement)
+54:79-54:116          260       BINARY_OP                0 (+)
+54:71-54:117          272       CALL                     1
+54:54-54:68           280       STORE_FAST              14 (measurement_ms)
+
+55:11-55:692          282       BUILD_MAP                0
+55:14-55:22           284       LOAD_GLOBAL             17 (metadata + NULL)
+55:23-55:32           294       LOAD_CONST               1 ('success')
+55:34-55:37           296       LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (eid, rid)
+55:14-55:43           298       CALL                     3
+55:11-55:692          306       DICT_UPDATE              1
+55:45-55:53           308       LOAD_CONST               2 ('config')
+55:55-55:67           310       LOAD_CONST               3 ('item_count')
+55:68-55:78           312       LOAD_GLOBAL              6 (ITEM_COUNT)
+55:79-55:98           322       LOAD_CONST               4 ('warmup_iterations')
+55:99-55:116          324       LOAD_GLOBAL             18 (WARMUP_ITERATIONS)
+55:117-55:141         334       LOAD_CONST               5 ('measurement_iterations')
+55:142-55:164         336       LOAD_GLOBAL             20 (MEASUREMENT_ITERATIONS)
+55:165-55:179         346       LOAD_CONST               6 ('numeric_type')
+55:180-55:189         348       LOAD_CONST               7 ('integer')
+55:190-55:203         350       LOAD_CONST               8 ('value_field')
+55:204-55:211         352       LOAD_CONST               9 ('value')
+55:212-55:219         354       LOAD_CONST              10 ('cases')
+55:221-55:229         356       LOAD_CONST              11 ('direct')
+55:230-55:245         358       LOAD_CONST              12 ('function_call')
+55:220-55:246         360       BUILD_LIST               2
+55:54-55:247          362       BUILD_MAP                6
+55:249-55:257         364       LOAD_CONST              13 ('timing')
+55:259-55:279         366       LOAD_CONST              14 ('process_startup_ms')
+55:280-55:284         368       LOAD_CONST              15 (None)
+55:285-55:295         370       LOAD_CONST              16 ('setup_ms')
+55:296-55:304         372       LOAD_FAST_BORROW         4 (setup_ms)
+55:305-55:316         374       LOAD_CONST              17 ('warmup_ms')
+55:317-55:326         376       LOAD_FAST_BORROW        13 (warmup_ms)
+55:327-55:343         378       LOAD_CONST              18 ('measurement_ms')
+55:344-55:358         380       LOAD_FAST_BORROW        14 (measurement_ms)
+55:359-55:379         382       LOAD_CONST              19 ('benchmark_total_ms')
+55:380-55:387         384       LOAD_GLOBAL              9 (rounded + NULL)
+55:388-55:396         394       LOAD_FAST_BORROW_LOAD_FAST_BORROW 77 (setup_ms, warmup_ms)
+55:388-55:408         396       BINARY_OP                0 (+)
+55:411-55:425         408       LOAD_FAST_BORROW        14 (measurement_ms)
+55:388-55:425         410       BINARY_OP                0 (+)
+55:380-55:426         422       CALL                     1
+55:258-55:427         430       BUILD_MAP                5
+55:429-55:438         432       LOAD_CONST              20 ('results')
+55:440-55:448         434       LOAD_CONST              11 ('direct')
+55:449-55:463         436       LOAD_FAST_BORROW         8 (direct_results)
+55:464-55:479         438       LOAD_CONST              12 ('function_call')
+55:480-55:492         440       LOAD_FAST_BORROW        12 (call_results)
+55:439-55:493         442       BUILD_MAP                2
+55:495-55:507         444       LOAD_CONST              21 ('validation')
+55:509-55:526         446       LOAD_CONST              22 ('direct_checksum')
+55:527-55:537         448       LOAD_FAST                7 (direct_sum)
+55:538-55:562         450       LOAD_CONST              23 ('function_call_checksum')
+55:563-55:571         452       LOAD_FAST               11 (call_sum)
+55:572-55:591         454       LOAD_CONST              24 ('expected_checksum')
+55:592-55:609         456       LOAD_GLOBAL             22 (EXPECTED_CHECKSUM)
+55:610-55:621         466       LOAD_CONST              25 ('tolerance')
+55:622-55:623         468       LOAD_SMALL_INT           0
+55:624-55:632         470       LOAD_CONST              26 ('passed')
+55:633-55:643         472       LOAD_FAST_LOAD_FAST    123 (direct_sum, call_sum)
+55:633-55:676         474       SWAP                     2
+55:633-55:676         476       COPY                     2
+55:633-55:676         478       COMPARE_OP              72 (==)
+55:633-55:676         482       COPY                     1
+55:633-55:676         484       TO_BOOL
+55:633-55:676         492       POP_JUMP_IF_FALSE       10 (to L1)
+55:633-55:676         496       NOT_TAKEN
+55:633-55:676         498       POP_TOP
+55:659-55:676         500       LOAD_GLOBAL             22 (EXPECTED_CHECKSUM)
+55:633-55:676         510       COMPARE_OP              72 (==)
+55:633-55:676         514       JUMP_FORWARD             2 (to L2)
+55:633-55:676    L1:  516       SWAP                     2
+55:633-55:676         518       POP_TOP
+55:508-55:677    L2:  520       BUILD_MAP                5
+55:679-55:686         522       LOAD_CONST              27 ('error')
+55:687-55:691         524       LOAD_CONST              15 (None)
+55:11-55:692          526       BUILD_MAP                5
+55:11-55:692          528       DICT_UPDATE              1
+55:4-55:692           530       RETURN_VALUE
+
+Disassembly of <code object main at 0x000002BFDA198AD0, file ".\benchmarks\function_call_numeric_sum\python\main.py", line 56>:
+56:0-56:0               0       RESUME                   0
+
+57:15-57:28             2       LOAD_GLOBAL              1 (experiment_id + NULL)
+57:15-57:30            12       CALL                     0
+57:32-57:38            20       LOAD_GLOBAL              3 (run_id + NULL)
+57:32-57:40            30       CALL                     0
+57:9-57:12             38       STORE_FAST_STORE_FAST   16 (rid, eid)
+
+58:4-63:100            40       NOP
+
+59:17-59:20      L1:   42       LOAD_GLOBAL              5 (run + NULL)
+59:21-59:24            52       LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (eid, rid)
+59:17-59:30            54       CALL                     2
+59:8-59:14             62       STORE_FAST               2 (result)
+59:33-59:45            64       LOAD_GLOBAL              7 (project_root + NULL)
+59:33-59:47            74       CALL                     0
+59:50-59:59            82       LOAD_CONST               0 ('results')
+59:33-59:59            84       BINARY_OP               11 (/)
+59:32-59:66            96       LOAD_ATTR                9 (mkdir + NULL|self)
+59:76-59:80           116       LOAD_CONST               1 (True)
+59:32-59:66           118       LOAD_CONST               2 (('exist_ok',))
+59:32-59:81           120       CALL_KW                  1
+59:32-59:81           128       POP_TOP
+
+60:9-60:21            130       LOAD_GLOBAL              7 (project_root + NULL)
+60:9-60:23            140       CALL                     0
+60:26-60:35           148       LOAD_CONST               0 ('results')
+60:9-60:35            150       BINARY_OP               11 (/)
+60:38-60:49           162       LOAD_GLOBAL             10 (RESULT_FILE)
+60:9-60:49            172       BINARY_OP               11 (/)
+60:8-60:61            184       LOAD_ATTR               13 (write_text + NULL|self)
+60:62-60:66           204       LOAD_GLOBAL             14 (json)
+60:62-60:72           214       LOAD_ATTR               16 (dumps)
+60:62-60:72           234       PUSH_NULL
+60:73-60:79           236       LOAD_FAST_BORROW         2 (result)
+60:94-60:99           238       LOAD_CONST               3 (False)
+60:108-60:109         240       LOAD_SMALL_INT           2
+60:62-60:110          242       LOAD_CONST               4 (('ensure_ascii', 'indent'))
+60:62-60:110          244       CALL_KW                  3
+60:113-60:117         252       LOAD_CONST               5 ('\n')
+60:62-60:117          254       BINARY_OP                0 (+)
+60:128-60:135         266       LOAD_CONST               6 ('utf-8')
+60:8-60:61            268       LOAD_CONST               7 (('encoding',))
+60:8-60:136           270       CALL_KW                  2
+60:8-60:136           278       POP_TOP
+
+61:8-61:13            280       LOAD_GLOBAL             19 (print + NULL)
+61:14-61:30           290       LOAD_CONST               8 ('status=success')
+61:8-61:31            292       CALL                     1
+61:8-61:31            300       POP_TOP
+61:40-61:41      L2:  302       LOAD_SMALL_INT           0
+61:40-61:41           304       RETURN_VALUE
+
+  --             L3:  306       PUSH_EXC_INFO
+
+62:11-62:20           308       LOAD_GLOBAL             20 (Exception)
+62:4-63:100           318       CHECK_EXC_MATCH
+62:4-63:100           320       POP_JUMP_IF_FALSE       69 (to L7)
+62:4-63:100           324       NOT_TAKEN
+62:4-63:100           326       STORE_FAST               3 (error)
+
+63:8-63:13       L4:  328       LOAD_GLOBAL             19 (print + NULL)
+63:14-63:28           338       LOAD_CONST               9 ('status=error')
+63:35-63:38           340       LOAD_GLOBAL             22 (sys)
+63:35-63:45           350       LOAD_ATTR               24 (stderr)
+63:8-63:46            370       LOAD_CONST              10 (('file',))
+63:8-63:46            372       CALL_KW                  2
+63:8-63:46            380       POP_TOP
+63:48-63:53           382       LOAD_GLOBAL             19 (print + NULL)
+63:56-63:64           392       LOAD_CONST              11 ('message=')
+63:65-63:70           394       LOAD_FAST                3 (error)
+63:64-63:71           396       FORMAT_SIMPLE
+63:54-63:72           398       BUILD_STRING             2
+63:79-63:82           400       LOAD_GLOBAL             22 (sys)
+63:79-63:89           410       LOAD_ATTR               24 (stderr)
+63:48-63:90           430       LOAD_CONST              10 (('file',))
+63:48-63:90           432       CALL_KW                  2
+63:48-63:90           440       POP_TOP
+63:99-63:100     L5:  442       POP_EXCEPT
+63:99-63:100          444       LOAD_CONST              12 (None)
+63:99-63:100          446       STORE_FAST               3 (error)
+63:99-63:100          448       DELETE_FAST              3 (error)
+63:99-63:100          450       LOAD_SMALL_INT           1
+63:99-63:100          452       RETURN_VALUE
+
+  --             L6:  454       LOAD_CONST              12 (None)
+  --                  456       STORE_FAST               3 (error)
+  --                  458       DELETE_FAST              3 (error)
+  --                  460       RERAISE                  1
+
+62:4-63:100      L7:  462       RERAISE                  0
+
+  --             L8:  464       COPY                     3
+  --                  466       POP_EXCEPT
+  --                  468       RERAISE                  1
+ExceptionTable:
+  L1 to L2 -> L3 [0]
+  L3 to L4 -> L8 [1] lasti
+  L4 to L5 -> L6 [1] lasti
+  L6 to L8 -> L8 [1] lasti

@@ -7,7 +7,13 @@ import unittest
 from pathlib import Path
 
 from tools import validate_result_json
-from tools.validate_result_json import ROOT_KEYS, normalize_legacy_result, validate
+from tools.validate_result_json import (
+    OPTIMIZATION_RESULTS,
+    ROOT_KEYS,
+    ROOT_KEYS_WITH_OPTIMIZATION,
+    normalize_legacy_result,
+    validate,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -143,6 +149,48 @@ class ResultSchemaTests(unittest.TestCase):
         for language in ("python", "javascript"):
             with self.subTest(language=language):
                 self.assertEqual([], validate(build_error_document(language), Path(f"{language}-error.json")))
+
+    def test_optional_optimization_analysis_is_validated(self) -> None:
+        analysis = {
+            "implementation": {"name": "CPython", "version": "3.14.7"},
+            "jit": {"applicable": True, "result": "not_detected"},
+            "inlining": {"result": "not_checked"},
+            "vectorization": {"result": "unknown"},
+            "simd": {"result": "not_checked", "isa": []},
+            "other_optimizations": [],
+            "evidence": [],
+            "notes": [],
+        }
+        base = build_error_document()
+        document = {
+            key: analysis if key == "optimization_analysis" else base[key]
+            for key in ROOT_KEYS_WITH_OPTIMIZATION
+        }
+        self.assertEqual([], validate(document, Path("optimization.json")))
+        self.assertEqual(ROOT_KEYS_WITH_OPTIMIZATION, list(document))
+        self.assertIsInstance(document["optimization_analysis"]["simd"]["isa"], list)
+        self.assertEqual([], document["optimization_analysis"]["evidence"])
+        self.assertEqual([], document["optimization_analysis"]["other_optimizations"])
+
+        for result in OPTIMIZATION_RESULTS:
+            with self.subTest(result=result):
+                candidate = copy.deepcopy(document)
+                candidate["optimization_analysis"]["inlining"]["result"] = result
+                self.assertEqual([], validate(candidate, Path(result)))
+
+        invalid_cases = {
+            "unexpected result": lambda d: d["optimization_analysis"]["inlining"].update(result="maybe"),
+            "simd isa scalar": lambda d: d["optimization_analysis"]["simd"].update(isa="SSE2"),
+            "empty implementation": lambda d: d["optimization_analysis"]["implementation"].update(version=""),
+            "false applicable result": lambda d: d["optimization_analysis"]["jit"].update(applicable=False, result="not_checked"),
+            "evidence object": lambda d: d["optimization_analysis"].update(evidence={}),
+            "other object": lambda d: d["optimization_analysis"].update(other_optimizations={}),
+        }
+        for name, mutate in invalid_cases.items():
+            with self.subTest(name=name):
+                candidate = copy.deepcopy(document)
+                mutate(candidate)
+                self.assertTrue(validate(candidate, Path(name)))
 
     def test_invalid_error_results_are_rejected(self) -> None:
         cases = {

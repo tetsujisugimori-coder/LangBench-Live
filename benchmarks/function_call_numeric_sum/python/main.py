@@ -47,12 +47,37 @@ def measure(case, values):
     return warmup_ms, rounded(sum(samples)), checksum, stats(samples)
 def metadata(status, eid, rid):
     return {"type":"langbench_result", "schema_version":SCHEMA_VERSION, "project":PROJECT, "benchmark":BENCHMARK, "experiment_id":eid, "run_id":rid, "language":LANGUAGE, "created_at":datetime.now().astimezone().isoformat(timespec="milliseconds"), "status":status, "engine":{"runtime":"python", "runtime_version":platform.python_version(), "compiler":None, "compiler_version":None, "python_implementation":platform.python_implementation()}, "execution":{"runner":"vscode_terminal_powershell", "runner_label":"VSCode Terminal / PowerShell", "cwd":str(Path.cwd()), "argv":[sys.executable, *sys.argv]}, "environment":{"os":platform.system() or None, "os_version":platform.version() or None, "architecture":platform.machine() or None, "cpu":platform.processor() or None, "logical_processors":os.cpu_count(), "memory_bytes":None}, "build":None}
+def jit_analysis():
+    jit = getattr(sys, "_jit", None)
+    if jit is None:
+        if platform.python_implementation() == "CPython":
+            return {"applicable": False, "result": "not_applicable"}
+        return {"applicable": True, "result": "not_checked"}
+    try:
+        enabled = jit.is_enabled()
+    except Exception:
+        return {"applicable": True, "result": "unknown"}
+    return {"applicable": True, "result": "unknown" if enabled else "not_detected"}
+def optimization_analysis():
+    return {
+        "implementation": {"name": platform.python_implementation(), "version": platform.python_version()},
+        "jit": jit_analysis(),
+        "inlining": {"result": "not_detected"},
+        "vectorization": {"result": "not_detected"},
+        "simd": {"result": "not_checked", "isa": []},
+        "other_optimizations": [],
+        "evidence": [{"type": "disassembly", "path": "artifacts/function-call-analysis/python-bytecode.txt"}],
+        "notes": [
+            "CPython bytecode retains the add call and scalar loop for this benchmark.",
+            "Native interpreter SIMD instructions were not inspected.",
+        ],
+    }
 def run(eid, rid):
     setup_start = now_ms(); values = list(range(1, ITEM_COUNT + 1)); setup_ms = rounded(now_ms() - setup_start)
     direct_warmup, direct_measurement, direct_sum, direct_results = measure(direct, values)
     call_warmup, call_measurement, call_sum, call_results = measure(function_call, values)
     warmup_ms = rounded(direct_warmup + call_warmup); measurement_ms = rounded(direct_measurement + call_measurement)
-    return {**metadata("success", eid, rid), "config":{"item_count":ITEM_COUNT,"warmup_iterations":WARMUP_ITERATIONS,"measurement_iterations":MEASUREMENT_ITERATIONS,"numeric_type":"integer","value_field":"value","cases":["direct","function_call"]}, "timing":{"process_startup_ms":None,"setup_ms":setup_ms,"warmup_ms":warmup_ms,"measurement_ms":measurement_ms,"benchmark_total_ms":rounded(setup_ms + warmup_ms + measurement_ms)}, "results":{"direct":direct_results,"function_call":call_results}, "validation":{"direct_checksum":direct_sum,"function_call_checksum":call_sum,"expected_checksum":EXPECTED_CHECKSUM,"tolerance":0,"passed":direct_sum == call_sum == EXPECTED_CHECKSUM}, "error":None}
+    return {**metadata("success", eid, rid), "optimization_analysis":optimization_analysis(), "config":{"item_count":ITEM_COUNT,"warmup_iterations":WARMUP_ITERATIONS,"measurement_iterations":MEASUREMENT_ITERATIONS,"numeric_type":"integer","value_field":"value","cases":["direct","function_call"]}, "timing":{"process_startup_ms":None,"setup_ms":setup_ms,"warmup_ms":warmup_ms,"measurement_ms":measurement_ms,"benchmark_total_ms":rounded(setup_ms + warmup_ms + measurement_ms)}, "results":{"direct":direct_results,"function_call":call_results}, "validation":{"direct_checksum":direct_sum,"function_call_checksum":call_sum,"expected_checksum":EXPECTED_CHECKSUM,"tolerance":0,"passed":direct_sum == call_sum == EXPECTED_CHECKSUM}, "error":None}
 def main():
     eid, rid = experiment_id(), run_id()
     try:

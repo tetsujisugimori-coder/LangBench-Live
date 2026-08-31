@@ -180,6 +180,47 @@ powershell -ExecutionPolicy Bypass -File benchmarks/jit_object_numeric_sum/run_a
 
 言語間の比較結果、ランキング、Python比などの派生値は個別の結果JSONへ含めません。Memo Nexusなどの読込側で複数JSONから算出します。`tools/validate_result_json.py` は正式形式を検証し、補助関数 `normalize_legacy_result` では旧 `samples`、`min`、`max`、`mean`、`median`、`iterations`、`array_size`、`object_count`、`total_ms`、ルート直下の `checksum`、`experiment` を読み替えられます。
 
+### 最適化解析プロトタイプ
+
+`optimization_analysis` は、測定値である `results` とは分離して、性能に影響した可能性のある最適化を調査した結果を保存するプロトタイプです。schema 1.0では任意フィールドで、存在する場合は `build` と `config` の間に置きます。従来の結果JSONはこのフィールドがなくても引き続き有効です。現在は、関数呼び出しの影響を観察しやすく既存の解析資料もある `function_call_numeric_sum` のC・Python・JavaScript版だけが出力します。
+
+```json
+{
+  "optimization_analysis": {
+    "implementation": {
+      "name": "CPython",
+      "version": "3.14.7"
+    },
+    "jit": {
+      "applicable": true,
+      "result": "not_detected"
+    },
+    "inlining": {
+      "result": "not_detected"
+    },
+    "vectorization": {
+      "result": "not_detected"
+    },
+    "simd": {
+      "result": "not_checked",
+      "isa": []
+    },
+    "other_optimizations": [],
+    "evidence": [
+      {
+        "type": "disassembly",
+        "path": "artifacts/function-call-analysis/python-bytecode.txt"
+      }
+    ],
+    "notes": []
+  }
+}
+```
+
+固定の解析項目はJIT、インライン化、ベクトル化、SIMDです。`result` の許可値は `detected`、`not_detected`、`not_checked`、`unknown`、`not_applicable` の5種類です。未解析は `not_checked` とし、`not_detected` はアセンブリ、コンパイラレポート、JITトレース、バイトコード等を実際に調査して確認できなかった場合だけ使用します。SIMDの `isa`、追加項目の `other_optimizations`、根拠の `evidence`、補足の `notes` は配列です。
+
+処理系は言語名とは別に `implementation` へ保存します。JavaScriptの場合、`engine.runtime` はNode.js、`optimization_analysis.implementation` はV8です。CではGCC、Pythonでは実行中の処理系名を記録します。今後、測定された性能差をこの4項目で説明できない場合だけ、必要な項目を `other_optimizations` へ追加していきます。
+
 ## 今後の予定
 
 * C版のベンチマーク追加

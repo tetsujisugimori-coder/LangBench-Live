@@ -6,6 +6,18 @@ from pathlib import Path
 from typing import Any
 
 ROOT_KEYS = ["type", "schema_version", "project", "benchmark", "experiment_id", "run_id", "language", "created_at", "status", "engine", "execution", "environment", "build", "config", "timing", "results", "validation", "error"]
+ROOT_KEYS_WITH_OPTIMIZATION = [
+    *ROOT_KEYS[:13],
+    "optimization_analysis",
+    *ROOT_KEYS[13:],
+]
+OPTIMIZATION_RESULTS = {
+    "detected",
+    "not_detected",
+    "not_checked",
+    "unknown",
+    "not_applicable",
+}
 LANGUAGES = {"c", "python", "javascript"}
 BENCHMARKS = {"jit_object_numeric_sum", "function_call_numeric_sum"}
 EXPERIMENT_ID_PATTERN = re.compile(r"^(\d{8}_\d{6})_(jit_object_numeric_sum|function_call_numeric_sum)$")
@@ -90,10 +102,84 @@ def validate_build(document: dict[str, Any], errors: list[str], path: Path) -> N
             if not isinstance(build.get(name), str) or not build[name].strip(): errors.append(f"{path}: C build.{name} must be a non-empty string")
         if not is_number(build.get("compile_ms")) or build["compile_ms"] < 0: errors.append(f"{path}: C build.compile_ms must be a non-negative finite number")
 
+def validate_optimization_analysis(document: dict[str, Any], errors: list[str], path: Path) -> None:
+    if "optimization_analysis" not in document:
+        return
+    analysis = document["optimization_analysis"]
+    if not isinstance(analysis, dict):
+        errors.append(f"{path}: optimization_analysis must be an object")
+        return
+    required = {
+        "implementation",
+        "jit",
+        "inlining",
+        "vectorization",
+        "simd",
+        "other_optimizations",
+        "evidence",
+        "notes",
+    }
+    if set(analysis) != required:
+        errors.append(f"{path}: optimization_analysis fields are invalid")
+
+    implementation = analysis.get("implementation")
+    if not isinstance(implementation, dict) or not all(
+        isinstance(implementation.get(name), str) and implementation[name].strip()
+        for name in ("name", "version")
+    ):
+        errors.append(f"{path}: optimization_analysis implementation is invalid")
+
+    jit = analysis.get("jit")
+    if not isinstance(jit, dict) or not isinstance(jit.get("applicable"), bool):
+        errors.append(f"{path}: optimization_analysis jit is invalid")
+    elif jit.get("result") not in OPTIMIZATION_RESULTS:
+        errors.append(f"{path}: optimization_analysis jit.result is invalid")
+    elif not jit["applicable"] and jit["result"] != "not_applicable":
+        errors.append(f"{path}: non-applicable JIT must use not_applicable")
+
+    for name in ("inlining", "vectorization"):
+        item = analysis.get(name)
+        if not isinstance(item, dict) or item.get("result") not in OPTIMIZATION_RESULTS:
+            errors.append(f"{path}: optimization_analysis {name}.result is invalid")
+
+    simd = analysis.get("simd")
+    if (
+        not isinstance(simd, dict)
+        or simd.get("result") not in OPTIMIZATION_RESULTS
+        or not isinstance(simd.get("isa"), list)
+        or not all(isinstance(isa, str) and isa.strip() for isa in simd.get("isa", []))
+    ):
+        errors.append(f"{path}: optimization_analysis simd is invalid")
+
+    other = analysis.get("other_optimizations")
+    if not isinstance(other, list) or not all(
+        isinstance(item, dict)
+        and isinstance(item.get("name"), str)
+        and item["name"].strip()
+        and item.get("result") in OPTIMIZATION_RESULTS
+        for item in other
+    ):
+        errors.append(f"{path}: optimization_analysis other_optimizations is invalid")
+
+    evidence = analysis.get("evidence")
+    if not isinstance(evidence, list) or not all(
+        isinstance(item, dict)
+        and isinstance(item.get("type"), str)
+        and item["type"].strip()
+        and isinstance(item.get("path"), str)
+        and item["path"].strip()
+        for item in evidence
+    ):
+        errors.append(f"{path}: optimization_analysis evidence is invalid")
+
+    notes = analysis.get("notes")
+    if not isinstance(notes, list) or not all(isinstance(note, str) and note.strip() for note in notes):
+        errors.append(f"{path}: optimization_analysis notes is invalid")
+
 def validate_common(document: Any, path: Path) -> list[str]:
     if not isinstance(document, dict): return [f"{path}: root must be an object"]
     errors: list[str] = []
-    if list(document) != ROOT_KEYS: errors.append(f"{path}: root keys/order do not match schema 1.0")
+    if list(document) not in (ROOT_KEYS, ROOT_KEYS_WITH_OPTIMIZATION): errors.append(f"{path}: root keys/order do not match schema 1.0")
     if document.get("type") != "langbench_result" or document.get("schema_version") != "1.0": errors.append(f"{path}: invalid type or schema_version")
     benchmark = document.get("benchmark")
     if benchmark not in BENCHMARKS or "experiment" in document: errors.append(f"{path}: invalid benchmark or deprecated experiment key")
@@ -135,6 +221,7 @@ def validate_common(document: Any, path: Path) -> list[str]:
         ):
             errors.append(f"{path}: error result validation must fail")
     validate_build(document, errors, path)
+    validate_optimization_analysis(document, errors, path)
     return errors
 
 def statistics_errors(samples: Any, expected_count: Any, result: Any, case: str, path: Path) -> list[str]:
