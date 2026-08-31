@@ -1,0 +1,547 @@
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:138:9: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:138:9: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:90: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:90: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:151:20: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:151:20: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:23: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:23: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:66: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:66: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:23: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:23: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:72: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:72: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:275: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:275: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:71: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:242: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:80: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:283: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:139: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:139: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:173:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:173:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:74: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:74: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:175:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:175:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:38: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:38: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:185:9: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:185:9: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:29:23: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:29:61: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:24: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:61: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:98: optimized: simplified fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:118:5: optimized: simplified fprintf to __builtin_fputs
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:118:5: optimized: simplified __builtin_fputs to __builtin_fwrite
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:111:123: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:111:123: optimized:  Inlining round_ms/7708 into sample_total/7721.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:78: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:78: optimized:  Inlining round_ms/7708 into measure/7720.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:87: note: Considering inline candidate now_ms/7709.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:87: missed:   will not early inline: measure/7720->now_ms/7709, growth 6 exceeds --param early-inlining-insns divided by number of calls
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:17: note: Considering inline candidate now_ms/7709.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:17: missed:   will not early inline: measure/7720->now_ms/7709, growth 6 exceeds --param early-inlining-insns divided by number of calls
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:102:18: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:102:18: optimized:  Inlining round_ms/7708 into measure/7720.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:102:27: note: Considering inline candidate now_ms/7709.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:102:27: missed:   will not early inline: measure/7720->now_ms/7709, growth 6 exceeds --param early-inlining-insns divided by number of calls
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:100:13: note: Considering inline candidate now_ms/7709.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:100:13: missed:   will not early inline: measure/7720->now_ms/7709, growth 6 exceeds --param early-inlining-insns divided by number of calls
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:120:5: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:120:5: optimized:  Inlining round_ms/7708 into write_case/7722.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:120:5: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:120:5: optimized:  Inlining round_ms/7708 into write_case/7722.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:77: note: Considering inline candidate write_case/7722.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:77: missed:   will not early inline: main/7724->write_case/7722, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:5: note: Considering inline candidate write_case/7722.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:5: missed:   will not early inline: main/7724->write_case/7722, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:176:5: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:176:5: optimized:  Inlining round_ms/7708 into main/7724.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:176:5: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:176:5: optimized:  Inlining round_ms/7708 into main/7724.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:10: note: Considering inline candidate write_file_contents/7711.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:10: missed:   will not early inline: main/7724->write_file_contents/7711, call is cold and code would grow at least by 29
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:284: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:284: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:180: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:180: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:106: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:106: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:46: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:46: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:163: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:163: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:163: note: Considering inline candidate architecture_name/7714.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:163: missed:   will not early inline: main/7724->architecture_name/7714, growth 7 exceeds --param early-inlining-insns
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:113: note: Considering inline candidate architecture_name/7714.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:113: missed:   will not early inline: main/7724->architecture_name/7714, growth 7 exceeds --param early-inlining-insns
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:38: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:38: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:246: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:246: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:135: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:135: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:40: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:40: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:166:187: note: Considering inline candidate write_json_string/7710.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:166:187: missed:   will not early inline: main/7724->write_json_string/7710, call is cold and code would grow at least by 53
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:58: note: Considering inline candidate cpu_model/7715.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:58: missed:   will not early inline: main/7724->cpu_model/7715, call is cold and code would grow at least by 19
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:5: note: Considering inline candidate local_iso_timestamp/7712.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:5: missed:   will not early inline: main/7724->local_iso_timestamp/7712, call is cold and code would grow at least by 34
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:22: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:22: optimized:  Inlining round_ms/7708 into main/7724.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:62: note: Considering inline candidate sample_total/7721.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:62: missed:   will not early inline: main/7724->sample_total/7721, call is cold and code would grow at least by 9
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:31: note: Considering inline candidate sample_total/7721.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:31: missed:   will not early inline: main/7724->sample_total/7721, call is cold and code would grow at least by 9
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:92: note: Considering inline candidate measure/7720.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:92: missed:   will not early inline: main/7724->measure/7720, call is cold and code would grow at least by 36
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:10: note: Considering inline candidate measure/7720.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:10: missed:   will not early inline: main/7724->measure/7720, call is cold and code would grow at least by 36
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:153:16: note: Considering inline candidate round_ms/7708.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:153:16: optimized:  Inlining round_ms/7708 into main/7724.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:153:25: note: Considering inline candidate now_ms/7709.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:153:25: missed:   will not early inline: main/7724->now_ms/7709, growth 6 exceeds --param early-inlining-insns divided by number of calls
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:149:19: note: Considering inline candidate now_ms/7709.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:149:19: missed:   will not early inline: main/7724->now_ms/7709, growth 6 exceeds --param early-inlining-insns divided by number of calls
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:148:43: note: Considering inline candidate timestamp_id/7713.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:148:43: missed:   will not early inline: main/7724->timestamp_id/7713, call is cold and code would grow at least by 15
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:147:50: note: Considering inline candidate timestamp_id/7713.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:147:50: missed:   will not early inline: main/7724->timestamp_id/7713, call is cold and code would grow at least by 15
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:144:10: note: Considering inline candidate optional_arg/7723.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:144:10: missed:   will not early inline: main/7724->optional_arg/7723, call is cold and code would grow at least by 15
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:141:10: note: Considering inline candidate optional_arg/7723.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:141:10: missed:   will not early inline: main/7724->optional_arg/7723, call is cold and code would grow at least by 15
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:49:18: missed:   not inlinable: local_iso_timestamp.constprop/7775 -> time/7752, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:50:5: missed:   not inlinable: local_iso_timestamp.constprop/7775 -> localtime_s/7753, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:50:37: missed:   not inlinable: local_iso_timestamp.constprop/7775 -> strftime/7754, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:51:10: missed:   not inlinable: local_iso_timestamp.constprop/7775 -> GetTimeZoneInformation/7755, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:55:5: missed:   not inlinable: local_iso_timestamp.constprop/7775 -> snprintf/7731, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:59:22: missed:   not inlinable: timestamp_id.constprop/7774 -> GetLocalTime/7750, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:60:5: missed:   not inlinable: timestamp_id.constprop/7774 -> snprintf/7731, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:73:9: missed:   not inlinable: cpu_model.constprop/7773 -> RegOpenKeyExA/7756, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:74:9: missed:   not inlinable: cpu_model.constprop/7773 -> RegQueryValueExA/7757, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:74:91: missed:   not inlinable: cpu_model.constprop/7773 -> RegCloseKey/7758, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:126:28: missed:   not inlinable: optional_arg.constprop/7771 -> strlen/7735, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:48: missed:   not inlinable: optional_arg.constprop/7771 -> strncmp/7749, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:128:9: missed:   not inlinable: optional_arg.constprop/7771 -> strncpy/7730, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:189:5: missed:   not inlinable: main/7724 -> puts/7748, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:188:5: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:185:9: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:185:17: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:184:9: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:180:9: missed:   not inlinable: main/7724 -> fclose/7746, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:179:24: missed:   not inlinable: main/7724 -> ferror/7747, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:178:5: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:77: missed:   not inlinable: main/7724 -> write_case/7722, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:38: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:5: missed:   not inlinable: main/7724 -> write_case/7722, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:176:5: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:175:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:74: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:82: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:60: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:47: missed:   not inlinable: main/7724 -> fclose/7746, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:173:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:284: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:213: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:180: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:139: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:106: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:283: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:221: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:100: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:80: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:46: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:242: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:163: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:71: missed:   not inlinable: main/7724 -> __builtin_fputs/7745, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:38: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:275: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:246: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:135: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:72: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:40: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:5: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:166:187: missed:   not inlinable: main/7724 -> write_json_string/7710, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:166:5: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:63: missed:   not inlinable: main/7724 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:71: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:63: missed:   not inlinable: main/7724 -> strerror/7743, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:141: missed:   not inlinable: main/7724 -> _errno/7742, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:49: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:11: missed:   not inlinable: main/7724 -> fopen/7741, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:164:44: missed:   not inlinable: main/7724 -> GlobalMemoryStatusEx/7740, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:87: missed:   not inlinable: main/7724 -> GetNativeSystemInfo/7739, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:58: missed:   not inlinable: main/7724 -> __builtin_memcpy/7738, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:58: missed:   not inlinable: main/7724 -> __builtin_strlen/7737, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:31: missed:   not inlinable: main/7724 -> __builtin_memcpy/7738, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:31: missed:   not inlinable: main/7724 -> __builtin_strlen/7737, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:5: missed:   not inlinable: main/7724 -> strcpy/7736, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:23: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:31: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:9: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:159:9: missed:   not inlinable: main/7724 -> strlen/7735, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:66: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:74: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:52: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:10: missed:   not inlinable: main/7724 -> GetCurrentDirectoryA/7734, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:62: missed:   not inlinable: main/7724 -> sample_total/7721, call is unlikely and code size would grow
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:31: missed:   not inlinable: main/7724 -> sample_total/7721, call is unlikely and code size would grow
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:23: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:31: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:9: missed:   not inlinable: main/7724 -> free/7733, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:92: missed:   not inlinable: main/7724 -> measure.constprop/7772, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:10: missed:   not inlinable: main/7724 -> measure.constprop/7772, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:153:25: missed:   not inlinable: main/7724 -> now_ms/7709, call is unlikely and code size would grow
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:151:20: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:151:28: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:150:14: missed:   not inlinable: main/7724 -> malloc/7732, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:149:19: missed:   not inlinable: main/7724 -> now_ms/7709, call is unlikely and code size would grow
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:148:87: missed:   not inlinable: main/7724 -> snprintf/7731, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:148:43: missed:   not inlinable: main/7724 -> timestamp_id.constprop/7774, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:147:94: missed:   not inlinable: main/7724 -> snprintf/7731, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:147:50: missed:   not inlinable: main/7724 -> timestamp_id.constprop/7774, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:145:68: missed:   not inlinable: main/7724 -> strncpy/7730, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:145:29: missed:   not inlinable: main/7724 -> getenv/7729, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:144:10: missed:   not inlinable: main/7724 -> optional_arg.constprop/7771, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:142:75: missed:   not inlinable: main/7724 -> strncpy/7730, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:142:29: missed:   not inlinable: main/7724 -> getenv/7729, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:141:10: missed:   not inlinable: main/7724 -> optional_arg.constprop/7771, --param max-inline-insns-auto limit reached
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:90: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:98: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:10: missed:   not inlinable: main/7724 -> QueryPerformanceFrequency/7728, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:138:9: missed:   not inlinable: main/7724 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:138:17: missed:   not inlinable: main/7724 -> __acrt_iob_func/7726, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:137:21: missed:   not inlinable: main/7724 -> sscanf/7725, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:120:5: missed:   not inlinable: write_case/7722 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: missed:   not inlinable: write_case/7722 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:118:5: missed:   not inlinable: write_case/7722 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:117:5: missed:   not inlinable: write_case/7722 -> qsort/7762, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:95:91: missed:   not inlinable: function_call_sum/7719 -> add/7718, function not inlinable
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:45:5: missed:   not inlinable: write_file_contents/7711 -> fclose/7746, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:44:26: missed:   not inlinable: write_file_contents/7711 -> fclose/7746, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:44:9: missed:   not inlinable: write_file_contents/7711 -> ferror/7747, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:41:21: missed:   not inlinable: write_file_contents/7711 -> fread/7761, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:42:55: missed:   not inlinable: write_file_contents/7711 -> fclose/7746, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:42:13: missed:   not inlinable: write_file_contents/7711 -> fwrite/7760, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:39:52: missed:   not inlinable: write_file_contents/7711 -> fopen/7741, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:35:5: missed:   not inlinable: write_json_string/7710 -> fputc/7759, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:31:81: missed:   not inlinable: write_json_string/7710 -> fputc/7759, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:31:42: missed:   not inlinable: write_json_string/7710 -> fprintf/7744, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:98: missed:   not inlinable: write_json_string/7710 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:61: missed:   not inlinable: write_json_string/7710 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:24: missed:   not inlinable: write_json_string/7710 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:29:61: missed:   not inlinable: write_json_string/7710 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:29:23: missed:   not inlinable: write_json_string/7710 -> __builtin_fwrite/7727, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:26:5: missed:   not inlinable: write_json_string/7710 -> fputc/7759, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed:   not inlinable: now_ms/7709 -> QueryPerformanceCounter/7751, function body not available
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:87: optimized:  Inlined now_ms/7776 into measure.constprop/7772 which now has time 947.908346 and size 55, net change of +6.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:17: optimized:  Inlined now_ms/7777 into measure.constprop/7772 which now has time 1104.796291 and size 61, net change of +6.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:100:13: optimized:  Inlined now_ms/7778 into measure.constprop/7772 which now has time 1119.796291 and size 67, net change of +6.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:102:27: optimized:  Inlined now_ms/7779 into measure.constprop/7772 which now has time 1131.561607 and size 73, net change of +6.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:113: optimized:  Inlined architecture_name/7714 into main/7724 which now has time 108.390851 and size 522, net change of -6.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:58: optimized:  Inlined cpu_model.constprop/7773 into main/7724 which now has time 108.430562 and size 541, net change of -7.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:10: optimized:  Inlined write_file_contents/7711 into main/7724 which now has time 108.930562 and size 570, net change of -7.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:5: optimized:  Inlined local_iso_timestamp.constprop/7775 into main/7724 which now has time 109.082806 and size 604, net change of -6.
+Unit growth for small function inlining: 905->903 (-1%)
+
+Inlined 17 calls, eliminated 5 functions
+
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:79:82: note: ***** Analysis failed with vector mode V2DF
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:79:82: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V2DF
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:83:60: optimized: loop vectorized using 16 byte vectors and unroll factor 4
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:82:16: note: vectorized 1 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:83:114: note: ***** Analysis failed with vector mode VOID
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:83:89: note: considering unrolling loop 1 at BB 3
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:93:78: note: ***** Analysis failed with vector mode VOID
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:95:60: missed: couldn't vectorize loop
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:95:91: missed: not vectorized: unsupported use in stmt.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:94:16: note: vectorized 0 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:95:125: note: ***** Analysis failed with vector mode V4SI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:95:125: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V4SI
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:95:60: note: considering unrolling loop 1 at BB 3
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:111:56: optimized: loop vectorized using 16 byte vectors and unroll factor 2
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:110:15: note: vectorized 1 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:111:123: note: ***** Analysis failed with vector mode VOID
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:111:97: note: considering unrolling loop 1 at BB 3
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:129: note: ***** Analysis failed with vector mode V2DI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:129: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V2DI
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:27:12: missed: couldn't vectorize loop
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:27:12: missed: not vectorized: unsupported control flow in loop.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:24:13: note: vectorized 0 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:31:81: missed: statement clobbers memory: fputc (_6, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:26:5: missed: statement clobbers memory: fputc (34, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:29:61: missed: statement clobbers memory: __builtin_fwrite ("\\\\", 1, 2, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:29:23: missed: statement clobbers memory: __builtin_fwrite ("\\\"", 1, 2, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:61: missed: statement clobbers memory: __builtin_fwrite ("\\r", 1, 2, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:24: missed: statement clobbers memory: __builtin_fwrite ("\\n", 1, 2, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:30:98: missed: statement clobbers memory: __builtin_fwrite ("\\t", 1, 2, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:31:81: missed: statement clobbers memory: fputc (_6, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:31:42: missed: statement clobbers memory: fprintf (out_9(D), "\\u%04x", _6);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:35:5: missed: statement clobbers memory: fputc (34, out_9(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:36:1: note: ***** Analysis failed with vector mode V16QI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:36:1: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V16QI
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:27:12: note: considering unrolling loop 1 at BB 3
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+BB 5 is always executed in loop 2
+BB 3 is always executed in loop 1
+loop 2's coldest_outermost_loop is 2, hotter_than_inner_loop is NULL
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: missed: statement clobbers memory: fprintf (out_24(D), "%.3f%s", pretmp_81, ",");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:27: missed: couldn't vectorize loop
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: missed: statement clobbers memory: fprintf (out_24(D), "%.3f%s", pretmp_81, ",");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:116:27: optimized: loop vectorized using 16 byte vectors and unroll factor 2
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:114:13: note: vectorized 1 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: missed: statement clobbers memory: fprintf (out_24(D), "%.3f%s", pretmp_81, ",");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:117:5: missed: statement clobbers memory: qsort (&sorted, 50, 8, compare_double);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:118:5: missed: statement clobbers memory: __builtin_fwrite ("{\n      \"samples_ms\": [", 1, 23, out_24(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: missed: statement clobbers memory: fprintf (out_24(D), "%.3f%s", pretmp_81, ",");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: missed: statement clobbers memory: fprintf (out_24(D), "%.3f%s", pretmp_73, "");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:120:5: missed: statement clobbers memory: fprintf (out_24(D), "],\n      \"min_ms\": %.3f,\n      \"max_ms\": %.3f,\n      \"mean_ms\": %.3f,\n      \"median_ms\": %.3f\n    }", _15, _14, _38, _43);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:123:1: note: ***** Analysis failed with vector mode V2DF
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:123:1: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V2DF
+BB 5 is always executed in loop 2
+BB 3 is always executed in loop 1
+loop 2's coldest_outermost_loop is 2, hotter_than_inner_loop is NULL
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:119:62: note: considering unrolling loop 2 at BB 5
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:116:102: note: considering unrolling loop 1 at BB 3
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:48: missed: statement clobbers memory: _9 = strncmp (_8, prefix_1(D), prefix_length_2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:27: missed: couldn't vectorize loop
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:48: missed: statement clobbers memory: _9 = strncmp (_8, prefix_1(D), prefix_length_2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:125:12: note: vectorized 0 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:48: missed: statement clobbers memory: _9 = strncmp (_8, prefix_1(D), prefix_length_2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:126:28: missed: statement clobbers memory: prefix_length_2 = strlen (prefix_1(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:48: missed: statement clobbers memory: _9 = strncmp (_8, prefix_1(D), prefix_length_2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:128:9: missed: statement clobbers memory: strncpy (output_12(D), _11, 255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:128:96: note: ***** Analysis failed with vector mode V2DI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:128:96: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V2DI
+BB 3 is always executed in loop 1
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:127:27: note: considering unrolling loop 1 at BB 5
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:59:22: missed: statement clobbers memory: GetLocalTime (&time);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:60:5: missed: statement clobbers memory: snprintf (buffer_13(D), 64, "%04u%02u%02u_%02u%02u%02u", _12, _10, _8, _6, _4, _2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:61:1: note: ***** Analysis failed with vector mode V8HI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:61:1: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V8HI
+BB 6 is always executed in loop 1
+BB 3 is always executed in loop 2
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+loop 2's coldest_outermost_loop is 2, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:101:73: missed: statement clobbers memory: _4 = case_sum_2(D) (values_3(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:103:35: missed: couldn't vectorize loop
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:101:35: missed: couldn't vectorize loop
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:101:73: missed: statement clobbers memory: _4 = case_sum_2(D) (values_3(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:98:12: note: vectorized 0 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:101:73: missed: statement clobbers memory: _4 = case_sum_2(D) (values_3(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:101:73: missed: statement clobbers memory: _4 = case_sum_2(D) (values_3(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:104:39: missed: statement clobbers memory: _16 = case_sum_2(D) (values_3(D));
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:22:53: missed: statement clobbers memory: QueryPerformanceCounter (&counter);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:103:35: note: ***** Analysis failed with vector mode V2DI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:103:35: note: ***** Skipping vector mode V16QI, which would repeat the analysis for V2DI
+BB 6 is always executed in loop 1
+BB 3 is always executed in loop 2
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+loop 2's coldest_outermost_loop is 2, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:103:35: note: considering unrolling loop 1 at BB 7
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:101:35: note: considering unrolling loop 2 at BB 3
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:221: missed: statement clobbers memory: fprintf (out_138, "%llu", _53);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:46: missed: statement clobbers memory: write_json_string (out_138, &cpu);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:71: optimized: simplified __builtin_fputs to __builtin_fwrite
+BB 63 is always executed in loop 3
+BB 46 is always executed in loop 2
+BB 25 is always executed in loop 1
+loop 3's coldest_outermost_loop is 3, hotter_than_inner_loop is NULL
+loop 2's coldest_outermost_loop is 2, hotter_than_inner_loop is NULL
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: optimized: sinking common stores with same value to buffer
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:41:21: missed: statement clobbers memory: count_256 = fread (&buffer, 1, 4096, input_255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:38: missed: statement clobbers memory: write_json_string (out_138, _47);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:152:27: optimized: loop vectorized using 16 byte vectors and unroll factor 4
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: vectorized 1 loops in function.
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:137:21: missed: statement clobbers memory: _2 = sscanf (_1, "%lf", &compile_ms);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:10: missed: statement clobbers memory: _13 = QueryPerformanceFrequency (&timer_frequency);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:141:10: missed: statement clobbers memory: _16 = optional_arg.constprop (argc_96(D), argv_97(D), "--experiment-id=", &experiment_id);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:142:29: missed: statement clobbers memory: value_102 = getenv ("LANGBENCH_EXPERIMENT_ID");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:142:75: missed: statement clobbers memory: strncpy (&experiment_id, value_102, 255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:144:10: missed: statement clobbers memory: _17 = optional_arg.constprop (argc_96(D), argv_97(D), "--run-id=", &run_id);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:145:29: missed: statement clobbers memory: value_106 = getenv ("LANGBENCH_RUN_ID");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:145:68: missed: statement clobbers memory: strncpy (&run_id, value_106, 255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:147:50: missed: statement clobbers memory: timestamp_id.constprop (&timestamp);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:147:94: missed: statement clobbers memory: snprintf (&experiment_id, 256, "%s_%s", &timestamp, "function_call_numeric_sum");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:148:43: missed: statement clobbers memory: timestamp_id.constprop (&timestamp);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:148:87: missed: statement clobbers memory: snprintf (&run_id, 256, "%s_%s_%s", &timestamp, "c", "function_call_numeric_sum");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:149:19: missed: statement clobbers memory: setup_start_115 = now_ms ();
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:150:14: missed: statement clobbers memory: values_117 = malloc (4000000);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:153:25: missed: statement clobbers memory: _26 = now_ms ();
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:10: missed: statement clobbers memory: _28 = measure.constprop (values_117, direct_sum, &direct_warmup, &direct_samples, &direct_checksum);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:154:92: missed: statement clobbers memory: _29 = measure.constprop (values_117, function_call_sum, &call_warmup, &call_samples, &call_checksum);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:31: missed: statement clobbers memory: _31 = sample_total (&direct_samples);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:157:62: missed: statement clobbers memory: _32 = sample_total (&call_samples);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:10: missed: statement clobbers memory: _34 = GetCurrentDirectoryA (4096, &cwd);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:159:9: missed: statement clobbers memory: _36 = strlen (&cwd);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:5: missed: statement clobbers memory: strcpy (&output_path, &cwd);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:31: missed: statement clobbers memory: _71 = __builtin_strlen (&output_path);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:31: missed: statement clobbers memory: __builtin_memcpy (_127, "\\", 2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:58: missed: statement clobbers memory: _72 = __builtin_strlen (&output_path);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:162:58: missed: statement clobbers memory: __builtin_memcpy (_129, "results\\function_call_numeric_sum_c_result.json", 48);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:49:18: missed: statement clobbers memory: _241 = time (0B);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:50:5: missed: statement clobbers memory: localtime_s (&local_time, &now);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:50:37: missed: statement clobbers memory: strftime (&date, 32, "%Y-%m-%dT%H:%M:%S", &local_time);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:51:10: missed: statement clobbers memory: id_242 = GetTimeZoneInformation (&zone);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:55:5: missed: statement clobbers memory: snprintf (&created_at, 48, "%s%c%02d:%02d", &date, iftmp.9_253, _252, _251);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:73:9: missed: statement clobbers memory: _238 = RegOpenKeyExA (-2147483646B, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, 131097, &key);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:74:9: missed: statement clobbers memory: RegQueryValueExA (key.10_239, "ProcessorNameString", 0B, &type, &cpu, &size);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:74:91: missed: statement clobbers memory: RegCloseKey (key.11_240);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:163:87: missed: statement clobbers memory: GetNativeSystemInfo (&system);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:164:44: missed: statement clobbers memory: _39 = GlobalMemoryStatusEx (&memory);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:11: missed: statement clobbers memory: out_138 = fopen (&output_path, "wb");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:166:5: missed: statement clobbers memory: fprintf (out_138, "{\n  \"type\": \"langbench_result\",\n  \"schema_version\": \"1.0\",\n  \"project\": \"LangBench Live\",\n  \"benchmark\": \"%s\",\n  \"experiment_id\": ", "function_call_numeric_sum");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:166:187: missed: statement clobbers memory: write_json_string (out_138, &experiment_id);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:5: missed: statement clobbers memory: __builtin_fwrite (",\n  \"run_id\": ", 1, 14, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:40: missed: statement clobbers memory: write_json_string (out_138, &run_id);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:72: missed: statement clobbers memory: __builtin_fwrite (",\n  \"language\": \"c\",\n  \"created_at\": ", 1, 37, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:167:135: missed: statement clobbers memory: write_json_string (out_138, &created_at);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:5: missed: statement clobbers memory: __builtin_fwrite (",\n  \"status\": \"success\",\n  \"engine\": {\"runtime\": \"native\", \"runtime_version\": null},\n  \"execution\": {\"runner\": \"vscode_terminal_powershell\", \"runner_label\": \"VSCode Terminal / PowerShell\", \"cwd\": ", 1, 196, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:246: missed: statement clobbers memory: write_json_string (out_138, &cwd);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:168:275: missed: statement clobbers memory: __builtin_fwrite (", \"argv\": [", 1, 11, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:38: missed: statement clobbers memory: write_json_string (out_138, _47);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:71: missed: statement clobbers memory: __builtin_fwrite (", ", 1, 2, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:5: missed: statement clobbers memory: __builtin_fwrite ("]},\n  \"environment\": {\"os\": \"Windows\", \"os_version\": null, \"architecture\": ", 1, 75, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:163: missed: statement clobbers memory: write_json_string (out_138, _303);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:170:242: missed: statement clobbers memory: __builtin_fwrite ("null", 1, 4, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:5: missed: statement clobbers memory: __builtin_fwrite (", \"cpu\": ", 1, 9, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:80: missed: statement clobbers memory: __builtin_fwrite ("null", 1, 4, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:46: missed: statement clobbers memory: write_json_string (out_138, &cpu);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:100: missed: statement clobbers memory: fprintf (out_138, ", \"logical_processors\": %lu, \"memory_bytes\": ", _52);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:283: missed: statement clobbers memory: __builtin_fwrite ("null", 1, 4, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:171:221: missed: statement clobbers memory: fprintf (out_138, "%llu", _53);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:5: missed: statement clobbers memory: __builtin_fwrite ("},\n  \"build\": {\"required\": true, \"compiler\": \"gcc\", \"compiler_version\": ", 1, 72, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:106: missed: statement clobbers memory: write_json_string (out_138, _54);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:139: missed: statement clobbers memory: __builtin_fwrite (", \"compile_command\": ", 1, 21, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:180: missed: statement clobbers memory: write_json_string (out_138, _55);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:213: missed: statement clobbers memory: fprintf (out_138, ", \"compile_ms\": %.3f, \"source_path\": ", compile_ms.2_56);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:172:284: missed: statement clobbers memory: write_json_string (out_138, _57);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:173:5: missed: statement clobbers memory: __builtin_fwrite ("},\n  \"optimization_analysis\": ", 1, 30, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:39:52: missed: statement clobbers memory: input_255 = fopen (_58, "rb");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:41:21: missed: statement clobbers memory: count_256 = fread (&buffer, 1, 4096, input_255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:42:13: missed: statement clobbers memory: _257 = fwrite (&buffer, 1, count_256, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:44:9: missed: statement clobbers memory: _258 = ferror (input_255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:45:5: missed: statement clobbers memory: fclose (input_255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:175:5: missed: statement clobbers memory: __builtin_fwrite (",\n", 1, 2, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:176:5: missed: statement clobbers memory: fprintf (out_138, "  \"config\": {\"item_count\": %d, \"warmup_iterations\": %d, \"measurement_iterations\": %d, \"numeric_type\": \"integer\", \"value_field\": \"value\", \"cases\": [\"direct\", \"function_call\"]},\n  \"timing\": {\"process_startup_ms\": null, \"setup_ms\": %.3f, \"warmup_ms\": %.3f, \"measurement_ms\": %.3f, \"benchmark_total_ms\": %.3f},\n  \"results\": {\"direct\": ", 1000000, 5, 50, _124, _232, _227, _237);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:5: missed: statement clobbers memory: write_case (out_138, &direct_samples);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:38: missed: statement clobbers memory: __builtin_fwrite (", \"function_call\": ", 1, 19, out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:177:77: missed: statement clobbers memory: write_case (out_138, &call_samples);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:178:5: missed: statement clobbers memory: fprintf (out_138, "},\n  \"validation\": {\"direct_checksum\": %lld, \"function_call_checksum\": %lld, \"expected_checksum\": %lld, \"tolerance\": 0, \"passed\": true},\n  \"error\": null\n}\n", direct_checksum.8_68, call_checksum.7_67, 500000500000);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:179:24: missed: statement clobbers memory: write_failed_176 = ferror (out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:180:9: missed: statement clobbers memory: _69 = fclose (out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:188:5: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:189:5: missed: statement clobbers memory: puts ("status=success");
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:184:9: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:185:17: missed: statement clobbers memory: _70 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:185:9: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=failed to finish writing result JSON\n", 1, 58, _70);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:44:26: missed: statement clobbers memory: fclose (input_255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:42:55: missed: statement clobbers memory: fclose (input_255);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:47: missed: statement clobbers memory: fclose (out_138);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:60: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:82: missed: statement clobbers memory: _60 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:174:74: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=failed to read optimization analysis JSON\n", 1, 63, _60);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:49: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:141: missed: statement clobbers memory: _40 = _errno ();
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:63: missed: statement clobbers memory: _42 = strerror (_41);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:71: missed: statement clobbers memory: _43 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:165:63: missed: statement clobbers memory: fprintf (_43, "status=error\nmessage=failed to open result: %s\n", _42);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:9: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:31: missed: statement clobbers memory: _38 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:160:23: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=result path is too long\n", 1, 45, _38);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:52: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:74: missed: statement clobbers memory: _35 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:158:66: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=failed to get cwd\n", 1, 39, _35);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:9: missed: statement clobbers memory: free (values_117);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:31: missed: statement clobbers memory: _30 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:155:23: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=checksum mismatch\n", 1, 39, _30);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:151:28: missed: statement clobbers memory: _20 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:151:20: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=failed to allocate array\n", 1, 46, _20);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:98: missed: statement clobbers memory: _15 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:140:90: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=high-resolution timer is unavailable\n", 1, 58, _15);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:138:17: missed: statement clobbers memory: _12 = __acrt_iob_func (2);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:138:9: missed: statement clobbers memory: __builtin_fwrite ("status=error\nmessage=expected build and optimization analysis arguments\n", 1, 72, _12);
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: ***** Analysis failed with vector mode V2DI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: ***** The result for vector mode V16QI would be the same
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: ***** Re-trying analysis with vector mode V8QI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: ***** Analysis failed with vector mode V8QI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: ***** Re-trying analysis with vector mode V4QI
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:133:5: note: ***** Analysis failed with vector mode V4QI
+BB 63 is always executed in loop 3
+BB 46 is always executed in loop 2
+BB 25 is always executed in loop 1
+loop 3's coldest_outermost_loop is 3, hotter_than_inner_loop is NULL
+loop 2's coldest_outermost_loop is 2, hotter_than_inner_loop is NULL
+loop 1's coldest_outermost_loop is 1, hotter_than_inner_loop is NULL
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:41:21: note: considering unrolling loop 3 at BB 66
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:169:71: note: considering unrolling loop 2 at BB 45
+C:\Users\tetsu\Documents\Codex\LangBench-Live\benchmarks\function_call_numeric_sum\c\main.c:152:27: note: considering unrolling loop 1 at BB 26
+considering unrolling loop with constant number of iterations
+considering unrolling loop with runtime-computable number of iterations

@@ -717,3 +717,65 @@
 
 * `run_id` は仕様どおり単独では一意でないため、Memo Nexusなどの取込側で複合識別を実装する必要がある
 * Memo Nexusへの実取り込みは接続先がこのリポジトリにないため未確認
+
+## 2026-09-01 PR #7 レビュー指摘対応
+
+* 保存済み解析資料の結論を無条件で現在の結果へ適用していた問題を修正した。
+* `artifacts/function-call-analysis/manifest.json` と結果JSONの `provenance` に、ソースSHA-256、処理系名・バージョン、CPUアーキテクチャ、主要オプション、解析ID・日時、現在条件、照合結果、不一致項目を追加した。
+* CはGCCバージョン、x64、`-O2 -std=c11 -Wall -Wextra`、ソースハッシュが一致した場合だけ、対象addの非インライン化、directループのベクトル化、SSE2を採用する。不一致時は保存済み判定を `not_checked` へ降格する。
+* PythonはCPythonのバイトコード解析を処理系・バージョン・アーキテクチャ・最適化レベル・ソースが一致した場合だけ使用する。CPython以外や条件不一致ではインライン化とベクトル化を `not_checked` にする。
+* PythonのJIT判定を純粋にテスト可能な関数へ分離し、`sys._jit.is_available()` と `is_enabled()` を区別した。JIT非搭載は `not_applicable`、搭載済み無効は `not_detected`、搭載・有効だが対象コードの作動が未確認なら `unknown`、API失敗は `unknown` とする。
+* JavaScriptはV8バージョン、アーキテクチャ、ソース、`process.execArgv`と`NODE_OPTIONS`由来のオプションを照合する。`--jitless`等がある場合、過去のJIT・インライン化判定を使用しない。
+* バリデーターへprovenance条件の再比較、JITのapplicable整合、SIMDのresult/isa整合、ISA重複禁止、根拠なしの確定判定禁止、不一致provenanceでの確定判定禁止、manifest構造検証を追加した。`optimization_analysis`を持たない既存schema 1.0 JSONは引き続き有効である。
+* `tools/generate_function_call_analysis.ps1` で、最終ソースからGCCレポート、Cアセンブリ、Pythonバイトコード、V8トレース、manifestを再生成した。V8の標準出力と標準エラーは別々に収集し、区切って保存した。
+
+### テスト結果
+
+* `python -m unittest discover -s tests -v`: 14件成功
+* `node tests/test_javascript_optimization_analysis.js`: 5件成功
+* `python -m py_compile benchmarks/function_call_numeric_sum/python/main.py tools/validate_result_json.py`: 成功
+* `node --check benchmarks/function_call_numeric_sum/javascript/main.js`: 成功
+* `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの実行と3結果の検証が成功（`validated=3`）
+* `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: 成功し、`provenance.status: mismatched`、`mismatches: ["options"]`、JITとインライン化が `not_checked` になることを確認
+* 通常条件へ戻した3結果の明示検証: `validated=3`
+
+## 2026-09-01 PR #7 2回目レビュー指摘対応
+
+* 条件一致時の最適化結論が実行コード内の固定値だったため、異なるアーキテクチャで成果物を再生成すると解析内容に関係なく過去の結論を出せる問題を修正した。
+* manifestの各言語エントリーへ `findings` を追加し、結果JSONの `provenance.artifact_findings` から保存値と現在値の対応を検証できるようにした。
+* `tools/extract_function_call_findings.py` を追加し、CはGCCレポートと対象関数のアセンブリ、Pythonは対象コードオブジェクトのバイトコード、JavaScriptは対象関数名を含むV8トレースから結論を抽出するようにした。
+* CのSSE2はx86系アーキテクチャかつ `direct_sum` の対応命令を確認した場合だけ記録し、ARM64や命令未確認時は `not_checked` にする。
+* C、Python、JavaScriptでmanifestエントリーの構造を利用前に検証し、欠落、型不正、構文エラー、対象言語なしを `unavailable` として測定を継続するようにした。
+* バリデーターを不正な `applies_to`、condition、implementation、options、findingsに対して型安全にし、条件一致時の現在値と保存済みfindingsの一致、不一致時の `not_checked`、利用不能時の `unknown` を検証するようにした。
+* manifest専用CLI `python tools/validate_result_json.py --manifest ...` を追加した。
+
+### テスト結果
+
+* `python -m unittest discover -s tests -v`: 19件成功
+* `node --test tests/test_javascript_optimization_analysis.js`: 12件成功
+* `tests/test_c_optimization_analysis.ps1`: 7件成功
+* PythonとJavaScriptの構文検査: 成功
+* Windows PowerShell 5.1で解析資料4件とfindings付きmanifestの再生成: 成功
+* manifest検証: `validated_manifest=1`
+* 3言語の実行と結果検証: `validated=3`
+* `node --jitless`で保存済みfindingsが `not_checked` へ降格することを確認し、通常条件の結果へ復元した。
+
+## 2026-09-01 PR #7 3回目レビュー指摘対応
+
+* Python・JavaScript・Cのランナーが対象言語entryだけを検証し、manifestルートや兄弟言語entryの不正を見逃していた問題を修正した。
+* manifest文書全体の検証と各言語entryの詳細検証を分離し、ルートキー、schema 1.0、解析ID、タイムゾーン付き日時、3言語の完全なキー集合と全entryを検証するようにした。
+* entryの `generation_commands` と厳密なevidence構造も検証し、`tools/validate_result_json.py --manifest` とランナーの受理・拒否条件を揃えた。
+* 存在するmanifestの構文・構造不正は `manifest_invalid`、ファイル不在は `manifest_unavailable` と区別した。不正時は解析メタデータと保存済みfindingsをnullにし、対象判定を `unknown`、SIMD ISAとevidenceを空配列として測定を継続する。
+* schema 2.0、analysis_id欠落、不正なgenerated_at、languagesの配列・null、兄弟言語欠落、未知ルートフィールド、正常manifestをPython・JavaScript・Cで回帰テストした。
+* 最終ソースから `tools/generate_function_call_analysis.ps1 -AnalysisId function-call-analysis-20260901-review3` でPythonバイトコード、V8トレース、manifestを再生成した。C解析資料は再生成後も内容差分がなかった。
+
+### テスト結果
+
+* `python -m unittest tests.test_result_schema`: 20件成功
+* `node --test tests/test_javascript_optimization_analysis.js`: 20件成功
+* `tests/test_c_optimization_analysis.ps1`: 14件成功
+* `python tools/validate_result_json.py --manifest artifacts/function-call-analysis/manifest.json`: `validated_manifest=1`
+* `python -m unittest discover -s tests -v`: 20件成功
+* Python・JavaScript構文検査: 成功
+* `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: `mismatched`、JIT・対象findingsの `not_checked` を確認
+* `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの通常実行と3結果の検証が成功（`validated=3`）

@@ -180,6 +180,93 @@ powershell -ExecutionPolicy Bypass -File benchmarks/jit_object_numeric_sum/run_a
 
 言語間の比較結果、ランキング、Python比などの派生値は個別の結果JSONへ含めません。Memo Nexusなどの読込側で複数JSONから算出します。`tools/validate_result_json.py` は正式形式を検証し、補助関数 `normalize_legacy_result` では旧 `samples`、`min`、`max`、`mean`、`median`、`iterations`、`array_size`、`object_count`、`total_ms`、ルート直下の `checksum`、`experiment` を読み替えられます。
 
+### 最適化解析プロトタイプ
+
+`optimization_analysis` は、測定値である `results` とは分離して、性能に影響した可能性のある最適化を調査した結果を保存するプロトタイプです。schema 1.0では任意フィールドで、存在する場合は `build` と `config` の間に置きます。従来の結果JSONはこのフィールドがなくても引き続き有効です。現在は `function_call_numeric_sum` のC・Python・JavaScript版だけが出力します。
+
+保存済み解析の条件と、その解析資料から実際に抽出した結論は `artifacts/function-call-analysis/manifest.json` の `condition` と `findings` に記録します。結果JSONでは同じ結論を `provenance.artifact_findings` に保持します。`provenance.analysis` と `provenance.current` のソースSHA-256、処理系名・バージョン、CPUアーキテクチャ、主要オプションがすべて一致した場合だけ `status: "matched"` となり、現在値へ `artifact_findings` を採用します。不一致項目は `mismatches` に入り、対象判定は `not_checked` へ降格します。
+
+manifestが存在しない、JSONや必須構造が壊れている、`findings`や`evidence`が不正な場合は `status: "unavailable"`、対象判定は `unknown` として測定自体を継続します。各ランナーは対象言語entryを使う前に、manifestルートのキー・schema・解析ID・タイムゾーン付き生成日時と、`c`・`python`・`javascript` の3言語entryすべてを検証します。ファイル不在は `manifest_unavailable`、存在する文書の構文・構造不正は `manifest_invalid` として区別し、どちらの場合も保存済みfindingsやevidenceを結果へ流用しません。この受理条件は `tools/validate_result_json.py --manifest` と共通です。
+
+生成処理はGCCレポートと対象関数のアセンブリ、CPythonバイトコード、対象関数名を含むV8トレースから確認できる結論だけを記録し、確認できない最適化を推測で `detected` や `not_detected` にしません。CのSSE2はx86系アーキテクチャの対象関数で対応命令を確認した場合だけ記録するため、ARM64などへ固定値を流用しません。
+
+```json
+{
+  "optimization_analysis": {
+    "implementation": {
+      "name": "CPython",
+      "version": "3.14.7"
+    },
+    "provenance": {
+      "status": "matched",
+      "artifact_id": "function-call-analysis-20260901-review3-python",
+      "analyzed_at": "2026-08-31T21:00:49Z",
+      "applies_to": ["inlining", "vectorization", "simd"],
+      "analysis": {
+        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
+        "implementation": {"name": "CPython", "version": "3.14.7"},
+        "architecture": "amd64",
+        "options": ["optimize=0"]
+      },
+      "artifact_findings": {
+        "inlining": {"result": "not_detected"},
+        "vectorization": {"result": "not_detected"},
+        "simd": {"result": "not_checked", "isa": []}
+      },
+      "current": {
+        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
+        "implementation": {"name": "CPython", "version": "3.14.7"},
+        "architecture": "amd64",
+        "options": ["optimize=0"]
+      },
+      "matched": true,
+      "mismatches": []
+    },
+    "jit": {
+      "applicable": true,
+      "result": "not_detected"
+    },
+    "inlining": {
+      "result": "not_detected"
+    },
+    "vectorization": {
+      "result": "not_detected"
+    },
+    "simd": {
+      "result": "not_checked",
+      "isa": []
+    },
+    "other_optimizations": [],
+    "evidence": [
+      {
+        "type": "runtime_api",
+        "path": "python:sys._jit.is_available/is_enabled"
+      },
+      {
+        "type": "disassembly",
+        "path": "artifacts/function-call-analysis/python-bytecode.txt"
+      }
+    ],
+    "notes": []
+  }
+}
+```
+
+固定の解析項目はJIT、インライン化、ベクトル化、SIMDです。`result` の許可値は `detected`、`not_detected`、`not_checked`、`unknown`、`not_applicable` の5種類です。`detected` と `not_detected` は、該当する解析条件が現在条件と一致し、空でない `evidence` がある場合だけ使用します。`not_detected` は最適化が絶対に存在しないという意味ではなく、記録された解析方法では検出されなかったことを表します。
+
+JITでは「処理系に搭載されている」「実行時に有効である」「対象コードで実際に作動した」を区別します。Pythonは `sys._jit.is_available()` と `is_enabled()` を測定外で確認しますが、両方trueでも対象コードのJIT作動を証明できないため、トレースなしでは `unknown` です。JavaScriptはV8トレースと条件が一致した場合だけ `detected` とし、`--jitless`、`--no-opt`等の起動オプションがある実行へ過去の判定を流用しません。
+
+SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を持ちます。それ以外の結果では `isa` は空配列です。追加項目の `other_optimizations`、根拠の `evidence`、補足の `notes` も配列です。
+
+処理系は言語名とは別に `implementation` へ保存します。JavaScriptの場合、`engine.runtime` はNode.js、`optimization_analysis.implementation` はV8です。CではGCC、Pythonでは実行中の処理系名を記録します。今後、測定された性能差をこの4項目で説明できない場合だけ、必要な項目を `other_optimizations` へ追加していきます。
+
+解析資料とmanifestは次のコマンドで最終ソースから再生成します。`tools/extract_function_call_findings.py` の純粋関数が生成済み資料を読み、manifestの `findings` を構成します。V8の標準出力と標準エラーは別々に収集してから、区切り付きでトレースへ保存します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/generate_function_call_analysis.ps1
+python tools/validate_result_json.py --manifest artifacts/function-call-analysis/manifest.json
+```
+
 ## 今後の予定
 
 * C版のベンチマーク追加

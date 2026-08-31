@@ -35,6 +35,16 @@ static void write_json_string(FILE *out, const char *value) {
     fputc('"', out);
 }
 
+static int write_file_contents(FILE *out, const char *path) {
+    char buffer[4096]; size_t count; FILE *input = fopen(path, "rb");
+    if (!input) return 0;
+    while ((count = fread(buffer, 1, sizeof(buffer), input)) > 0) {
+        if (fwrite(buffer, 1, count, out) != count) { fclose(input); return 0; }
+    }
+    if (ferror(input)) { fclose(input); return 0; }
+    fclose(input); return 1;
+}
+
 static void local_iso_timestamp(char *buffer, size_t size) {
     time_t now = time(NULL); struct tm local_time; char date[32]; TIME_ZONE_INFORMATION zone; DWORD id; LONG bias; int offset;
     localtime_s(&local_time, &now); strftime(date, sizeof(date), "%Y-%m-%dT%H:%M:%S", &local_time);
@@ -124,8 +134,8 @@ int main(int argc, char *argv[]) {
     double compile_ms, setup_start, setup_ms, direct_warmup, call_warmup, direct_samples[MEASUREMENT_ITERATIONS], call_samples[MEASUREMENT_ITERATIONS], measurement_ms;
     int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", output_path[PATH_SIZE];
     SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index;
-    if (argc < 5 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0]) {
-        fprintf(stderr, "status=error\nmessage=expected non-negative compile_ms, compiler version, compile command, and source path\n"); return 1;
+    if (argc < 6 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0] || !argv[5][0]) {
+        fprintf(stderr, "status=error\nmessage=expected build and optimization analysis arguments\n"); return 1;
     }
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) { fprintf(stderr, "status=error\nmessage=high-resolution timer is unavailable\n"); return 1; }
     if (!optional_arg(argc, argv, "--experiment-id=", experiment_id, sizeof(experiment_id))) {
@@ -160,7 +170,10 @@ int main(int argc, char *argv[]) {
     fprintf(out, "]},\n  \"environment\": {\"os\": \"Windows\", \"os_version\": null, \"architecture\": "); if (architecture_name(system.wProcessorArchitecture)) write_json_string(out, architecture_name(system.wProcessorArchitecture)); else fputs("null", out);
     fprintf(out, ", \"cpu\": "); if (cpu[0]) write_json_string(out, cpu); else fputs("null", out); fprintf(out, ", \"logical_processors\": %lu, \"memory_bytes\": ", system.dwNumberOfProcessors); if (memory.ullTotalPhys) fprintf(out, "%" PRIu64, (uint64_t)memory.ullTotalPhys); else fputs("null", out);
     fprintf(out, "},\n  \"build\": {\"required\": true, \"compiler\": \"gcc\", \"compiler_version\": "); write_json_string(out, argv[2]); fprintf(out, ", \"compile_command\": "); write_json_string(out, argv[3]); fprintf(out, ", \"compile_ms\": %.3f, \"source_path\": ", compile_ms); write_json_string(out, argv[4]);
-    fprintf(out, "},\n  \"config\": {\"item_count\": %d, \"warmup_iterations\": %d, \"measurement_iterations\": %d, \"numeric_type\": \"integer\", \"value_field\": \"value\", \"cases\": [\"direct\", \"function_call\"]},\n  \"timing\": {\"process_startup_ms\": null, \"setup_ms\": %.3f, \"warmup_ms\": %.3f, \"measurement_ms\": %.3f, \"benchmark_total_ms\": %.3f},\n  \"results\": {\"direct\": ", ITEM_COUNT, WARMUP_ITERATIONS, MEASUREMENT_ITERATIONS, setup_ms, round_ms(direct_warmup + call_warmup), measurement_ms, round_ms(setup_ms + direct_warmup + call_warmup + measurement_ms));
+    fprintf(out, "},\n  \"optimization_analysis\": ");
+    if (!write_file_contents(out, argv[5])) { fclose(out); free(values); fprintf(stderr, "status=error\nmessage=failed to read optimization analysis JSON\n"); return 1; }
+    fprintf(out, ",\n");
+    fprintf(out, "  \"config\": {\"item_count\": %d, \"warmup_iterations\": %d, \"measurement_iterations\": %d, \"numeric_type\": \"integer\", \"value_field\": \"value\", \"cases\": [\"direct\", \"function_call\"]},\n  \"timing\": {\"process_startup_ms\": null, \"setup_ms\": %.3f, \"warmup_ms\": %.3f, \"measurement_ms\": %.3f, \"benchmark_total_ms\": %.3f},\n  \"results\": {\"direct\": ", ITEM_COUNT, WARMUP_ITERATIONS, MEASUREMENT_ITERATIONS, setup_ms, round_ms(direct_warmup + call_warmup), measurement_ms, round_ms(setup_ms + direct_warmup + call_warmup + measurement_ms));
     write_case(out, direct_samples); fprintf(out, ", \"function_call\": "); write_case(out, call_samples);
     fprintf(out, "},\n  \"validation\": {\"direct_checksum\": %" PRId64 ", \"function_call_checksum\": %" PRId64 ", \"expected_checksum\": %" PRId64 ", \"tolerance\": 0, \"passed\": true},\n  \"error\": null\n}\n", direct_checksum, call_checksum, EXPECTED_CHECKSUM);
     int write_failed = ferror(out);
