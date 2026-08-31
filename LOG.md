@@ -759,3 +759,23 @@
 * manifest検証: `validated_manifest=1`
 * 3言語の実行と結果検証: `validated=3`
 * `node --jitless`で保存済みfindingsが `not_checked` へ降格することを確認し、通常条件の結果へ復元した。
+
+## 2026-09-01 PR #7 3回目レビュー指摘対応
+
+* Python・JavaScript・Cのランナーが対象言語entryだけを検証し、manifestルートや兄弟言語entryの不正を見逃していた問題を修正した。
+* manifest文書全体の検証と各言語entryの詳細検証を分離し、ルートキー、schema 1.0、解析ID、タイムゾーン付き日時、3言語の完全なキー集合と全entryを検証するようにした。
+* entryの `generation_commands` と厳密なevidence構造も検証し、`tools/validate_result_json.py --manifest` とランナーの受理・拒否条件を揃えた。
+* 存在するmanifestの構文・構造不正は `manifest_invalid`、ファイル不在は `manifest_unavailable` と区別した。不正時は解析メタデータと保存済みfindingsをnullにし、対象判定を `unknown`、SIMD ISAとevidenceを空配列として測定を継続する。
+* schema 2.0、analysis_id欠落、不正なgenerated_at、languagesの配列・null、兄弟言語欠落、未知ルートフィールド、正常manifestをPython・JavaScript・Cで回帰テストした。
+* 最終ソースから `tools/generate_function_call_analysis.ps1 -AnalysisId function-call-analysis-20260901-review3` でPythonバイトコード、V8トレース、manifestを再生成した。C解析資料は再生成後も内容差分がなかった。
+
+### テスト結果
+
+* `python -m unittest tests.test_result_schema`: 20件成功
+* `node --test tests/test_javascript_optimization_analysis.js`: 20件成功
+* `tests/test_c_optimization_analysis.ps1`: 14件成功
+* `python tools/validate_result_json.py --manifest artifacts/function-call-analysis/manifest.json`: `validated_manifest=1`
+* `python -m unittest discover -s tests -v`: 20件成功
+* Python・JavaScript構文検査: 成功
+* `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: `mismatched`、JIT・対象findingsの `not_checked` を確認
+* `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの通常実行と3結果の検証が成功（`validated=3`）

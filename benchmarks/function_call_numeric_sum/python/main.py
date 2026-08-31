@@ -20,8 +20,15 @@ RESULT_FILE = "function_call_numeric_sum_python_result.json"
 ANALYSIS_MANIFEST = "artifacts/function-call-analysis/manifest.json"
 _DEFAULT_JIT = object()
 _LOAD_MANIFEST = object()
+_INVALID_MANIFEST = object()
 OPTIMIZATION_RESULTS = {"detected", "not_detected", "not_checked", "unknown", "not_applicable"}
-SAVED_FINDING_NAMES = {"inlining", "vectorization", "simd"}
+MANIFEST_LANGUAGES = {"c", "python", "javascript"}
+SAVED_FINDING_NAMES_BY_LANGUAGE = {
+    "c": {"inlining", "vectorization", "simd"},
+    "python": {"inlining", "vectorization", "simd"},
+    "javascript": {"jit", "inlining", "vectorization", "simd"},
+}
+SAVED_FINDING_NAMES = SAVED_FINDING_NAMES_BY_LANGUAGE[LANGUAGE]
 
 def project_root(): return Path(__file__).resolve().parents[3]
 def now_ms(): return time.perf_counter_ns() / 1_000_000
@@ -77,10 +84,10 @@ def valid_condition(condition):
         and all(isinstance(option, str) and option.strip() for option in condition["options"])
         and len(condition["options"]) == len(set(condition["options"]))
     )
-def valid_findings(findings):
-    if not isinstance(findings, dict) or set(findings) != SAVED_FINDING_NAMES:
+def valid_findings(findings, expected_names=SAVED_FINDING_NAMES):
+    if not isinstance(findings, dict) or set(findings) != expected_names:
         return False
-    for name in ("inlining", "vectorization"):
+    for name in expected_names - {"simd"}:
         item = findings.get(name)
         if not isinstance(item, dict) or set(item) != {"result"} or item.get("result") not in OPTIMIZATION_RESULTS:
             return False
@@ -89,7 +96,7 @@ def valid_findings(findings):
         return False
     isa = simd.get("isa")
     return isinstance(isa, list) and all(isinstance(value, str) and value.strip() for value in isa) and len(isa) == len(set(isa)) and bool(isa) == (simd["result"] == "detected")
-def valid_manifest_entry(entry):
+def valid_manifest_entry(entry, expected_names=SAVED_FINDING_NAMES):
     if not isinstance(entry, dict):
         return False
     if not isinstance(entry.get("artifact_id"), str) or not entry["artifact_id"].strip():
@@ -97,16 +104,37 @@ def valid_manifest_entry(entry):
     if not isinstance(entry.get("analyzed_at"), str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", entry["analyzed_at"]):
         return False
     applies_to = entry.get("applies_to")
-    if not isinstance(applies_to, list) or len(applies_to) != len(SAVED_FINDING_NAMES) or set(applies_to) != SAVED_FINDING_NAMES:
+    if not isinstance(applies_to, list) or len(applies_to) != len(expected_names) or set(applies_to) != expected_names:
         return False
-    if not valid_condition(entry.get("condition")) or not valid_findings(entry.get("findings")):
+    if not valid_condition(entry.get("condition")) or not valid_findings(entry.get("findings"), expected_names):
+        return False
+    commands = entry.get("generation_commands")
+    if not isinstance(commands, list) or not commands or not all(isinstance(part, str) and part.strip() for part in commands):
         return False
     evidence = entry.get("evidence")
     return isinstance(evidence, list) and bool(evidence) and all(
         isinstance(item, dict)
+        and set(item) == {"type", "path"}
         and isinstance(item.get("type"), str) and item["type"].strip()
         and isinstance(item.get("path"), str) and item["path"].strip()
         for item in evidence
+    )
+def valid_manifest_document(document):
+    if (
+        not isinstance(document, dict)
+        or set(document) != {"schema_version", "analysis_id", "generated_at", "languages"}
+        or document.get("schema_version") != "1.0"
+        or not isinstance(document.get("analysis_id"), str)
+        or not document["analysis_id"].strip()
+        or not isinstance(document.get("generated_at"), str)
+        or re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", document["generated_at"]) is None
+    ):
+        return False
+    languages = document.get("languages")
+    return (
+        isinstance(languages, dict)
+        and set(languages) == MANIFEST_LANGUAGES
+        and all(valid_manifest_entry(languages[name], SAVED_FINDING_NAMES_BY_LANGUAGE[name]) for name in MANIFEST_LANGUAGES)
     )
 def compare_provenance(manifest_entry, current):
     if manifest_entry is None:
@@ -141,9 +169,11 @@ def current_analysis_condition(implementation_name=None, implementation_version=
 def parse_manifest_entry(content):
     try:
         document = json.loads(content)
-        return document["languages"][LANGUAGE]
-    except (KeyError, TypeError, json.JSONDecodeError):
-        return None
+    except json.JSONDecodeError:
+        return _INVALID_MANIFEST
+    if not valid_manifest_document(document):
+        return _INVALID_MANIFEST
+    return document["languages"][LANGUAGE]
 def load_manifest_entry(manifest_path=None):
     try:
         path = Path(manifest_path) if manifest_path is not None else project_root() / ANALYSIS_MANIFEST

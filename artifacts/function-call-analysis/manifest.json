@@ -1,11 +1,11 @@
 {
     "schema_version":  "1.0",
-    "analysis_id":  "function-call-analysis-20260901-review2",
-    "generated_at":  "2026-08-31T20:21:37Z",
+    "analysis_id":  "function-call-analysis-20260901-review3",
+    "generated_at":  "2026-08-31T21:00:49Z",
     "languages":  {
                       "c":  {
-                                "artifact_id":  "function-call-analysis-20260901-review2-c",
-                                "analyzed_at":  "2026-08-31T20:21:37Z",
+                                "artifact_id":  "function-call-analysis-20260901-review3-c",
+                                "analyzed_at":  "2026-08-31T21:00:49Z",
                                 "applies_to":  [
                                                    "inlining",
                                                    "vectorization",
@@ -64,15 +64,15 @@
                                              ]
                             },
                       "python":  {
-                                     "artifact_id":  "function-call-analysis-20260901-review2-python",
-                                     "analyzed_at":  "2026-08-31T20:21:37Z",
+                                     "artifact_id":  "function-call-analysis-20260901-review3-python",
+                                     "analyzed_at":  "2026-08-31T21:00:49Z",
                                      "applies_to":  [
                                                         "inlining",
                                                         "vectorization",
                                                         "simd"
                                                     ],
                                      "condition":  {
-                                                       "source_sha256":  "55ec13f95237c52a095245dc2641665d1e6ff1830c0719db2bf2102c1b147159",
+                                                       "source_sha256":  "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
                                                        "implementation":  {
                                                                               "name":  "CPython",
                                                                               "version":  "3.14.7"
@@ -110,8 +110,8 @@
                                                   ]
                                  },
                       "javascript":  {
-                                         "artifact_id":  "function-call-analysis-20260901-review2-javascript",
-                                         "analyzed_at":  "2026-08-31T20:21:37Z",
+                                         "artifact_id":  "function-call-analysis-20260901-review3-javascript",
+                                         "analyzed_at":  "2026-08-31T21:00:49Z",
                                          "applies_to":  [
                                                             "jit",
                                                             "inlining",
@@ -119,7 +119,7 @@
                                                             "simd"
                                                         ],
                                          "condition":  {
-                                                           "source_sha256":  "1517bf5ffa7db7c8892c9a809f9f6b1e33ef51bfb9734410eb076646605788bd",
+                                                           "source_sha256":  "081a8d31367c5cf227f48e9526de54a3eaa6434174af0bc0a3a163018c88c9af",
                                                            "implementation":  {
                                                                                   "name":  "V8",
                                                                                   "version":  "13.6.233.17-node.53"

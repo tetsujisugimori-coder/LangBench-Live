@@ -30,7 +30,8 @@ function Test-NonEmptyString { param($Value) return $Value -is [string] -and -no
 function Test-JsonObject { param($Value) return $null -ne $Value -and $Value -is [pscustomobject] }
 function Test-AnalysisTimestamp {
     param($Value)
-    return $Value -is [datetime] -or ((Test-NonEmptyString $Value) -and $Value -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$')
+    if ($Value -is [datetime]) { return $Value.Kind -ne [System.DateTimeKind]::Unspecified }
+    return (Test-NonEmptyString $Value) -and $Value -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$'
 }
 function Test-AnalysisCondition {
     param($Condition)
@@ -58,20 +59,47 @@ function Test-FindingItem {
     return $itemNames -eq "result"
 }
 function Test-AnalysisFindings {
-    param($Findings)
+    param($Findings, [string[]]$ExpectedNames)
     if (-not (Test-JsonObject $Findings)) { return $false }
     $names = @($Findings.PSObject.Properties.Name | Sort-Object)
-    if (($names -join ",") -ne "inlining,simd,vectorization") { return $false }
-    return (Test-FindingItem $Findings.inlining) -and (Test-FindingItem $Findings.vectorization) -and (Test-FindingItem $Findings.simd -Simd)
+    if (($names -join ",") -ne ((@($ExpectedNames | Sort-Object)) -join ",")) { return $false }
+    foreach ($name in @($ExpectedNames | Where-Object { $_ -ne "simd" })) {
+        if (-not (Test-FindingItem $Findings.$name)) { return $false }
+    }
+    return Test-FindingItem $Findings.simd -Simd
 }
 function Test-ManifestEntry {
-    param($Entry)
+    param($Entry, [string[]]$ExpectedNames)
     if (-not (Test-JsonObject $Entry) -or -not (Test-NonEmptyString $Entry.artifact_id)) { return $false }
     if (-not (Test-AnalysisTimestamp $Entry.analyzed_at)) { return $false }
-    if ($Entry.applies_to -isnot [array] -or (@($Entry.applies_to | Sort-Object) -join ",") -ne "inlining,simd,vectorization") { return $false }
-    if (-not (Test-AnalysisCondition $Entry.condition) -or -not (Test-AnalysisFindings $Entry.findings)) { return $false }
+    if ($Entry.applies_to -isnot [array] -or (@($Entry.applies_to | Sort-Object) -join ",") -ne (@($ExpectedNames | Sort-Object) -join ",")) { return $false }
+    if (-not (Test-AnalysisCondition $Entry.condition) -or -not (Test-AnalysisFindings $Entry.findings $ExpectedNames)) { return $false }
+    if ($Entry.generation_commands -isnot [array] -or @($Entry.generation_commands).Count -eq 0) { return $false }
+    if (@($Entry.generation_commands | Where-Object { -not (Test-NonEmptyString $_) }).Count -ne 0) { return $false }
     if ($Entry.evidence -isnot [array] -or @($Entry.evidence).Count -eq 0) { return $false }
-    return @($Entry.evidence | Where-Object { -not (Test-JsonObject $_) -or -not (Test-NonEmptyString $_.type) -or -not (Test-NonEmptyString $_.path) }).Count -eq 0
+    return @($Entry.evidence | Where-Object {
+        -not (Test-JsonObject $_) -or
+        (@($_.PSObject.Properties.Name | Sort-Object) -join ",") -ne "path,type" -or
+        -not (Test-NonEmptyString $_.type) -or
+        -not (Test-NonEmptyString $_.path)
+    }).Count -eq 0
+}
+function Test-ManifestDocument {
+    param($Document)
+    if (-not (Test-JsonObject $Document)) { return $false }
+    if ((@($Document.PSObject.Properties.Name | Sort-Object) -join ",") -ne "analysis_id,generated_at,languages,schema_version") { return $false }
+    if ($Document.schema_version -ne "1.0" -or -not (Test-NonEmptyString $Document.analysis_id) -or -not (Test-AnalysisTimestamp $Document.generated_at)) { return $false }
+    if (-not (Test-JsonObject $Document.languages)) { return $false }
+    if ((@($Document.languages.PSObject.Properties.Name | Sort-Object) -join ",") -ne "c,javascript,python") { return $false }
+    $expectedByLanguage = @{
+        c = @("inlining", "vectorization", "simd")
+        python = @("inlining", "vectorization", "simd")
+        javascript = @("jit", "inlining", "vectorization", "simd")
+    }
+    foreach ($language in @("c", "python", "javascript")) {
+        if (-not (Test-ManifestEntry $Document.languages.$language $expectedByLanguage[$language])) { return $false }
+    }
+    return $true
 }
 
 $scriptDir = Split-Path -Parent $PSCommandPath
@@ -112,8 +140,8 @@ $currentCondition = [ordered]@{
 }
 try {
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not (Test-ManifestDocument $manifest)) { throw "manifest document is invalid" }
     $entry = $manifest.languages.c
-    if (-not (Test-ManifestEntry $entry)) { throw "manifest entry is invalid" }
     $entryAnalyzedAt = if ($entry.analyzed_at -is [datetime]) { $entry.analyzed_at.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") } else { $entry.analyzed_at }
     $mismatches = @(Compare-AnalysisCondition $entry.condition $currentCondition)
     $matched = $mismatches.Count -eq 0

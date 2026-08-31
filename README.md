@@ -186,7 +186,9 @@ powershell -ExecutionPolicy Bypass -File benchmarks/jit_object_numeric_sum/run_a
 
 保存済み解析の条件と、その解析資料から実際に抽出した結論は `artifacts/function-call-analysis/manifest.json` の `condition` と `findings` に記録します。結果JSONでは同じ結論を `provenance.artifact_findings` に保持します。`provenance.analysis` と `provenance.current` のソースSHA-256、処理系名・バージョン、CPUアーキテクチャ、主要オプションがすべて一致した場合だけ `status: "matched"` となり、現在値へ `artifact_findings` を採用します。不一致項目は `mismatches` に入り、対象判定は `not_checked` へ降格します。
 
-manifestが存在しない、JSONや必須構造が壊れている、`findings`や`evidence`が不正な場合は `status: "unavailable"`、対象判定は `unknown` として測定自体を継続します。生成処理はGCCレポートと対象関数のアセンブリ、CPythonバイトコード、対象関数名を含むV8トレースから確認できる結論だけを記録し、確認できない最適化を推測で `detected` や `not_detected` にしません。CのSSE2はx86系アーキテクチャの対象関数で対応命令を確認した場合だけ記録するため、ARM64などへ固定値を流用しません。
+manifestが存在しない、JSONや必須構造が壊れている、`findings`や`evidence`が不正な場合は `status: "unavailable"`、対象判定は `unknown` として測定自体を継続します。各ランナーは対象言語entryを使う前に、manifestルートのキー・schema・解析ID・タイムゾーン付き生成日時と、`c`・`python`・`javascript` の3言語entryすべてを検証します。ファイル不在は `manifest_unavailable`、存在する文書の構文・構造不正は `manifest_invalid` として区別し、どちらの場合も保存済みfindingsやevidenceを結果へ流用しません。この受理条件は `tools/validate_result_json.py --manifest` と共通です。
+
+生成処理はGCCレポートと対象関数のアセンブリ、CPythonバイトコード、対象関数名を含むV8トレースから確認できる結論だけを記録し、確認できない最適化を推測で `detected` や `not_detected` にしません。CのSSE2はx86系アーキテクチャの対象関数で対応命令を確認した場合だけ記録するため、ARM64などへ固定値を流用しません。
 
 ```json
 {
@@ -197,11 +199,11 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
     },
     "provenance": {
       "status": "matched",
-      "artifact_id": "function-call-analysis-20260901-review2-python",
-      "analyzed_at": "2026-08-31T20:21:37Z",
+      "artifact_id": "function-call-analysis-20260901-review3-python",
+      "analyzed_at": "2026-08-31T21:00:49Z",
       "applies_to": ["inlining", "vectorization", "simd"],
       "analysis": {
-        "source_sha256": "55ec13f95237c52a095245dc2641665d1e6ff1830c0719db2bf2102c1b147159",
+        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -212,7 +214,7 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
         "simd": {"result": "not_checked", "isa": []}
       },
       "current": {
-        "source_sha256": "55ec13f95237c52a095245dc2641665d1e6ff1830c0719db2bf2102c1b147159",
+        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]

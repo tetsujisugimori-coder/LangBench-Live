@@ -237,6 +237,7 @@ Disassembly of <code object other at 0x2, file \"main.py\", line 2>:
             "analyzed_at": "2026-08-31T12:00:00Z",
             "applies_to": ["inlining", "vectorization", "simd"],
             "condition": copy.deepcopy(current),
+            "generation_commands": ["python", "-m", "dis", "main.py"],
             "findings": {
                 "inlining": {"result": "not_detected"},
                 "vectorization": {"result": "not_detected"},
@@ -261,9 +262,49 @@ Disassembly of <code object other at 0x2, file \"main.py\", line 2>:
                 self.assertEqual("unknown", result["vectorization"]["result"])
                 self.assertEqual({"result": "unknown", "isa": []}, result["simd"])
 
-        self.assertIsNone(PYTHON_BENCHMARK.parse_manifest_entry("{"))
-        self.assertIsNone(PYTHON_BENCHMARK.parse_manifest_entry('{"languages": {}}'))
+        malformed = PYTHON_BENCHMARK.optimization_analysis(PYTHON_BENCHMARK.parse_manifest_entry("{"), copy.deepcopy(current), None)
+        self.assertEqual(["manifest_invalid"], malformed["provenance"]["mismatches"])
+        missing_language = PYTHON_BENCHMARK.optimization_analysis(PYTHON_BENCHMARK.parse_manifest_entry('{"languages": {}}'), copy.deepcopy(current), None)
+        self.assertEqual(["manifest_invalid"], missing_language["provenance"]["mismatches"])
         self.assertIsNone(PYTHON_BENCHMARK.load_manifest_entry(PROJECT_ROOT / "missing-manifest.json"))
+
+    def test_python_runner_validates_the_complete_manifest(self) -> None:
+        manifest_path = PROJECT_ROOT / "artifacts" / "function-call-analysis" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        current = copy.deepcopy(manifest["languages"]["python"]["condition"])
+        self.assertEqual([], validate_analysis_manifest(manifest, manifest_path))
+        valid = PYTHON_BENCHMARK.optimization_analysis(
+            PYTHON_BENCHMARK.parse_manifest_entry(json.dumps(manifest)), current, None
+        )
+        self.assertEqual("matched", valid["provenance"]["status"])
+
+        cases = {
+            "schema version": lambda d: d.update(schema_version="2.0"),
+            "analysis id missing": lambda d: d.pop("analysis_id"),
+            "generated at invalid": lambda d: d.update(generated_at="not-a-timestamp"),
+            "languages array": lambda d: d.update(languages=[]),
+            "languages null": lambda d: d.update(languages=None),
+            "sibling missing": lambda d: d["languages"].pop("javascript"),
+            "unknown root field": lambda d: d.update(unexpected=True),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name):
+                candidate = copy.deepcopy(manifest)
+                mutate(candidate)
+                self.assertTrue(validate_analysis_manifest(candidate, Path(name)))
+                analysis = PYTHON_BENCHMARK.optimization_analysis(
+                    PYTHON_BENCHMARK.parse_manifest_entry(json.dumps(candidate)), copy.deepcopy(current), None
+                )
+                provenance = analysis["provenance"]
+                self.assertEqual("unavailable", provenance["status"])
+                self.assertFalse(provenance["matched"])
+                self.assertEqual(["manifest_invalid"], provenance["mismatches"])
+                for field in ("artifact_id", "analyzed_at", "analysis", "artifact_findings"):
+                    self.assertIsNone(provenance[field])
+                self.assertEqual("unknown", analysis["inlining"]["result"])
+                self.assertEqual("unknown", analysis["vectorization"]["result"])
+                self.assertEqual({"result": "unknown", "isa": []}, analysis["simd"])
+                self.assertEqual([], analysis["evidence"])
 
     def test_validator_rejects_malformed_provenance_without_raising(self) -> None:
         base = build_error_document()
@@ -389,6 +430,7 @@ Disassembly of <code object other at 0x2, file \"main.py\", line 2>:
             "analyzed_at": "2026-08-31T12:00:00Z",
             "applies_to": ["inlining", "vectorization", "simd"],
             "condition": copy.deepcopy(current),
+            "generation_commands": ["python", "-m", "dis", "main.py"],
             "findings": {
                 "inlining": {"result": "not_detected"},
                 "vectorization": {"result": "not_detected"},
