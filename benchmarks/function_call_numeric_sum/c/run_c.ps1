@@ -1,6 +1,8 @@
 param(
     [string]$ExperimentId,
-    [string]$RunId
+    [string]$RunId,
+    [string]$AnalysisManifestPath,
+    [switch]$ResolveAnalysisOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,11 +26,60 @@ function Compare-AnalysisCondition {
     return @($mismatches)
 }
 
+function Test-NonEmptyString { param($Value) return $Value -is [string] -and -not [string]::IsNullOrWhiteSpace($Value) }
+function Test-JsonObject { param($Value) return $null -ne $Value -and $Value -is [pscustomobject] }
+function Test-AnalysisTimestamp {
+    param($Value)
+    return $Value -is [datetime] -or ((Test-NonEmptyString $Value) -and $Value -match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$')
+}
+function Test-AnalysisCondition {
+    param($Condition)
+    if (-not (Test-JsonObject $Condition)) { return $false }
+    $names = @($Condition.PSObject.Properties.Name | Sort-Object)
+    if (($names -join ",") -ne "architecture,implementation,options,source_sha256") { return $false }
+    if (-not (Test-NonEmptyString $Condition.source_sha256) -or $Condition.source_sha256 -notmatch '^[0-9a-f]{64}$') { return $false }
+    if (-not (Test-JsonObject $Condition.implementation)) { return $false }
+    if ((@($Condition.implementation.PSObject.Properties.Name | Sort-Object) -join ",") -ne "name,version") { return $false }
+    if (-not (Test-NonEmptyString $Condition.implementation.name) -or -not (Test-NonEmptyString $Condition.implementation.version)) { return $false }
+    if (-not (Test-NonEmptyString $Condition.architecture) -or $Condition.options -isnot [array]) { return $false }
+    return @($Condition.options | Where-Object { -not (Test-NonEmptyString $_) }).Count -eq 0 -and @($Condition.options | Select-Object -Unique).Count -eq @($Condition.options).Count
+}
+function Test-FindingItem {
+    param($Item, [switch]$Simd)
+    $allowed = @("detected", "not_detected", "not_checked", "unknown", "not_applicable")
+    if (-not (Test-JsonObject $Item) -or $allowed -notcontains $Item.result) { return $false }
+    $itemNames = @($Item.PSObject.Properties.Name | Sort-Object) -join ","
+    if ($Simd) {
+        if ($itemNames -ne "isa,result") { return $false }
+        if ($Item.isa -isnot [array] -or @($Item.isa | Where-Object { -not (Test-NonEmptyString $_) }).Count -ne 0) { return $false }
+        if (@($Item.isa | Select-Object -Unique).Count -ne @($Item.isa).Count) { return $false }
+        return (($Item.result -eq "detected") -eq (@($Item.isa).Count -gt 0))
+    }
+    return $itemNames -eq "result"
+}
+function Test-AnalysisFindings {
+    param($Findings)
+    if (-not (Test-JsonObject $Findings)) { return $false }
+    $names = @($Findings.PSObject.Properties.Name | Sort-Object)
+    if (($names -join ",") -ne "inlining,simd,vectorization") { return $false }
+    return (Test-FindingItem $Findings.inlining) -and (Test-FindingItem $Findings.vectorization) -and (Test-FindingItem $Findings.simd -Simd)
+}
+function Test-ManifestEntry {
+    param($Entry)
+    if (-not (Test-JsonObject $Entry) -or -not (Test-NonEmptyString $Entry.artifact_id)) { return $false }
+    if (-not (Test-AnalysisTimestamp $Entry.analyzed_at)) { return $false }
+    if ($Entry.applies_to -isnot [array] -or (@($Entry.applies_to | Sort-Object) -join ",") -ne "inlining,simd,vectorization") { return $false }
+    if (-not (Test-AnalysisCondition $Entry.condition) -or -not (Test-AnalysisFindings $Entry.findings)) { return $false }
+    if ($Entry.evidence -isnot [array] -or @($Entry.evidence).Count -eq 0) { return $false }
+    return @($Entry.evidence | Where-Object { -not (Test-JsonObject $_) -or -not (Test-NonEmptyString $_.type) -or -not (Test-NonEmptyString $_.path) }).Count -eq 0
+}
+
 $scriptDir = Split-Path -Parent $PSCommandPath
 $projectRoot = (Resolve-Path (Join-Path $scriptDir "..\..\..")).Path
 $sourcePath = (Resolve-Path (Join-Path $scriptDir "main.c")).Path
-$manifestPath = Join-Path $projectRoot "artifacts\function-call-analysis\manifest.json"
+$manifestPath = if ([string]::IsNullOrWhiteSpace($AnalysisManifestPath)) { Join-Path $projectRoot "artifacts\function-call-analysis\manifest.json" } else { $AnalysisManifestPath }
 $exePath = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-function-call-{0}.exe" -f [guid]::NewGuid().ToString("N"))
+$analysisPath = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-function-call-analysis-{0}.json" -f [guid]::NewGuid().ToString("N"))
 $resultsDir = Join-Path $projectRoot "results"
 $resultPath = Join-Path $resultsDir "function_call_numeric_sum_c_result.json"
 [System.IO.Directory]::CreateDirectory($resultsDir) | Out-Null
@@ -53,18 +104,6 @@ $compilerVersion = $compilerVersion -replace '^gcc\.exe ', 'gcc '
 $optimizationArgs = @("-O2", "-std=c11", "-Wall", "-Wextra")
 $gccArgs = @($sourcePath) + $optimizationArgs + @("-o", $exePath)
 $compileCommand = "gcc " + (($gccArgs | ForEach-Object { Format-CommandPart $_ }) -join " ")
-$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-& gcc @gccArgs
-$compileExitCode = $LASTEXITCODE
-$stopwatch.Stop()
-$compileMs = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
-
-if ($compileExitCode -ne 0) {
-    [Console]::Error.WriteLine("status=error")
-    [Console]::Error.WriteLine("message=gcc failed with exit code $compileExitCode")
-    exit $compileExitCode
-}
-
 $currentCondition = [ordered]@{
     source_sha256 = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
     implementation = [ordered]@{ name = "GCC"; version = $compilerVersion }
@@ -74,35 +113,91 @@ $currentCondition = [ordered]@{
 try {
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $entry = $manifest.languages.c
+    if (-not (Test-ManifestEntry $entry)) { throw "manifest entry is invalid" }
+    $entryAnalyzedAt = if ($entry.analyzed_at -is [datetime]) { $entry.analyzed_at.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") } else { $entry.analyzed_at }
     $mismatches = @(Compare-AnalysisCondition $entry.condition $currentCondition)
     $matched = $mismatches.Count -eq 0
     $provenance = [ordered]@{
         status = if ($matched) { "matched" } else { "mismatched" }
         artifact_id = $entry.artifact_id
-        analyzed_at = $entry.analyzed_at
+        analyzed_at = $entryAnalyzedAt
         applies_to = @($entry.applies_to)
         analysis = $entry.condition
+        artifact_findings = $entry.findings
         current = $currentCondition
         matched = $matched
         mismatches = $mismatches
     }
+    $manifestFailure = $null
 } catch {
+    $manifestFailure = if (Test-Path -LiteralPath $manifestPath) { "manifest_invalid" } else { "manifest_unavailable" }
     $provenance = [ordered]@{
         status = "unavailable"
         artifact_id = $null
         analyzed_at = $null
         applies_to = @("inlining", "vectorization", "simd")
         analysis = $null
+        artifact_findings = $null
         current = $currentCondition
         matched = $false
-        mismatches = @("manifest_unavailable")
+        mismatches = @($manifestFailure)
     }
 }
-$provenanceJson = $provenance | ConvertTo-Json -Depth 8 -Compress
+$fallbackResult = if ($provenance.status -eq "unavailable") { "unknown" } else { "not_checked" }
+$activeFindings = if ($provenance.status -eq "matched") {
+    $entry.findings
+} else {
+    [ordered]@{
+        inlining = [ordered]@{ result = $fallbackResult }
+        vectorization = [ordered]@{ result = $fallbackResult }
+        simd = [ordered]@{ result = $fallbackResult; isa = @() }
+    }
+}
+$notes = [object[]]$(if ($provenance.status -eq "matched") {
+    "Optimization findings were loaded from the matching GCC analysis manifest entry."
+} elseif ($provenance.status -eq "mismatched") {
+    "Saved C analysis was not applied because these conditions differed: $($provenance.mismatches -join ', ')."
+} else {
+    "Saved C analysis could not be loaded or was invalid; its findings are unknown."
+})
+$analysisEvidence = [object[]]@()
+if ($provenance.status -eq "matched") { $analysisEvidence = [object[]]@($entry.evidence) }
+$optimizationAnalysis = [ordered]@{
+    implementation = $currentCondition.implementation
+    provenance = $provenance
+    jit = [ordered]@{ applicable = $false; result = "not_applicable" }
+    inlining = $activeFindings.inlining
+    vectorization = $activeFindings.vectorization
+    simd = $activeFindings.simd
+    other_optimizations = @()
+    evidence = $analysisEvidence
+    notes = $notes
+}
+$optimizationAnalysisJson = $optimizationAnalysis | ConvertTo-Json -Depth 10 -Compress
+
+if ($ResolveAnalysisOnly) {
+    Write-Output $optimizationAnalysisJson
+    exit 0
+}
+
+[System.IO.File]::WriteAllText($analysisPath, $optimizationAnalysisJson, [System.Text.UTF8Encoding]::new($false))
+
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+& gcc @gccArgs
+$compileExitCode = $LASTEXITCODE
+$stopwatch.Stop()
+$compileMs = [Math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+
+if ($compileExitCode -ne 0) {
+    Remove-Item -LiteralPath $exePath, $analysisPath -Force -ErrorAction SilentlyContinue
+    [Console]::Error.WriteLine("status=error")
+    [Console]::Error.WriteLine("message=gcc failed with exit code $compileExitCode")
+    exit $compileExitCode
+}
 
 Push-Location $projectRoot
 try {
-    $benchmarkArgs = @($compileMs, $compilerVersion, $compileCommand, $sourcePath, $provenanceJson, $provenance.status)
+    $benchmarkArgs = @($compileMs, $compilerVersion, $compileCommand, $sourcePath, $analysisPath)
     if (-not [string]::IsNullOrWhiteSpace($ExperimentId)) {
         $benchmarkArgs += "--experiment-id=$ExperimentId"
     }
@@ -117,14 +212,14 @@ try {
 
 if ($benchmarkExitCode -ne 0) {
     $benchmarkOutput | ForEach-Object { Write-Host $_ }
-    Remove-Item -LiteralPath $exePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $exePath, $analysisPath -Force -ErrorAction SilentlyContinue
     [Console]::Error.WriteLine("status=error")
     [Console]::Error.WriteLine("message=benchmark process failed with exit code $benchmarkExitCode")
     exit $benchmarkExitCode
 }
 
 if (-not (Test-Path -LiteralPath $resultPath)) {
-    Remove-Item -LiteralPath $exePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $exePath, $analysisPath -Force -ErrorAction SilentlyContinue
     [Console]::Error.WriteLine("status=error")
     [Console]::Error.WriteLine("message=result JSON was not created")
     exit 1
@@ -132,5 +227,5 @@ if (-not (Test-Path -LiteralPath $resultPath)) {
 
 $benchmarkOutput | ForEach-Object { Write-Host $_ }
 Write-Host "compile_ms=$compileMs"
-Remove-Item -LiteralPath $exePath -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $exePath, $analysisPath -Force -ErrorAction SilentlyContinue
 exit 0

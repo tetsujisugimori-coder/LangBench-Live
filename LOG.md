@@ -738,3 +738,24 @@
 * `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの実行と3結果の検証が成功（`validated=3`）
 * `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: 成功し、`provenance.status: mismatched`、`mismatches: ["options"]`、JITとインライン化が `not_checked` になることを確認
 * 通常条件へ戻した3結果の明示検証: `validated=3`
+
+## 2026-09-01 PR #7 2回目レビュー指摘対応
+
+* 条件一致時の最適化結論が実行コード内の固定値だったため、異なるアーキテクチャで成果物を再生成すると解析内容に関係なく過去の結論を出せる問題を修正した。
+* manifestの各言語エントリーへ `findings` を追加し、結果JSONの `provenance.artifact_findings` から保存値と現在値の対応を検証できるようにした。
+* `tools/extract_function_call_findings.py` を追加し、CはGCCレポートと対象関数のアセンブリ、Pythonは対象コードオブジェクトのバイトコード、JavaScriptは対象関数名を含むV8トレースから結論を抽出するようにした。
+* CのSSE2はx86系アーキテクチャかつ `direct_sum` の対応命令を確認した場合だけ記録し、ARM64や命令未確認時は `not_checked` にする。
+* C、Python、JavaScriptでmanifestエントリーの構造を利用前に検証し、欠落、型不正、構文エラー、対象言語なしを `unavailable` として測定を継続するようにした。
+* バリデーターを不正な `applies_to`、condition、implementation、options、findingsに対して型安全にし、条件一致時の現在値と保存済みfindingsの一致、不一致時の `not_checked`、利用不能時の `unknown` を検証するようにした。
+* manifest専用CLI `python tools/validate_result_json.py --manifest ...` を追加した。
+
+### テスト結果
+
+* `python -m unittest discover -s tests -v`: 19件成功
+* `node --test tests/test_javascript_optimization_analysis.js`: 12件成功
+* `tests/test_c_optimization_analysis.ps1`: 7件成功
+* PythonとJavaScriptの構文検査: 成功
+* Windows PowerShell 5.1で解析資料4件とfindings付きmanifestの再生成: 成功
+* manifest検証: `validated_manifest=1`
+* 3言語の実行と結果検証: `validated=3`
+* `node --jitless`で保存済みfindingsが `not_checked` へ降格することを確認し、通常条件の結果へ復元した。

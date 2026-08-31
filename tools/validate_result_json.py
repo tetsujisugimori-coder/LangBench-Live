@@ -123,7 +123,9 @@ def condition_errors(condition: Any, label: str, path: Path) -> list[str]:
         errors.append(f"{path}: optimization_analysis provenance {label} options are invalid")
     return errors
 
-def condition_mismatches(analysis: dict[str, Any], current: dict[str, Any]) -> list[str]:
+def condition_mismatches(analysis: Any, current: Any) -> list[str]:
+    if condition_errors(analysis, "analysis", Path("<condition>")) or condition_errors(current, "current", Path("<condition>")):
+        return []
     mismatches = []
     if analysis.get("source_sha256") != current.get("source_sha256"): mismatches.append("source_sha256")
     analysis_impl, current_impl = analysis.get("implementation", {}), current.get("implementation", {})
@@ -133,8 +135,28 @@ def condition_mismatches(analysis: dict[str, Any], current: dict[str, Any]) -> l
     if analysis.get("options") != current.get("options"): mismatches.append("options")
     return mismatches
 
+def findings_errors(findings: Any, expected_names: set[str], label: str, path: Path) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(findings, dict) or set(findings) != expected_names:
+        return [f"{path}: {label} findings are invalid"]
+    for name in sorted(expected_names - {"simd"}):
+        item = findings.get(name)
+        if not isinstance(item, dict) or set(item) != {"result"} or item.get("result") not in OPTIMIZATION_RESULTS:
+            errors.append(f"{path}: {label} findings.{name} is invalid")
+    if "simd" in expected_names:
+        simd = findings.get("simd")
+        if not isinstance(simd, dict) or set(simd) != {"result", "isa"} or simd.get("result") not in OPTIMIZATION_RESULTS:
+            errors.append(f"{path}: {label} findings.simd is invalid")
+        else:
+            isa = simd.get("isa")
+            if not isinstance(isa, list) or not all(isinstance(value, str) and value.strip() for value in isa) or len(isa) != len(set(isa)):
+                errors.append(f"{path}: {label} findings.simd ISA is invalid")
+            elif bool(isa) != (simd["result"] == "detected"):
+                errors.append(f"{path}: {label} findings.simd result and ISA are inconsistent")
+    return errors
+
 def validate_provenance(provenance: Any, errors: list[str], path: Path) -> None:
-    required = {"status", "artifact_id", "analyzed_at", "applies_to", "analysis", "current", "matched", "mismatches"}
+    required = {"status", "artifact_id", "analyzed_at", "applies_to", "analysis", "artifact_findings", "current", "matched", "mismatches"}
     if not isinstance(provenance, dict) or set(provenance) != required:
         errors.append(f"{path}: optimization_analysis provenance is invalid")
         return
@@ -142,7 +164,8 @@ def validate_provenance(provenance: Any, errors: list[str], path: Path) -> None:
     if status not in {"matched", "mismatched", "unavailable"}:
         errors.append(f"{path}: optimization_analysis provenance status is invalid")
     applies_to = provenance.get("applies_to")
-    if not isinstance(applies_to, list) or not applies_to or not all(name in OPTIMIZATION_NAMES for name in applies_to) or len(applies_to) != len(set(applies_to)):
+    applies_valid = isinstance(applies_to, list) and bool(applies_to) and all(name in OPTIMIZATION_NAMES for name in applies_to) and len(applies_to) == len(set(applies_to))
+    if not applies_valid:
         errors.append(f"{path}: optimization_analysis provenance applies_to is invalid")
     if not isinstance(provenance.get("matched"), bool):
         errors.append(f"{path}: optimization_analysis provenance matched is invalid")
@@ -150,12 +173,13 @@ def validate_provenance(provenance: Any, errors: list[str], path: Path) -> None:
     if not isinstance(mismatches, list) or not all(isinstance(name, str) and name.strip() for name in mismatches) or len(mismatches) != len(set(mismatches)):
         errors.append(f"{path}: optimization_analysis provenance mismatches are invalid")
         mismatches = []
-    errors.extend(condition_errors(provenance.get("current"), "current", path))
+    current_errors = condition_errors(provenance.get("current"), "current", path)
+    errors.extend(current_errors)
 
     if status == "unavailable":
-        if provenance.get("artifact_id") is not None or provenance.get("analyzed_at") is not None or provenance.get("analysis") is not None:
+        if provenance.get("artifact_id") is not None or provenance.get("analyzed_at") is not None or provenance.get("analysis") is not None or provenance.get("artifact_findings") is not None:
             errors.append(f"{path}: unavailable provenance must not claim analysis metadata")
-        if provenance.get("matched") is not False or mismatches != ["manifest_unavailable"]:
+        if provenance.get("matched") is not False or mismatches not in (["manifest_unavailable"], ["manifest_invalid"]):
             errors.append(f"{path}: unavailable provenance state is inconsistent")
         return
 
@@ -164,8 +188,12 @@ def validate_provenance(provenance: Any, errors: list[str], path: Path) -> None:
     if not isinstance(provenance.get("analyzed_at"), str) or not TIMESTAMP_PATTERN.fullmatch(provenance["analyzed_at"]):
         errors.append(f"{path}: optimization_analysis provenance analyzed_at is invalid")
     analysis, current = provenance.get("analysis"), provenance.get("current")
-    errors.extend(condition_errors(analysis, "analysis", path))
-    if isinstance(analysis, dict) and isinstance(current, dict):
+    analysis_errors = condition_errors(analysis, "analysis", path)
+    errors.extend(analysis_errors)
+    findings = provenance.get("artifact_findings")
+    finding_errors = findings_errors(findings, set(applies_to) if applies_valid else set(), "optimization_analysis provenance artifact", path)
+    errors.extend(finding_errors)
+    if not analysis_errors and not current_errors and not finding_errors:
         expected = condition_mismatches(analysis, current)
         if mismatches != expected:
             errors.append(f"{path}: optimization_analysis provenance mismatches do not match conditions")
@@ -184,7 +212,7 @@ def validate_analysis_manifest(document: Any, path: Path) -> list[str]:
     if not isinstance(languages, dict) or set(languages) != LANGUAGES:
         errors.append(f"{path}: analysis manifest languages are invalid")
         return errors
-    required = {"artifact_id", "analyzed_at", "applies_to", "condition", "generation_commands", "evidence"}
+    required = {"artifact_id", "analyzed_at", "applies_to", "condition", "generation_commands", "findings", "evidence"}
     for language, entry in languages.items():
         if not isinstance(entry, dict) or not required.issubset(entry):
             errors.append(f"{path}: analysis manifest {language} entry is invalid")
@@ -192,9 +220,16 @@ def validate_analysis_manifest(document: Any, path: Path) -> list[str]:
         if not isinstance(entry.get("artifact_id"), str) or not entry["artifact_id"].strip(): errors.append(f"{path}: analysis manifest {language} artifact_id is invalid")
         if not isinstance(entry.get("analyzed_at"), str) or not TIMESTAMP_PATTERN.fullmatch(entry["analyzed_at"]): errors.append(f"{path}: analysis manifest {language} analyzed_at is invalid")
         applies_to = entry.get("applies_to")
-        if not isinstance(applies_to, list) or not applies_to or not all(name in OPTIMIZATION_NAMES for name in applies_to) or len(applies_to) != len(set(applies_to)):
+        expected_names = {
+            "c": {"inlining", "vectorization", "simd"},
+            "python": {"inlining", "vectorization", "simd"},
+            "javascript": {"jit", "inlining", "vectorization", "simd"},
+        }[language]
+        applies_valid = isinstance(applies_to, list) and bool(applies_to) and all(name in OPTIMIZATION_NAMES for name in applies_to) and len(applies_to) == len(set(applies_to))
+        if not applies_valid or set(applies_to) != expected_names:
             errors.append(f"{path}: analysis manifest {language} applies_to is invalid")
         errors.extend(condition_errors(entry.get("condition"), f"manifest {language}", path))
+        errors.extend(findings_errors(entry.get("findings"), expected_names, f"analysis manifest {language}", path))
         command = entry.get("generation_commands")
         if not isinstance(command, list) or not command or not all(isinstance(part, str) and part.strip() for part in command):
             errors.append(f"{path}: analysis manifest {language} generation_commands are invalid")
@@ -236,8 +271,10 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
         "python": {"inlining", "vectorization", "simd"},
         "javascript": {"jit", "inlining", "vectorization", "simd"},
     }.get(document.get("language"))
-    if isinstance(provenance, dict) and expected_applies_to is not None and set(provenance.get("applies_to", [])) != expected_applies_to:
-        errors.append(f"{path}: optimization_analysis provenance applies_to does not match language")
+    if isinstance(provenance, dict) and expected_applies_to is not None:
+        provenance_applies_to = provenance.get("applies_to")
+        if not isinstance(provenance_applies_to, list) or set(provenance_applies_to) != expected_applies_to:
+            errors.append(f"{path}: optimization_analysis provenance applies_to does not match language")
 
     implementation = analysis.get("implementation")
     if not isinstance(implementation, dict) or not all(
@@ -305,12 +342,21 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
         errors.append(f"{path}: conclusive optimization results require evidence")
 
     if isinstance(provenance, dict):
-        applies_to = provenance.get("applies_to", [])
-        if provenance.get("status") != "matched":
-            for name in applies_to if isinstance(applies_to, list) else []:
-                item = analysis.get(name)
-                if isinstance(item, dict) and item.get("result") in {"detected", "not_detected"}:
-                    errors.append(f"{path}: {name} cannot be conclusive when provenance does not match")
+        applies_to = provenance.get("applies_to") if isinstance(provenance.get("applies_to"), list) else []
+        artifact_findings = provenance.get("artifact_findings")
+        status = provenance.get("status")
+        for name in applies_to:
+            item = analysis.get(name)
+            if not isinstance(item, dict):
+                continue
+            if status == "matched" and isinstance(artifact_findings, dict) and isinstance(artifact_findings.get(name), dict):
+                saved = artifact_findings[name]
+                if item.get("result") != saved.get("result") or (name == "simd" and item.get("isa") != saved.get("isa")):
+                    errors.append(f"{path}: {name} does not match provenance artifact_findings")
+            elif status == "mismatched" and (item.get("result") != "not_checked" or (name == "simd" and item.get("isa") != [])):
+                errors.append(f"{path}: {name} must be not_checked when provenance mismatches")
+            elif status == "unavailable" and (item.get("result") != "unknown" or (name == "simd" and item.get("isa") != [])):
+                errors.append(f"{path}: {name} must be unknown when provenance is unavailable")
         if isinstance(other, list) and other and provenance.get("status") != "matched" and any(item.get("result") in {"detected", "not_detected"} for item in other if isinstance(item, dict)):
             errors.append(f"{path}: other optimizations cannot be conclusive when provenance does not match")
 
@@ -415,7 +461,26 @@ def validate(document: Any, path: Path) -> list[str]:
     return errors
 
 def main() -> int:
-    parser = argparse.ArgumentParser(); parser.add_argument("paths", nargs="+", type=Path); args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("paths", nargs="*", type=Path)
+    parser.add_argument("--manifest", type=Path)
+    args = parser.parse_args()
+    if args.manifest is not None:
+        if args.paths:
+            parser.error("--manifest cannot be combined with result paths")
+        try:
+            document = json.loads(args.manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            print(f"ERROR: {args.manifest}: cannot read JSON: {error}")
+            return 1
+        errors = validate_analysis_manifest(document, args.manifest)
+        if errors:
+            print("\n".join(f"ERROR: {error}" for error in errors))
+            return 1
+        print("validated_manifest=1")
+        return 0
+    if not args.paths:
+        parser.error("at least one result path or --manifest is required")
     documents = []; errors: list[str] = []
     for path in args.paths:
         try:

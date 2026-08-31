@@ -2,6 +2,14 @@ param([string]$AnalysisId)
 
 $ErrorActionPreference = "Stop"
 
+function ConvertTo-ProcessArgument {
+    param([string]$Value)
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
+    $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+    $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+    return '"' + $escaped + '"'
+}
+
 function Invoke-CapturedProcess {
     param([string]$FileName, [string[]]$Arguments, [string]$WorkingDirectory)
     $info = [System.Diagnostics.ProcessStartInfo]::new()
@@ -10,7 +18,11 @@ function Invoke-CapturedProcess {
     $info.UseShellExecute = $false
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
-    foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
+    if ($null -ne $info.ArgumentList) {
+        foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
+    } else {
+        $info.Arguments = (($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
+    }
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $info
     if (-not $process.Start()) { throw "failed to start $FileName" }
@@ -25,7 +37,14 @@ function Invoke-CapturedProcess {
 
 function Write-Utf8 {
     param([string]$Path, [string]$Content)
-    [System.IO.File]::WriteAllText($Path, $Content.Replace("`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
+    $temporaryPath = Join-Path (Split-Path -Parent $Path) ((Split-Path -Leaf $Path) + "." + [guid]::NewGuid().ToString("N") + ".tmp")
+    try {
+        [System.IO.File]::WriteAllText($temporaryPath, $Content.Replace("`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        Move-Item -LiteralPath $temporaryPath -Destination $Path
+    } finally {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -39,6 +58,7 @@ $assembly = Join-Path $artifactDir "main.s"
 $pythonBytecode = Join-Path $artifactDir "python-bytecode.txt"
 $v8Trace = Join-Path $artifactDir "v8-optimization.txt"
 $manifestPath = Join-Path $artifactDir "manifest.json"
+$extractor = Join-Path $projectRoot "tools\extract_function_call_findings.py"
 $analyzedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 if ([string]::IsNullOrWhiteSpace($AnalysisId)) { $AnalysisId = "function-call-analysis-" + (Get-Date -Format "yyyyMMdd-HHmmss") }
 
@@ -69,6 +89,9 @@ if ($traceStderr) {
 Write-Utf8 $v8Trace ("$traceContent`n")
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+$cFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "c", "--report", $gccReport, "--assembly", $assembly, "--architecture", $architecture) $projectRoot).stdout | ConvertFrom-Json
+$pythonFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "python", "--artifact", $pythonBytecode) $projectRoot).stdout | ConvertFrom-Json
+$javascriptFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "javascript", "--artifact", $v8Trace) $projectRoot).stdout | ConvertFrom-Json
 $manifest = [ordered]@{
     schema_version = "1.0"
     analysis_id = $AnalysisId
@@ -87,6 +110,7 @@ $manifest = [ordered]@{
             generation_commands = @(
                 @("gcc", "benchmarks/function_call_numeric_sum/c/main.c") + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=artifacts/function-call-analysis/gcc-optimization.txt", "-o", "artifacts/function-call-analysis/main.s")
             )
+            findings = $cFindings
             evidence = @(
                 [ordered]@{ type = "assembly"; path = "artifacts/function-call-analysis/main.s" },
                 [ordered]@{ type = "compiler_report"; path = "artifacts/function-call-analysis/gcc-optimization.txt" }
@@ -103,6 +127,7 @@ $manifest = [ordered]@{
                 options = @("optimize=0")
             }
             generation_commands = @(@("python", "-m", "dis", "benchmarks/function_call_numeric_sum/python/main.py"))
+            findings = $pythonFindings
             evidence = @([ordered]@{ type = "disassembly"; path = "artifacts/function-call-analysis/python-bytecode.txt" })
         }
         javascript = [ordered]@{
@@ -116,6 +141,7 @@ $manifest = [ordered]@{
                 options = @()
             }
             generation_commands = @(@("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "benchmarks/function_call_numeric_sum/javascript/main.js"))
+            findings = $javascriptFindings
             runtime = [ordered]@{ name = "Node.js"; version = $nodeInfo.node }
             evidence = @([ordered]@{ type = "jit_trace"; path = "artifacts/function-call-analysis/v8-optimization.txt" })
         }

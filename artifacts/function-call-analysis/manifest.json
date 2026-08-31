@@ -1,121 +1,168 @@
 {
-  "schema_version": "1.0",
-  "analysis_id": "function-call-analysis-20260831-review",
-  "generated_at": "2026-08-31T15:06:36Z",
-  "languages": {
-    "c": {
-      "artifact_id": "function-call-analysis-20260831-review-c",
-      "analyzed_at": "2026-08-31T15:06:36Z",
-      "applies_to": [
-        "inlining",
-        "vectorization",
-        "simd"
-      ],
-      "condition": {
-        "source_sha256": "03128b6922dbc1707ff70bb85005737cb996c605b72665dbb88b0735201c006e",
-        "implementation": {
-          "name": "GCC",
-          "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
-        },
-        "architecture": "x64",
-        "options": [
-          "-O2",
-          "-std=c11",
-          "-Wall",
-          "-Wextra"
-        ]
-      },
-      "generation_commands": [
-        "gcc",
-        "benchmarks/function_call_numeric_sum/c/main.c",
-        "-O2",
-        "-std=c11",
-        "-Wall",
-        "-Wextra",
-        "-S",
-        "-masm=intel",
-        "-fopt-info-all=artifacts/function-call-analysis/gcc-optimization.txt",
-        "-o",
-        "artifacts/function-call-analysis/main.s"
-      ],
-      "evidence": [
-        {
-          "type": "assembly",
-          "path": "artifacts/function-call-analysis/main.s"
-        },
-        {
-          "type": "compiler_report",
-          "path": "artifacts/function-call-analysis/gcc-optimization.txt"
-        }
-      ]
-    },
-    "python": {
-      "artifact_id": "function-call-analysis-20260831-review-python",
-      "analyzed_at": "2026-08-31T15:06:36Z",
-      "applies_to": [
-        "inlining",
-        "vectorization",
-        "simd"
-      ],
-      "condition": {
-        "source_sha256": "0b2c5f73bf89b78dfbc4b4174d384b6dcd24753a27c7c95a2030c03534e0cd7d",
-        "implementation": {
-          "name": "CPython",
-          "version": "3.14.7"
-        },
-        "architecture": "amd64",
-        "options": [
-          "optimize=0"
-        ]
-      },
-      "generation_commands": [
-        "python",
-        "-m",
-        "dis",
-        "benchmarks/function_call_numeric_sum/python/main.py"
-      ],
-      "evidence": [
-        {
-          "type": "disassembly",
-          "path": "artifacts/function-call-analysis/python-bytecode.txt"
-        }
-      ]
-    },
-    "javascript": {
-      "artifact_id": "function-call-analysis-20260831-review-javascript",
-      "analyzed_at": "2026-08-31T15:06:36Z",
-      "applies_to": [
-        "jit",
-        "inlining",
-        "vectorization",
-        "simd"
-      ],
-      "condition": {
-        "source_sha256": "d1efea0e1473f98b8cfaed7184bad3c3f0192a4558e040717f3e4b40b95dabd2",
-        "implementation": {
-          "name": "V8",
-          "version": "13.6.233.17-node.53"
-        },
-        "architecture": "x64",
-        "options": []
-      },
-      "generation_commands": [
-        "node",
-        "--trace-opt",
-        "--trace-deopt",
-        "--trace-turbo-inlining",
-        "benchmarks/function_call_numeric_sum/javascript/main.js"
-      ],
-      "runtime": {
-        "name": "Node.js",
-        "version": "v24.20.0"
-      },
-      "evidence": [
-        {
-          "type": "jit_trace",
-          "path": "artifacts/function-call-analysis/v8-optimization.txt"
-        }
-      ]
-    }
-  }
+    "schema_version":  "1.0",
+    "analysis_id":  "function-call-analysis-20260901-review2",
+    "generated_at":  "2026-08-31T20:21:37Z",
+    "languages":  {
+                      "c":  {
+                                "artifact_id":  "function-call-analysis-20260901-review2-c",
+                                "analyzed_at":  "2026-08-31T20:21:37Z",
+                                "applies_to":  [
+                                                   "inlining",
+                                                   "vectorization",
+                                                   "simd"
+                                               ],
+                                "condition":  {
+                                                  "source_sha256":  "3c2ef4d21a906dc19a8235cf88147f65c40f2e4ed386a4d576756267fa13b4de",
+                                                  "implementation":  {
+                                                                         "name":  "GCC",
+                                                                         "version":  "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+                                                                     },
+                                                  "architecture":  "x64",
+                                                  "options":  [
+                                                                  "-O2",
+                                                                  "-std=c11",
+                                                                  "-Wall",
+                                                                  "-Wextra"
+                                                              ]
+                                              },
+                                "generation_commands":  [
+                                                            "gcc",
+                                                            "benchmarks/function_call_numeric_sum/c/main.c",
+                                                            "-O2",
+                                                            "-std=c11",
+                                                            "-Wall",
+                                                            "-Wextra",
+                                                            "-S",
+                                                            "-masm=intel",
+                                                            "-fopt-info-all=artifacts/function-call-analysis/gcc-optimization.txt",
+                                                            "-o",
+                                                            "artifacts/function-call-analysis/main.s"
+                                                        ],
+                                "findings":  {
+                                                 "inlining":  {
+                                                                  "result":  "not_detected"
+                                                              },
+                                                 "vectorization":  {
+                                                                       "result":  "detected"
+                                                                   },
+                                                 "simd":  {
+                                                              "result":  "detected",
+                                                              "isa":  [
+                                                                          "SSE2"
+                                                                      ]
+                                                          }
+                                             },
+                                "evidence":  [
+                                                 {
+                                                     "type":  "assembly",
+                                                     "path":  "artifacts/function-call-analysis/main.s"
+                                                 },
+                                                 {
+                                                     "type":  "compiler_report",
+                                                     "path":  "artifacts/function-call-analysis/gcc-optimization.txt"
+                                                 }
+                                             ]
+                            },
+                      "python":  {
+                                     "artifact_id":  "function-call-analysis-20260901-review2-python",
+                                     "analyzed_at":  "2026-08-31T20:21:37Z",
+                                     "applies_to":  [
+                                                        "inlining",
+                                                        "vectorization",
+                                                        "simd"
+                                                    ],
+                                     "condition":  {
+                                                       "source_sha256":  "55ec13f95237c52a095245dc2641665d1e6ff1830c0719db2bf2102c1b147159",
+                                                       "implementation":  {
+                                                                              "name":  "CPython",
+                                                                              "version":  "3.14.7"
+                                                                          },
+                                                       "architecture":  "amd64",
+                                                       "options":  [
+                                                                       "optimize=0"
+                                                                   ]
+                                                   },
+                                     "generation_commands":  [
+                                                                 "python",
+                                                                 "-m",
+                                                                 "dis",
+                                                                 "benchmarks/function_call_numeric_sum/python/main.py"
+                                                             ],
+                                     "findings":  {
+                                                      "inlining":  {
+                                                                       "result":  "not_detected"
+                                                                   },
+                                                      "vectorization":  {
+                                                                            "result":  "not_detected"
+                                                                        },
+                                                      "simd":  {
+                                                                   "result":  "not_checked",
+                                                                   "isa":  [
+
+                                                                           ]
+                                                               }
+                                                  },
+                                     "evidence":  [
+                                                      {
+                                                          "type":  "disassembly",
+                                                          "path":  "artifacts/function-call-analysis/python-bytecode.txt"
+                                                      }
+                                                  ]
+                                 },
+                      "javascript":  {
+                                         "artifact_id":  "function-call-analysis-20260901-review2-javascript",
+                                         "analyzed_at":  "2026-08-31T20:21:37Z",
+                                         "applies_to":  [
+                                                            "jit",
+                                                            "inlining",
+                                                            "vectorization",
+                                                            "simd"
+                                                        ],
+                                         "condition":  {
+                                                           "source_sha256":  "1517bf5ffa7db7c8892c9a809f9f6b1e33ef51bfb9734410eb076646605788bd",
+                                                           "implementation":  {
+                                                                                  "name":  "V8",
+                                                                                  "version":  "13.6.233.17-node.53"
+                                                                              },
+                                                           "architecture":  "x64",
+                                                           "options":  [
+
+                                                                       ]
+                                                       },
+                                         "generation_commands":  [
+                                                                     "node",
+                                                                     "--trace-opt",
+                                                                     "--trace-deopt",
+                                                                     "--trace-turbo-inlining",
+                                                                     "benchmarks/function_call_numeric_sum/javascript/main.js"
+                                                                 ],
+                                         "findings":  {
+                                                          "jit":  {
+                                                                      "result":  "detected"
+                                                                  },
+                                                          "inlining":  {
+                                                                           "result":  "detected"
+                                                                       },
+                                                          "vectorization":  {
+                                                                                "result":  "not_checked"
+                                                                            },
+                                                          "simd":  {
+                                                                       "result":  "not_checked",
+                                                                       "isa":  [
+
+                                                                               ]
+                                                                   }
+                                                      },
+                                         "runtime":  {
+                                                         "name":  "Node.js",
+                                                         "version":  "v24.20.0"
+                                                     },
+                                         "evidence":  [
+                                                          {
+                                                              "type":  "jit_trace",
+                                                              "path":  "artifacts/function-call-analysis/v8-optimization.txt"
+                                                          }
+                                                      ]
+                                     }
+                  }
 }

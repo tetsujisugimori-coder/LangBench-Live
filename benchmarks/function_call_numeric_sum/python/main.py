@@ -2,6 +2,7 @@ import json
 import hashlib
 import os
 import platform
+import re
 import sys
 import time
 from datetime import datetime
@@ -18,6 +19,9 @@ EXPECTED_CHECKSUM = ITEM_COUNT * (ITEM_COUNT + 1) // 2
 RESULT_FILE = "function_call_numeric_sum_python_result.json"
 ANALYSIS_MANIFEST = "artifacts/function-call-analysis/manifest.json"
 _DEFAULT_JIT = object()
+_LOAD_MANIFEST = object()
+OPTIMIZATION_RESULTS = {"detected", "not_detected", "not_checked", "unknown", "not_applicable"}
+SAVED_FINDING_NAMES = {"inlining", "vectorization", "simd"}
 
 def project_root(): return Path(__file__).resolve().parents[3]
 def now_ms(): return time.perf_counter_ns() / 1_000_000
@@ -58,12 +62,60 @@ def condition_mismatches(analysis, current):
     if analysis.get("architecture") != current.get("architecture"): mismatches.append("architecture")
     if analysis.get("options") != current.get("options"): mismatches.append("options")
     return mismatches
+def valid_condition(condition):
+    return (
+        isinstance(condition, dict)
+        and set(condition) == {"source_sha256", "implementation", "architecture", "options"}
+        and isinstance(condition.get("source_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", condition["source_sha256"]) is not None
+        and isinstance(condition.get("implementation"), dict)
+        and set(condition["implementation"]) == {"name", "version"}
+        and all(isinstance(condition["implementation"].get(name), str) and condition["implementation"][name].strip() for name in ("name", "version"))
+        and isinstance(condition.get("architecture"), str)
+        and bool(condition["architecture"].strip())
+        and isinstance(condition.get("options"), list)
+        and all(isinstance(option, str) and option.strip() for option in condition["options"])
+        and len(condition["options"]) == len(set(condition["options"]))
+    )
+def valid_findings(findings):
+    if not isinstance(findings, dict) or set(findings) != SAVED_FINDING_NAMES:
+        return False
+    for name in ("inlining", "vectorization"):
+        item = findings.get(name)
+        if not isinstance(item, dict) or set(item) != {"result"} or item.get("result") not in OPTIMIZATION_RESULTS:
+            return False
+    simd = findings.get("simd")
+    if not isinstance(simd, dict) or set(simd) != {"result", "isa"} or simd.get("result") not in OPTIMIZATION_RESULTS:
+        return False
+    isa = simd.get("isa")
+    return isinstance(isa, list) and all(isinstance(value, str) and value.strip() for value in isa) and len(isa) == len(set(isa)) and bool(isa) == (simd["result"] == "detected")
+def valid_manifest_entry(entry):
+    if not isinstance(entry, dict):
+        return False
+    if not isinstance(entry.get("artifact_id"), str) or not entry["artifact_id"].strip():
+        return False
+    if not isinstance(entry.get("analyzed_at"), str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})", entry["analyzed_at"]):
+        return False
+    applies_to = entry.get("applies_to")
+    if not isinstance(applies_to, list) or len(applies_to) != len(SAVED_FINDING_NAMES) or set(applies_to) != SAVED_FINDING_NAMES:
+        return False
+    if not valid_condition(entry.get("condition")) or not valid_findings(entry.get("findings")):
+        return False
+    evidence = entry.get("evidence")
+    return isinstance(evidence, list) and bool(evidence) and all(
+        isinstance(item, dict)
+        and isinstance(item.get("type"), str) and item["type"].strip()
+        and isinstance(item.get("path"), str) and item["path"].strip()
+        for item in evidence
+    )
 def compare_provenance(manifest_entry, current):
     if manifest_entry is None:
-        return {"status":"unavailable","artifact_id":None,"analyzed_at":None,"applies_to":["inlining","vectorization","simd"],"analysis":None,"current":current,"matched":False,"mismatches":["manifest_unavailable"]}
+        return {"status":"unavailable","artifact_id":None,"analyzed_at":None,"applies_to":["inlining","vectorization","simd"],"analysis":None,"artifact_findings":None,"current":current,"matched":False,"mismatches":["manifest_unavailable"]}
+    if not valid_manifest_entry(manifest_entry):
+        return {"status":"unavailable","artifact_id":None,"analyzed_at":None,"applies_to":["inlining","vectorization","simd"],"analysis":None,"artifact_findings":None,"current":current,"matched":False,"mismatches":["manifest_invalid"]}
     analysis = manifest_entry["condition"]
     mismatches = condition_mismatches(analysis, current)
-    return {"status":"matched" if not mismatches else "mismatched","artifact_id":manifest_entry["artifact_id"],"analyzed_at":manifest_entry["analyzed_at"],"applies_to":manifest_entry["applies_to"],"analysis":analysis,"current":current,"matched":not mismatches,"mismatches":mismatches}
+    return {"status":"matched" if not mismatches else "mismatched","artifact_id":manifest_entry["artifact_id"],"analyzed_at":manifest_entry["analyzed_at"],"applies_to":manifest_entry["applies_to"],"analysis":analysis,"artifact_findings":manifest_entry["findings"],"current":current,"matched":not mismatches,"mismatches":mismatches}
 def classify_jit(jit_info):
     if jit_info is None:
         return {"applicable": True, "result": "not_checked"}
@@ -86,21 +138,26 @@ def current_analysis_condition(implementation_name=None, implementation_version=
         "architecture": architecture or platform.machine().lower(),
         "options": options if options is not None else [f"optimize={sys.flags.optimize}"],
     }
-def load_manifest_entry():
+def parse_manifest_entry(content):
     try:
-        document = json.loads((project_root() / ANALYSIS_MANIFEST).read_text(encoding="utf-8"))
+        document = json.loads(content)
         return document["languages"][LANGUAGE]
-    except (OSError, KeyError, TypeError, json.JSONDecodeError):
+    except (KeyError, TypeError, json.JSONDecodeError):
         return None
-def optimization_analysis(manifest_entry=None, current=None, jit_info=_DEFAULT_JIT):
-    if manifest_entry is None:
+def load_manifest_entry(manifest_path=None):
+    try:
+        path = Path(manifest_path) if manifest_path is not None else project_root() / ANALYSIS_MANIFEST
+        return parse_manifest_entry(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+def optimization_analysis(manifest_entry=_LOAD_MANIFEST, current=None, jit_info=_DEFAULT_JIT):
+    if manifest_entry is _LOAD_MANIFEST:
         manifest_entry = load_manifest_entry()
     if current is None:
         current = current_analysis_condition()
     if jit_info is _DEFAULT_JIT:
         jit_info = getattr(sys, "_jit", None)
     provenance = compare_provenance(manifest_entry, current)
-    saved_result = "not_detected" if provenance["matched"] else ("unknown" if provenance["status"] == "unavailable" else "not_checked")
     jit = classify_jit(jit_info)
     evidence = []
     if jit["result"] in {"detected", "not_detected"}:
@@ -119,9 +176,9 @@ def optimization_analysis(manifest_entry=None, current=None, jit_info=_DEFAULT_J
         "implementation": current["implementation"],
         "provenance": provenance,
         "jit": jit,
-        "inlining": {"result": saved_result},
-        "vectorization": {"result": saved_result},
-        "simd": {"result": "unknown" if provenance["status"] == "unavailable" else "not_checked", "isa": []},
+        "inlining": dict(provenance["artifact_findings"]["inlining"]) if provenance["matched"] else {"result": "unknown" if provenance["status"] == "unavailable" else "not_checked"},
+        "vectorization": dict(provenance["artifact_findings"]["vectorization"]) if provenance["matched"] else {"result": "unknown" if provenance["status"] == "unavailable" else "not_checked"},
+        "simd": {"result": provenance["artifact_findings"]["simd"]["result"], "isa": list(provenance["artifact_findings"]["simd"]["isa"])} if provenance["matched"] else {"result": "unknown" if provenance["status"] == "unavailable" else "not_checked", "isa": []},
         "other_optimizations": [],
         "evidence": evidence,
         "notes": notes,
