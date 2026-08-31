@@ -1,4 +1,6 @@
 import copy
+import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -13,6 +15,7 @@ from tools.validate_result_json import (
     ROOT_KEYS_WITH_OPTIMIZATION,
     normalize_legacy_result,
     validate,
+    validate_analysis_manifest,
 )
 
 
@@ -21,6 +24,39 @@ RESULT_PATHS = [
     PROJECT_ROOT / "results" / f"jit_object_numeric_sum_{language}_result.json"
     for language in ("python", "javascript", "c")
 ]
+PYTHON_BENCHMARK_PATH = PROJECT_ROOT / "benchmarks" / "function_call_numeric_sum" / "python" / "main.py"
+PYTHON_BENCHMARK_SPEC = importlib.util.spec_from_file_location("function_call_python", PYTHON_BENCHMARK_PATH)
+PYTHON_BENCHMARK = importlib.util.module_from_spec(PYTHON_BENCHMARK_SPEC)
+PYTHON_BENCHMARK_SPEC.loader.exec_module(PYTHON_BENCHMARK)
+
+
+def build_optimization_analysis() -> dict:
+    condition = {
+        "source_sha256": "a" * 64,
+        "implementation": {"name": "CPython", "version": "3.14.7"},
+        "architecture": "amd64",
+        "options": ["optimize=0"],
+    }
+    return {
+        "implementation": {"name": "CPython", "version": "3.14.7"},
+        "provenance": {
+            "status": "matched",
+            "artifact_id": "function-call-analysis-test-python",
+            "analyzed_at": "2026-08-31T12:00:00Z",
+            "applies_to": ["inlining", "vectorization", "simd"],
+            "analysis": copy.deepcopy(condition),
+            "current": copy.deepcopy(condition),
+            "matched": True,
+            "mismatches": [],
+        },
+        "jit": {"applicable": True, "result": "not_detected"},
+        "inlining": {"result": "not_checked"},
+        "vectorization": {"result": "unknown"},
+        "simd": {"result": "not_checked", "isa": []},
+        "other_optimizations": [],
+        "evidence": [{"type": "runtime_api", "path": "python:sys._jit.is_available/is_enabled"}],
+        "notes": [],
+    }
 
 
 def build_error_document(language: str = "python") -> dict:
@@ -125,6 +161,20 @@ class ResultSchemaTests(unittest.TestCase):
         document = json.loads(match.group(1))
         self.assertEqual(ROOT_KEYS, list(document))
 
+    def test_analysis_manifest_is_valid_and_matches_sources(self) -> None:
+        path = PROJECT_ROOT / "artifacts" / "function-call-analysis" / "manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual([], validate_analysis_manifest(manifest, path))
+        sources = {
+            "c": PROJECT_ROOT / "benchmarks" / "function_call_numeric_sum" / "c" / "main.c",
+            "python": PYTHON_BENCHMARK_PATH,
+            "javascript": PROJECT_ROOT / "benchmarks" / "function_call_numeric_sum" / "javascript" / "main.js",
+        }
+        for language, source in sources.items():
+            with self.subTest(language=language):
+                actual = hashlib.sha256(source.read_bytes()).hexdigest()
+                self.assertEqual(actual, manifest["languages"][language]["condition"]["source_sha256"])
+
     def test_tracked_samples_follow_formal_schema(self) -> None:
         documents = []
         for path in RESULT_PATHS:
@@ -151,16 +201,7 @@ class ResultSchemaTests(unittest.TestCase):
                 self.assertEqual([], validate(build_error_document(language), Path(f"{language}-error.json")))
 
     def test_optional_optimization_analysis_is_validated(self) -> None:
-        analysis = {
-            "implementation": {"name": "CPython", "version": "3.14.7"},
-            "jit": {"applicable": True, "result": "not_detected"},
-            "inlining": {"result": "not_checked"},
-            "vectorization": {"result": "unknown"},
-            "simd": {"result": "not_checked", "isa": []},
-            "other_optimizations": [],
-            "evidence": [],
-            "notes": [],
-        }
+        analysis = build_optimization_analysis()
         base = build_error_document()
         document = {
             key: analysis if key == "optimization_analysis" else base[key]
@@ -169,7 +210,6 @@ class ResultSchemaTests(unittest.TestCase):
         self.assertEqual([], validate(document, Path("optimization.json")))
         self.assertEqual(ROOT_KEYS_WITH_OPTIMIZATION, list(document))
         self.assertIsInstance(document["optimization_analysis"]["simd"]["isa"], list)
-        self.assertEqual([], document["optimization_analysis"]["evidence"])
         self.assertEqual([], document["optimization_analysis"]["other_optimizations"])
 
         for result in OPTIMIZATION_RESULTS:
@@ -181,16 +221,92 @@ class ResultSchemaTests(unittest.TestCase):
         invalid_cases = {
             "unexpected result": lambda d: d["optimization_analysis"]["inlining"].update(result="maybe"),
             "simd isa scalar": lambda d: d["optimization_analysis"]["simd"].update(isa="SSE2"),
+            "detected simd without isa": lambda d: d["optimization_analysis"]["simd"].update(result="detected", isa=[]),
+            "unchecked simd with isa": lambda d: d["optimization_analysis"]["simd"].update(result="not_checked", isa=["SSE2"]),
+            "duplicate simd isa": lambda d: d["optimization_analysis"]["simd"].update(result="detected", isa=["SSE2", "SSE2"]),
             "empty implementation": lambda d: d["optimization_analysis"]["implementation"].update(version=""),
             "false applicable result": lambda d: d["optimization_analysis"]["jit"].update(applicable=False, result="not_checked"),
+            "true not applicable": lambda d: d["optimization_analysis"]["jit"].update(applicable=True, result="not_applicable"),
             "evidence object": lambda d: d["optimization_analysis"].update(evidence={}),
             "other object": lambda d: d["optimization_analysis"].update(other_optimizations={}),
+            "conclusive without evidence": lambda d: d["optimization_analysis"].update(evidence=[]),
         }
         for name, mutate in invalid_cases.items():
             with self.subTest(name=name):
                 candidate = copy.deepcopy(document)
                 mutate(candidate)
                 self.assertTrue(validate(candidate, Path(name)))
+
+    def test_provenance_mismatch_downgrades_saved_findings(self) -> None:
+        current = {
+            "source_sha256": "a" * 64,
+            "implementation": {"name": "CPython", "version": "3.14.7"},
+            "architecture": "amd64",
+            "options": ["optimize=0"],
+        }
+        entry = {
+            "artifact_id": "test-python",
+            "analyzed_at": "2026-08-31T12:00:00Z",
+            "applies_to": ["inlining", "vectorization", "simd"],
+            "condition": copy.deepcopy(current),
+            "evidence": [{"type": "disassembly", "path": "artifacts/function-call-analysis/python-bytecode.txt"}],
+        }
+        matched = PYTHON_BENCHMARK.optimization_analysis(entry, copy.deepcopy(current), None)
+        self.assertTrue(matched["provenance"]["matched"])
+        self.assertEqual("not_detected", matched["inlining"]["result"])
+        self.assertEqual("not_detected", matched["vectorization"]["result"])
+
+        cases = {
+            "source_sha256": lambda condition: condition.update(source_sha256="b" * 64),
+            "implementation.version": lambda condition: condition["implementation"].update(version="3.13.0"),
+            "architecture": lambda condition: condition.update(architecture="arm64"),
+            "implementation.name": lambda condition: condition["implementation"].update(name="PyPy"),
+        }
+        for mismatch, mutate in cases.items():
+            with self.subTest(mismatch=mismatch):
+                changed = copy.deepcopy(current)
+                mutate(changed)
+                result = PYTHON_BENCHMARK.optimization_analysis(entry, changed, None)
+                self.assertFalse(result["provenance"]["matched"])
+                self.assertIn(mismatch, result["provenance"]["mismatches"])
+                self.assertEqual("not_checked", result["inlining"]["result"])
+                self.assertEqual("not_checked", result["vectorization"]["result"])
+
+    def test_python_jit_classification_is_injectable(self) -> None:
+        class Jit:
+            def __init__(self, available=True, enabled=False, error=None):
+                self.available, self.enabled, self.error = available, enabled, error
+            def is_available(self):
+                if self.error == "available": raise RuntimeError("unavailable")
+                return self.available
+            def is_enabled(self):
+                if self.error == "enabled": raise RuntimeError("unavailable")
+                return self.enabled
+
+        self.assertEqual({"applicable": False, "result": "not_applicable"}, PYTHON_BENCHMARK.classify_jit(Jit(available=False)))
+        self.assertEqual({"applicable": True, "result": "not_detected"}, PYTHON_BENCHMARK.classify_jit(Jit(available=True, enabled=False)))
+        self.assertEqual({"applicable": True, "result": "unknown"}, PYTHON_BENCHMARK.classify_jit(Jit(available=True, enabled=True)))
+        self.assertEqual({"applicable": True, "result": "unknown"}, PYTHON_BENCHMARK.classify_jit(Jit(error="available")))
+        self.assertEqual({"applicable": True, "result": "unknown"}, PYTHON_BENCHMARK.classify_jit(Jit(error="enabled")))
+        self.assertEqual({"applicable": True, "result": "not_checked"}, PYTHON_BENCHMARK.classify_jit(None))
+
+    def test_mismatched_c_and_javascript_findings_are_not_conclusive(self) -> None:
+        for language, mismatch, name in (("c", "architecture", "simd"), ("javascript", "options", "jit")):
+            with self.subTest(language=language):
+                analysis = build_optimization_analysis()
+                analysis["provenance"]["applies_to"] = ["jit", "inlining", "vectorization", "simd"] if language == "javascript" else ["inlining", "vectorization", "simd"]
+                analysis["provenance"]["status"] = "mismatched"
+                analysis["provenance"]["matched"] = False
+                analysis["provenance"]["mismatches"] = [mismatch]
+                if mismatch == "architecture": analysis["provenance"]["current"]["architecture"] = "arm64"
+                else: analysis["provenance"]["current"]["options"] = ["--jitless"]
+                analysis[name]["result"] = "detected"
+                if name == "simd": analysis[name]["isa"] = ["SSE2"]
+                base = build_error_document(language)
+                if language == "c":
+                    base["build"] = {"required": True, "compiler": "gcc", "compiler_version": "gcc 16", "compile_command": "gcc -O2 main.c", "compile_ms": 1.0, "source_path": "main.c"}
+                document = {key: analysis if key == "optimization_analysis" else base[key] for key in ROOT_KEYS_WITH_OPTIMIZATION}
+                self.assertTrue(validate(document, Path(language)))
 
     def test_invalid_error_results_are_rejected(self) -> None:
         cases = {

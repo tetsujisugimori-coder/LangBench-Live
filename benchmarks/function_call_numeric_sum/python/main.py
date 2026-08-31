@@ -1,4 +1,5 @@
 import json
+import hashlib
 import os
 import platform
 import sys
@@ -15,6 +16,8 @@ WARMUP_ITERATIONS = 5
 MEASUREMENT_ITERATIONS = 50
 EXPECTED_CHECKSUM = ITEM_COUNT * (ITEM_COUNT + 1) // 2
 RESULT_FILE = "function_call_numeric_sum_python_result.json"
+ANALYSIS_MANIFEST = "artifacts/function-call-analysis/manifest.json"
+_DEFAULT_JIT = object()
 
 def project_root(): return Path(__file__).resolve().parents[3]
 def now_ms(): return time.perf_counter_ns() / 1_000_000
@@ -47,30 +50,81 @@ def measure(case, values):
     return warmup_ms, rounded(sum(samples)), checksum, stats(samples)
 def metadata(status, eid, rid):
     return {"type":"langbench_result", "schema_version":SCHEMA_VERSION, "project":PROJECT, "benchmark":BENCHMARK, "experiment_id":eid, "run_id":rid, "language":LANGUAGE, "created_at":datetime.now().astimezone().isoformat(timespec="milliseconds"), "status":status, "engine":{"runtime":"python", "runtime_version":platform.python_version(), "compiler":None, "compiler_version":None, "python_implementation":platform.python_implementation()}, "execution":{"runner":"vscode_terminal_powershell", "runner_label":"VSCode Terminal / PowerShell", "cwd":str(Path.cwd()), "argv":[sys.executable, *sys.argv]}, "environment":{"os":platform.system() or None, "os_version":platform.version() or None, "architecture":platform.machine() or None, "cpu":platform.processor() or None, "logical_processors":os.cpu_count(), "memory_bytes":None}, "build":None}
-def jit_analysis():
-    jit = getattr(sys, "_jit", None)
-    if jit is None:
-        if platform.python_implementation() == "CPython":
-            return {"applicable": False, "result": "not_applicable"}
+def condition_mismatches(analysis, current):
+    mismatches = []
+    if analysis.get("source_sha256") != current.get("source_sha256"): mismatches.append("source_sha256")
+    if analysis.get("implementation", {}).get("name") != current.get("implementation", {}).get("name"): mismatches.append("implementation.name")
+    if analysis.get("implementation", {}).get("version") != current.get("implementation", {}).get("version"): mismatches.append("implementation.version")
+    if analysis.get("architecture") != current.get("architecture"): mismatches.append("architecture")
+    if analysis.get("options") != current.get("options"): mismatches.append("options")
+    return mismatches
+def compare_provenance(manifest_entry, current):
+    if manifest_entry is None:
+        return {"status":"unavailable","artifact_id":None,"analyzed_at":None,"applies_to":["inlining","vectorization","simd"],"analysis":None,"current":current,"matched":False,"mismatches":["manifest_unavailable"]}
+    analysis = manifest_entry["condition"]
+    mismatches = condition_mismatches(analysis, current)
+    return {"status":"matched" if not mismatches else "mismatched","artifact_id":manifest_entry["artifact_id"],"analyzed_at":manifest_entry["analyzed_at"],"applies_to":manifest_entry["applies_to"],"analysis":analysis,"current":current,"matched":not mismatches,"mismatches":mismatches}
+def classify_jit(jit_info):
+    if jit_info is None:
         return {"applicable": True, "result": "not_checked"}
     try:
-        enabled = jit.is_enabled()
+        available = jit_info.is_available()
+    except Exception:
+        return {"applicable": True, "result": "unknown"}
+    if not available:
+        return {"applicable": False, "result": "not_applicable"}
+    try:
+        enabled = jit_info.is_enabled()
     except Exception:
         return {"applicable": True, "result": "unknown"}
     return {"applicable": True, "result": "unknown" if enabled else "not_detected"}
-def optimization_analysis():
+def current_analysis_condition(implementation_name=None, implementation_version=None, architecture=None, options=None, source_sha256=None):
+    source = Path(__file__).read_bytes()
     return {
-        "implementation": {"name": platform.python_implementation(), "version": platform.python_version()},
-        "jit": jit_analysis(),
-        "inlining": {"result": "not_detected"},
-        "vectorization": {"result": "not_detected"},
-        "simd": {"result": "not_checked", "isa": []},
+        "source_sha256": source_sha256 or hashlib.sha256(source).hexdigest(),
+        "implementation": {"name": implementation_name or platform.python_implementation(), "version": implementation_version or platform.python_version()},
+        "architecture": architecture or platform.machine().lower(),
+        "options": options if options is not None else [f"optimize={sys.flags.optimize}"],
+    }
+def load_manifest_entry():
+    try:
+        document = json.loads((project_root() / ANALYSIS_MANIFEST).read_text(encoding="utf-8"))
+        return document["languages"][LANGUAGE]
+    except (OSError, KeyError, TypeError, json.JSONDecodeError):
+        return None
+def optimization_analysis(manifest_entry=None, current=None, jit_info=_DEFAULT_JIT):
+    if manifest_entry is None:
+        manifest_entry = load_manifest_entry()
+    if current is None:
+        current = current_analysis_condition()
+    if jit_info is _DEFAULT_JIT:
+        jit_info = getattr(sys, "_jit", None)
+    provenance = compare_provenance(manifest_entry, current)
+    saved_result = "not_detected" if provenance["matched"] else ("unknown" if provenance["status"] == "unavailable" else "not_checked")
+    jit = classify_jit(jit_info)
+    evidence = []
+    if jit["result"] in {"detected", "not_detected"}:
+        evidence.append({"type":"runtime_api","path":"python:sys._jit.is_available/is_enabled"})
+    if provenance["matched"]:
+        evidence.extend(manifest_entry["evidence"])
+    notes = []
+    if provenance["status"] == "mismatched":
+        notes.append("Saved CPython bytecode analysis was not applied because these conditions differed: " + ", ".join(provenance["mismatches"]) + ".")
+    elif provenance["status"] == "unavailable":
+        notes.append("Saved CPython bytecode analysis could not be loaded; its findings are unknown.")
+    else:
+        notes.append("CPython bytecode retains the add call and scalar loop for this benchmark.")
+    notes.append("Native interpreter SIMD instructions were not inspected.")
+    return {
+        "implementation": current["implementation"],
+        "provenance": provenance,
+        "jit": jit,
+        "inlining": {"result": saved_result},
+        "vectorization": {"result": saved_result},
+        "simd": {"result": "unknown" if provenance["status"] == "unavailable" else "not_checked", "isa": []},
         "other_optimizations": [],
-        "evidence": [{"type": "disassembly", "path": "artifacts/function-call-analysis/python-bytecode.txt"}],
-        "notes": [
-            "CPython bytecode retains the add call and scalar loop for this benchmark.",
-            "Native interpreter SIMD instructions were not inspected.",
-        ],
+        "evidence": evidence,
+        "notes": notes,
     }
 def run(eid, rid):
     setup_start = now_ms(); values = list(range(1, ITEM_COUNT + 1)); setup_ms = rounded(now_ms() - setup_start)

@@ -123,10 +123,12 @@ static int optional_arg(int argc, char *argv[], const char *prefix, char *output
 int main(int argc, char *argv[]) {
     double compile_ms, setup_start, setup_ms, direct_warmup, call_warmup, direct_samples[MEASUREMENT_ITERATIONS], call_samples[MEASUREMENT_ITERATIONS], measurement_ms;
     int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", output_path[PATH_SIZE];
-    SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index;
-    if (argc < 5 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0]) {
-        fprintf(stderr, "status=error\nmessage=expected non-negative compile_ms, compiler version, compile command, and source path\n"); return 1;
+    SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index; int analysis_matched, analysis_unavailable;
+    if (argc < 7 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0] || !argv[5][0] || !argv[6][0]) {
+        fprintf(stderr, "status=error\nmessage=expected build and optimization provenance arguments\n"); return 1;
     }
+    analysis_matched = strcmp(argv[6], "matched") == 0;
+    analysis_unavailable = strcmp(argv[6], "unavailable") == 0;
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) { fprintf(stderr, "status=error\nmessage=high-resolution timer is unavailable\n"); return 1; }
     if (!optional_arg(argc, argv, "--experiment-id=", experiment_id, sizeof(experiment_id))) {
         const char *value = getenv("LANGBENCH_EXPERIMENT_ID"); if (value) strncpy(experiment_id, value, sizeof(experiment_id) - 1);
@@ -161,7 +163,14 @@ int main(int argc, char *argv[]) {
     fprintf(out, ", \"cpu\": "); if (cpu[0]) write_json_string(out, cpu); else fputs("null", out); fprintf(out, ", \"logical_processors\": %lu, \"memory_bytes\": ", system.dwNumberOfProcessors); if (memory.ullTotalPhys) fprintf(out, "%" PRIu64, (uint64_t)memory.ullTotalPhys); else fputs("null", out);
     fprintf(out, "},\n  \"build\": {\"required\": true, \"compiler\": \"gcc\", \"compiler_version\": "); write_json_string(out, argv[2]); fprintf(out, ", \"compile_command\": "); write_json_string(out, argv[3]); fprintf(out, ", \"compile_ms\": %.3f, \"source_path\": ", compile_ms); write_json_string(out, argv[4]);
     fprintf(out, "},\n  \"optimization_analysis\": {\"implementation\": {\"name\": \"GCC\", \"version\": "); write_json_string(out, argv[2]);
-    fprintf(out, "}, \"jit\": {\"applicable\": false, \"result\": \"not_applicable\"}, \"inlining\": {\"result\": \"not_detected\"}, \"vectorization\": {\"result\": \"detected\"}, \"simd\": {\"result\": \"detected\", \"isa\": [\"SSE2\"]}, \"other_optimizations\": [], \"evidence\": [{\"type\": \"assembly\", \"path\": \"artifacts/function-call-analysis/main.s\"}, {\"type\": \"compiler_report\", \"path\": \"artifacts/function-call-analysis/gcc-optimization.txt\"}], \"notes\": [\"The benchmark add call remains non-inlined.\", \"The direct loop is vectorized with 16-byte SSE2 instructions; the function_call loop is not vectorized.\"]},\n");
+    fprintf(out, "}, \"provenance\": "); fputs(argv[5], out);
+    fprintf(out, ", \"jit\": {\"applicable\": false, \"result\": \"not_applicable\"}, \"inlining\": {\"result\": \"%s\"}, \"vectorization\": {\"result\": \"%s\"}, \"simd\": {\"result\": \"%s\", \"isa\": %s}, \"other_optimizations\": [], \"evidence\": %s, \"notes\": %s},\n",
+        analysis_matched ? "not_detected" : (analysis_unavailable ? "unknown" : "not_checked"),
+        analysis_matched ? "detected" : (analysis_unavailable ? "unknown" : "not_checked"),
+        analysis_matched ? "detected" : (analysis_unavailable ? "unknown" : "not_checked"),
+        analysis_matched ? "[\"SSE2\"]" : "[]",
+        analysis_matched ? "[{\"type\":\"assembly\",\"path\":\"artifacts/function-call-analysis/main.s\"},{\"type\":\"compiler_report\",\"path\":\"artifacts/function-call-analysis/gcc-optimization.txt\"}]" : "[]",
+        analysis_matched ? "[\"The benchmark add call remains non-inlined.\",\"The direct loop is vectorized with 16-byte SSE2 instructions; the function_call loop is not vectorized.\"]" : (analysis_unavailable ? "[\"Saved C analysis could not be loaded; its findings are unknown.\"]" : "[\"Saved C analysis was not applied because its provenance did not match the current build.\"]"));
     fprintf(out, "  \"config\": {\"item_count\": %d, \"warmup_iterations\": %d, \"measurement_iterations\": %d, \"numeric_type\": \"integer\", \"value_field\": \"value\", \"cases\": [\"direct\", \"function_call\"]},\n  \"timing\": {\"process_startup_ms\": null, \"setup_ms\": %.3f, \"warmup_ms\": %.3f, \"measurement_ms\": %.3f, \"benchmark_total_ms\": %.3f},\n  \"results\": {\"direct\": ", ITEM_COUNT, WARMUP_ITERATIONS, MEASUREMENT_ITERATIONS, setup_ms, round_ms(direct_warmup + call_warmup), measurement_ms, round_ms(setup_ms + direct_warmup + call_warmup + measurement_ms));
     write_case(out, direct_samples); fprintf(out, ", \"function_call\": "); write_case(out, call_samples);
     fprintf(out, "},\n  \"validation\": {\"direct_checksum\": %" PRId64 ", \"function_call_checksum\": %" PRId64 ", \"expected_checksum\": %" PRId64 ", \"tolerance\": 0, \"passed\": true},\n  \"error\": null\n}\n", direct_checksum, call_checksum, EXPECTED_CHECKSUM);

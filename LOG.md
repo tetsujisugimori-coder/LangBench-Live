@@ -717,3 +717,24 @@
 
 * `run_id` は仕様どおり単独では一意でないため、Memo Nexusなどの取込側で複合識別を実装する必要がある
 * Memo Nexusへの実取り込みは接続先がこのリポジトリにないため未確認
+
+## 2026-09-01 PR #7 レビュー指摘対応
+
+* 保存済み解析資料の結論を無条件で現在の結果へ適用していた問題を修正した。
+* `artifacts/function-call-analysis/manifest.json` と結果JSONの `provenance` に、ソースSHA-256、処理系名・バージョン、CPUアーキテクチャ、主要オプション、解析ID・日時、現在条件、照合結果、不一致項目を追加した。
+* CはGCCバージョン、x64、`-O2 -std=c11 -Wall -Wextra`、ソースハッシュが一致した場合だけ、対象addの非インライン化、directループのベクトル化、SSE2を採用する。不一致時は保存済み判定を `not_checked` へ降格する。
+* PythonはCPythonのバイトコード解析を処理系・バージョン・アーキテクチャ・最適化レベル・ソースが一致した場合だけ使用する。CPython以外や条件不一致ではインライン化とベクトル化を `not_checked` にする。
+* PythonのJIT判定を純粋にテスト可能な関数へ分離し、`sys._jit.is_available()` と `is_enabled()` を区別した。JIT非搭載は `not_applicable`、搭載済み無効は `not_detected`、搭載・有効だが対象コードの作動が未確認なら `unknown`、API失敗は `unknown` とする。
+* JavaScriptはV8バージョン、アーキテクチャ、ソース、`process.execArgv`と`NODE_OPTIONS`由来のオプションを照合する。`--jitless`等がある場合、過去のJIT・インライン化判定を使用しない。
+* バリデーターへprovenance条件の再比較、JITのapplicable整合、SIMDのresult/isa整合、ISA重複禁止、根拠なしの確定判定禁止、不一致provenanceでの確定判定禁止、manifest構造検証を追加した。`optimization_analysis`を持たない既存schema 1.0 JSONは引き続き有効である。
+* `tools/generate_function_call_analysis.ps1` で、最終ソースからGCCレポート、Cアセンブリ、Pythonバイトコード、V8トレース、manifestを再生成した。V8の標準出力と標準エラーは別々に収集し、区切って保存した。
+
+### テスト結果
+
+* `python -m unittest discover -s tests -v`: 14件成功
+* `node tests/test_javascript_optimization_analysis.js`: 5件成功
+* `python -m py_compile benchmarks/function_call_numeric_sum/python/main.py tools/validate_result_json.py`: 成功
+* `node --check benchmarks/function_call_numeric_sum/javascript/main.js`: 成功
+* `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの実行と3結果の検証が成功（`validated=3`）
+* `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: 成功し、`provenance.status: mismatched`、`mismatches: ["options"]`、JITとインライン化が `not_checked` になることを確認
+* 通常条件へ戻した3結果の明示検証: `validated=3`
