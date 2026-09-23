@@ -841,6 +841,7 @@
 * `python -B -m unittest discover -s tests -v`: 23件すべて成功。`node --test tests/test_javascript_optimization_analysis.js`: 20件すべて成功。`pwsh -NoProfile -File tests/test_c_optimization_analysis.ps1`: 14件すべて成功。
 * `python -B -m unittest tests.test_result_schema.ArchiveResultsTests -v`: 3件成功。定義と設定・期待checksumが異なる場合、履歴フォルダが作成されないことを確認した。
 * `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの統合実行が成功し、`validated=3`の後に`results/history/20260924_034054_function_call_numeric_sum/7dcea74c253543bf908974c60a66bb95/`を作成した。保存された`experiment.json`は定義原本とバイト単位で一致し、`archive.json`に記録された定義1件と結果3件のSHA-256はすべて読み戻し値と一致した。保存結果の再検証は`validated=3`、3言語の解析provenanceは`matched`だった。
+* コミット`b2d5bff`から新規worktreeを作成し、3ソースのCRLFがいずれも0件で実測SHA-256がmanifestと一致することを確認した。そのチェックアウトでmanifestと資料のPythonテスト1件、C解析テスト14件が成功した。
 
 ### 残る確認範囲
 
