@@ -27,7 +27,17 @@ SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 OPTIMIZATION_NAMES = ("jit", "inlining", "vectorization", "simd")
 
 def is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def is_choice(value: Any, choices: set[str]) -> bool:
+    """Reject JSON arrays/objects before set membership checks."""
+    return isinstance(value, str) and value in choices
 
 def first(mapping: Any, *names: str) -> Any:
     """Return the first present key without treating valid zero values as absent."""
@@ -95,7 +105,7 @@ def normalize_legacy_result(document: dict[str, Any]) -> dict[str, Any]:
 
 def validate_build(document: dict[str, Any], errors: list[str], path: Path) -> None:
     language, build = document.get("language"), document.get("build")
-    if language in {"python", "javascript"}:
+    if language in ("python", "javascript"):
         if build is not None: errors.append(f"{path}: {language} build must be null")
     elif language == "c":
         if not isinstance(build, dict): errors.append(f"{path}: C build must be an object"); return
@@ -141,11 +151,11 @@ def findings_errors(findings: Any, expected_names: set[str], label: str, path: P
         return [f"{path}: {label} findings are invalid"]
     for name in sorted(expected_names - {"simd"}):
         item = findings.get(name)
-        if not isinstance(item, dict) or set(item) != {"result"} or item.get("result") not in OPTIMIZATION_RESULTS:
+        if not isinstance(item, dict) or set(item) != {"result"} or not is_choice(item.get("result"), OPTIMIZATION_RESULTS):
             errors.append(f"{path}: {label} findings.{name} is invalid")
     if "simd" in expected_names:
         simd = findings.get("simd")
-        if not isinstance(simd, dict) or set(simd) != {"result", "isa"} or simd.get("result") not in OPTIMIZATION_RESULTS:
+        if not isinstance(simd, dict) or set(simd) != {"result", "isa"} or not is_choice(simd.get("result"), OPTIMIZATION_RESULTS):
             errors.append(f"{path}: {label} findings.simd is invalid")
         else:
             isa = simd.get("isa")
@@ -161,7 +171,7 @@ def validate_provenance(provenance: Any, errors: list[str], path: Path) -> None:
         errors.append(f"{path}: optimization_analysis provenance is invalid")
         return
     status = provenance.get("status")
-    if status not in {"matched", "mismatched", "unavailable"}:
+    if not is_choice(status, {"matched", "mismatched", "unavailable"}):
         errors.append(f"{path}: optimization_analysis provenance status is invalid")
     applies_to = provenance.get("applies_to")
     applies_valid = isinstance(applies_to, list) and bool(applies_to) and all(name in OPTIMIZATION_NAMES for name in applies_to) and len(applies_to) == len(set(applies_to))
@@ -270,10 +280,12 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
         "c": {"inlining", "vectorization", "simd"},
         "python": {"inlining", "vectorization", "simd"},
         "javascript": {"jit", "inlining", "vectorization", "simd"},
-    }.get(document.get("language"))
+    }.get(document.get("language") if isinstance(document.get("language"), str) else None)
     if isinstance(provenance, dict) and expected_applies_to is not None:
         provenance_applies_to = provenance.get("applies_to")
-        if not isinstance(provenance_applies_to, list) or set(provenance_applies_to) != expected_applies_to:
+        if (not isinstance(provenance_applies_to, list)
+                or not all(isinstance(name, str) for name in provenance_applies_to)
+                or set(provenance_applies_to) != expected_applies_to):
             errors.append(f"{path}: optimization_analysis provenance applies_to does not match language")
 
     implementation = analysis.get("implementation")
@@ -288,7 +300,7 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
     jit = analysis.get("jit")
     if not isinstance(jit, dict) or not isinstance(jit.get("applicable"), bool):
         errors.append(f"{path}: optimization_analysis jit is invalid")
-    elif jit.get("result") not in OPTIMIZATION_RESULTS:
+    elif not is_choice(jit.get("result"), OPTIMIZATION_RESULTS):
         errors.append(f"{path}: optimization_analysis jit.result is invalid")
     elif not jit["applicable"] and jit["result"] != "not_applicable":
         errors.append(f"{path}: non-applicable JIT must use not_applicable")
@@ -297,13 +309,13 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
 
     for name in ("inlining", "vectorization"):
         item = analysis.get(name)
-        if not isinstance(item, dict) or item.get("result") not in OPTIMIZATION_RESULTS:
+        if not isinstance(item, dict) or not is_choice(item.get("result"), OPTIMIZATION_RESULTS):
             errors.append(f"{path}: optimization_analysis {name}.result is invalid")
 
     simd = analysis.get("simd")
     if (
         not isinstance(simd, dict)
-        or simd.get("result") not in OPTIMIZATION_RESULTS
+        or not is_choice(simd.get("result"), OPTIMIZATION_RESULTS)
         or not isinstance(simd.get("isa"), list)
         or not all(isinstance(isa, str) and isa.strip() for isa in simd.get("isa", []))
         or len(simd.get("isa", [])) != len(set(simd.get("isa", [])))
@@ -319,7 +331,7 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
         isinstance(item, dict)
         and isinstance(item.get("name"), str)
         and item["name"].strip()
-        and item.get("result") in OPTIMIZATION_RESULTS
+        and is_choice(item.get("result"), OPTIMIZATION_RESULTS)
         for item in other
     ):
         errors.append(f"{path}: optimization_analysis other_optimizations is invalid")
@@ -337,7 +349,7 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
 
     result_items = [jit, analysis.get("inlining"), analysis.get("vectorization"), simd]
     result_items.extend(other if isinstance(other, list) else [])
-    conclusive = any(isinstance(item, dict) and item.get("result") in {"detected", "not_detected"} for item in result_items)
+    conclusive = any(isinstance(item, dict) and is_choice(item.get("result"), {"detected", "not_detected"}) for item in result_items)
     if conclusive and not evidence:
         errors.append(f"{path}: conclusive optimization results require evidence")
 
@@ -346,6 +358,8 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
         artifact_findings = provenance.get("artifact_findings")
         status = provenance.get("status")
         for name in applies_to:
+            if not isinstance(name, str):
+                continue
             item = analysis.get(name)
             if not isinstance(item, dict):
                 continue
@@ -357,7 +371,7 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
                 errors.append(f"{path}: {name} must be not_checked when provenance mismatches")
             elif status == "unavailable" and (item.get("result") != "unknown" or (name == "simd" and item.get("isa") != [])):
                 errors.append(f"{path}: {name} must be unknown when provenance is unavailable")
-        if isinstance(other, list) and other and provenance.get("status") != "matched" and any(item.get("result") in {"detected", "not_detected"} for item in other if isinstance(item, dict)):
+        if isinstance(other, list) and other and provenance.get("status") != "matched" and any(is_choice(item.get("result"), {"detected", "not_detected"}) for item in other if isinstance(item, dict)):
             errors.append(f"{path}: other optimizations cannot be conclusive when provenance does not match")
 
     notes = analysis.get("notes")
@@ -370,17 +384,17 @@ def validate_common(document: Any, path: Path) -> list[str]:
     if list(document) not in (ROOT_KEYS, ROOT_KEYS_WITH_OPTIMIZATION): errors.append(f"{path}: root keys/order do not match schema 1.0")
     if document.get("type") != "langbench_result" or document.get("schema_version") != "1.0": errors.append(f"{path}: invalid type or schema_version")
     benchmark = document.get("benchmark")
-    if benchmark not in BENCHMARKS or "experiment" in document: errors.append(f"{path}: invalid benchmark or deprecated experiment key")
+    if not is_choice(benchmark, BENCHMARKS) or "experiment" in document: errors.append(f"{path}: invalid benchmark or deprecated experiment key")
     if document.get("project") != "LangBench Live": errors.append(f"{path}: invalid project")
     language = document.get("language")
-    if language not in LANGUAGES: errors.append(f"{path}: invalid language")
+    if not is_choice(language, LANGUAGES): errors.append(f"{path}: invalid language")
     experiment_match = EXPERIMENT_ID_PATTERN.fullmatch(document.get("experiment_id", "") if isinstance(document.get("experiment_id"), str) else "")
     if not experiment_match or experiment_match.group(2) != benchmark: errors.append(f"{path}: invalid experiment_id")
     run_match = RUN_ID_PATTERN.fullmatch(document.get("run_id", "") if isinstance(document.get("run_id"), str) else "")
     if not run_match or run_match.group(2) != language or run_match.group(3) != benchmark: errors.append(f"{path}: invalid run_id")
     if not TIMESTAMP_PATTERN.fullmatch(document.get("created_at", "") if isinstance(document.get("created_at"), str) else ""): errors.append(f"{path}: created_at must include a timezone")
     status = document.get("status")
-    if status not in {"success", "error"}: errors.append(f"{path}: invalid status")
+    if not is_choice(status, {"success", "error"}): errors.append(f"{path}: invalid status")
     if status == "success" and document.get("error") is not None: errors.append(f"{path}: successful result must have error: null")
     if status == "error":
         error = document.get("error")
@@ -408,6 +422,9 @@ def validate_common(document: Any, path: Path) -> list[str]:
             or validation.get("passed") is not False
         ):
             errors.append(f"{path}: error result validation must fail")
+    for section in ("engine", "execution", "environment"):
+        if not isinstance(document.get(section), dict):
+            errors.append(f"{path}: {section} must be an object")
     validate_build(document, errors, path)
     validate_optimization_analysis(document, errors, path)
     return errors

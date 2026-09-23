@@ -95,6 +95,29 @@ $archive = "results/history/<experiment_id>/<archive_id>" # 表示されたarchi
 python tools/validate_result_json.py "$archive/python.json" "$archive/javascript.json" "$archive/c.json"
 ```
 
+### 保存済み履歴2件の比較条件判定
+
+測定値を比較する前に、保存された履歴フォルダ2件を指定して判定できます。読み取り専用で、履歴や最新結果を更新しません。
+
+```powershell
+python tools/compare_archives.py "results/history/<experiment_id>/<archive_id>" "results/history/<experiment_id>/<archive_id>"
+python tools/compare_archives.py --json "results/history/<experiment_id>/<archive_id>" "results/history/<experiment_id>/<archive_id>"
+```
+
+各履歴の `archive.json`、`experiment.json`、C・JavaScript・Pythonの結果を読みます。記録された4件のSHA-256を実ファイルの**生バイト列**から再計算し、ファイル参照、重複、JSON構造、既存Validator、履歴内の定義と各結果の実験ID・benchmark・config・期待checksumの一致を検査します。判定にはその履歴の `experiment.json` を使用し、現在のリポジトリの定義を過去の履歴へ当てはめません。欠落、改変、検証失敗は判定ではなくエラーです。
+
+判定は次の3種類です。
+
+* **比較可能** (`comparable`): 保存された実験条件と、点検対象の環境・処理系・ソース情報が一致します。
+* **注意付き** (`caution`): 実験条件は一致しますが、同じ言語同士のOS・OS版・CPU名・アーキテクチャ、処理系・版、Cコンパイラ・版、記録された起動／コンパイルオプション、利用可能なソースSHA-256に差または情報不足があります。
+* **比較不可** (`incomparable`): 保存された定義のbenchmark、schema_version、config、expected_checksumのいずれかが異なります。
+
+異なる言語同士の処理系の違いは注意理由にしません。Cの `compile_command` には毎回異なる一時ファイルパスが含まれるため、コンパイルオプションには結果の `optimization_analysis.provenance.current.options` を使います。これが無ければ情報不足とします。`run_id`、`experiment_id`、`archive_id`、保存日時は実験条件に含めません。`experiment.json` のSHA-256は改変検出だけに使い、JSONの空白やキー順の違いは条件差としません。
+
+`--json` は `schema_version: "1.0"`、入力を表す `left` / `right`、英語の `verdict`、`reasons` 配列を出力します。各理由は安定した `code`、対象の `field`、日本語の `message`、言語固有なら `language` を持ちます。例: `{"verdict":"caution","reasons":[{"code":"INFORMATION_MISSING","field":"environment.os_version","message":"c の environment.os_version が片方または両方で記録されていません。","language":"c"}]}`。実際の出力には `schema_version` と2つの入力パスも含まれます。正常な判定は3種類とも終了コード0です。履歴が壊れている場合は終了コード2で、JSONモードでは `{"error":{"code":"...","message":"..."}}` を返し、`verdict` は返しません。
+
+これは記録済み項目の一致判定です。CPU名が同じでも同一マシンとは証明できず、負荷や電源状態など未記録の要因も確認しません。ソースSHA-256は結果に記録された値同士の比較で、ソースファイル原本は履歴に保存されていません。速度順位、統計的有意差、最適化の因果関係は判定しません。外部ツールは `verdict` と理由コードを扱い、測定値の解釈にはこれらの制約を併記してください。
+
 `run_all.ps1` 同士の同時実行はロックで防ぎます。各言語のスクリプトを単独で同時起動した場合は、従来の固定名ファイルを共有するため履歴保存の対象外です。`results.direct` と `results.function_call` はそれぞれのサンプルと統計値を持ち、`validation` は両ケースと期待値の合計（checksum）が一致したことを示します。
 
 `jit_object_numeric_sum` の結果は、既存のファイル命名規則に従って次へ保存されます。
