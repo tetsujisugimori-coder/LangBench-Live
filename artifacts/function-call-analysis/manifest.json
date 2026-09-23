@@ -1,11 +1,11 @@
 {
     "schema_version":  "1.0",
-    "analysis_id":  "function-call-analysis-20260924-pr9-rebuild",
-    "generated_at":  "2026-09-23T18:39:20Z",
+    "analysis_id":  "function-call-analysis-20260924-pr9-canonical",
+    "generated_at":  "2026-09-23T19:16:37Z",
     "languages":  {
                       "c":  {
-                                "artifact_id":  "function-call-analysis-20260924-pr9-rebuild-c",
-                                "analyzed_at":  "2026-09-23T18:39:20Z",
+                                "artifact_id":  "function-call-analysis-20260924-pr9-canonical-c",
+                                "analyzed_at":  "2026-09-23T19:16:37Z",
                                 "applies_to":  [
                                                    "inlining",
                                                    "vectorization",
@@ -64,15 +64,15 @@
                                              ]
                             },
                       "python":  {
-                                     "artifact_id":  "function-call-analysis-20260924-pr9-rebuild-python",
-                                     "analyzed_at":  "2026-09-23T18:39:20Z",
+                                     "artifact_id":  "function-call-analysis-20260924-pr9-canonical-python",
+                                     "analyzed_at":  "2026-09-23T19:16:37Z",
                                      "applies_to":  [
                                                         "inlining",
                                                         "vectorization",
                                                         "simd"
                                                     ],
                                      "condition":  {
-                                                       "source_sha256":  "0987dc6aa5be6ca4abb4f90015e80c5144cb18ef17d62c04718c17d6932ae7e2",
+                                                       "source_sha256":  "66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217",
                                                        "implementation":  {
                                                                               "name":  "CPython",
                                                                               "version":  "3.14.7"
@@ -110,8 +110,8 @@
                                                   ]
                                  },
                       "javascript":  {
-                                         "artifact_id":  "function-call-analysis-20260924-pr9-rebuild-javascript",
-                                         "analyzed_at":  "2026-09-23T18:39:20Z",
+                                         "artifact_id":  "function-call-analysis-20260924-pr9-canonical-javascript",
+                                         "analyzed_at":  "2026-09-23T19:16:37Z",
                                          "applies_to":  [
                                                             "jit",
                                                             "inlining",
@@ -119,7 +119,7 @@
                                                             "simd"
                                                         ],
                                          "condition":  {
-                                                           "source_sha256":  "efbd660d2733a40389817a3c3d4534e25d0959ea381da4c1f36720541133b4ce",
+                                                           "source_sha256":  "6acceacabf8a90c13a544957208fa762751f58d0d340e7d2b436e4f3555bae6c",
                                                            "implementation":  {
                                                                                   "name":  "V8",
                                                                                   "version":  "13.6.233.17-node.53"

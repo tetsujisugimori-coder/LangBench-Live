@@ -187,8 +187,12 @@ class ResultSchemaTests(unittest.TestCase):
         }
         for language, source in sources.items():
             with self.subTest(language=language):
-                actual = hashlib.sha256(source.read_bytes()).hexdigest()
+                actual = hashlib.sha256(source.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
                 self.assertEqual(actual, manifest["languages"][language]["condition"]["source_sha256"])
+        self.assertEqual(
+            PYTHON_BENCHMARK.current_analysis_condition()["source_sha256"],
+            manifest["languages"]["python"]["condition"]["source_sha256"],
+        )
         artifacts = path.parent
         findings = {
             "c": analyze_c_artifacts(
@@ -206,6 +210,21 @@ class ResultSchemaTests(unittest.TestCase):
         for language, actual in findings.items():
             with self.subTest(language=language, check="findings"):
                 self.assertEqual(actual, manifest["languages"][language]["findings"])
+
+    def test_canonical_source_hash_ignores_only_crlf_pairs(self) -> None:
+        source = b"first\nsecond\n"
+        self.assertEqual(
+            PYTHON_BENCHMARK.canonical_source_sha256(source),
+            PYTHON_BENCHMARK.canonical_source_sha256(source.replace(b"\n", b"\r\n")),
+        )
+        self.assertNotEqual(
+            PYTHON_BENCHMARK.canonical_source_sha256(source),
+            PYTHON_BENCHMARK.canonical_source_sha256(b"first\nchanged\n"),
+        )
+        self.assertNotEqual(
+            PYTHON_BENCHMARK.canonical_source_sha256(source),
+            PYTHON_BENCHMARK.canonical_source_sha256(b"first\rsecond\n"),
+        )
 
     def test_findings_are_derived_from_artifact_content(self) -> None:
         report = "main.c:73: optimized: loop vectorized using 16 byte vectors\n"

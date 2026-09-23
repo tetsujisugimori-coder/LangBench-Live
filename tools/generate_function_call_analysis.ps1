@@ -48,6 +48,7 @@ function Write-Utf8 {
 }
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $projectRoot "tools\source_hash.ps1")
 $artifactDir = Join-Path $projectRoot "artifacts\function-call-analysis"
 [System.IO.Directory]::CreateDirectory($artifactDir) | Out-Null
 $cRelativeSource = "benchmarks/function_call_numeric_sum/c/main.c"
@@ -56,6 +57,11 @@ $javascriptRelativeSource = "benchmarks/function_call_numeric_sum/javascript/mai
 $cSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\c\main.c"
 $pythonSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\python\main.py"
 $javascriptSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\javascript\main.js"
+$sources = [ordered]@{ c = $cSource; python = $pythonSource; javascript = $javascriptSource }
+$sourceHashes = @{}
+foreach ($language in $sources.Keys) {
+    $sourceHashes[$language] = Get-CanonicalSourceHash -Path $sources[$language]
+}
 $gccReport = Join-Path $artifactDir "gcc-optimization.txt"
 $assembly = Join-Path $artifactDir "main.s"
 $pythonBytecode = Join-Path $artifactDir "python-bytecode.txt"
@@ -94,6 +100,11 @@ $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitect
 $cFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "c", "--report", $gccReport, "--assembly", $assembly, "--architecture", $architecture) $projectRoot).stdout | ConvertFrom-Json
 $pythonFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "python", "--artifact", $pythonBytecode) $projectRoot).stdout | ConvertFrom-Json
 $javascriptFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "javascript", "--artifact", $v8Trace) $projectRoot).stdout | ConvertFrom-Json
+foreach ($language in $sources.Keys) {
+    if ((Get-CanonicalSourceHash -Path $sources[$language]) -ne $sourceHashes[$language]) {
+        throw "source changed while generating $language analysis"
+    }
+}
 $manifest = [ordered]@{
     schema_version = "1.0"
     analysis_id = $AnalysisId
@@ -104,7 +115,7 @@ $manifest = [ordered]@{
             analyzed_at = $analyzedAt
             applies_to = @("inlining", "vectorization", "simd")
             condition = [ordered]@{
-                source_sha256 = (Get-FileHash -LiteralPath $cSource -Algorithm SHA256).Hash.ToLowerInvariant()
+                source_sha256 = $sourceHashes.c
                 implementation = [ordered]@{ name = "GCC"; version = $gccVersion }
                 architecture = $architecture
                 options = $cOptions
@@ -123,7 +134,7 @@ $manifest = [ordered]@{
             analyzed_at = $analyzedAt
             applies_to = @("inlining", "vectorization", "simd")
             condition = [ordered]@{
-                source_sha256 = (Get-FileHash -LiteralPath $pythonSource -Algorithm SHA256).Hash.ToLowerInvariant()
+                source_sha256 = $sourceHashes.python
                 implementation = [ordered]@{ name = $pythonInfo.name; version = $pythonInfo.version }
                 architecture = $pythonInfo.architecture
                 options = @("optimize=0")
@@ -137,7 +148,7 @@ $manifest = [ordered]@{
             analyzed_at = $analyzedAt
             applies_to = @("jit", "inlining", "vectorization", "simd")
             condition = [ordered]@{
-                source_sha256 = (Get-FileHash -LiteralPath $javascriptSource -Algorithm SHA256).Hash.ToLowerInvariant()
+                source_sha256 = $sourceHashes.javascript
                 implementation = [ordered]@{ name = "V8"; version = $nodeInfo.v8 }
                 architecture = $nodeInfo.architecture
                 options = @()

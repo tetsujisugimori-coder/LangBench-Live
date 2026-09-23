@@ -212,11 +212,11 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
     },
     "provenance": {
       "status": "matched",
-      "artifact_id": "function-call-analysis-20260924-pr9-rebuild-python",
-      "analyzed_at": "2026-09-23T18:39:20Z",
+      "artifact_id": "function-call-analysis-20260924-pr9-canonical-python",
+      "analyzed_at": "2026-09-23T19:16:37Z",
       "applies_to": ["inlining", "vectorization", "simd"],
       "analysis": {
-        "source_sha256": "0987dc6aa5be6ca4abb4f90015e80c5144cb18ef17d62c04718c17d6932ae7e2",
+        "source_sha256": "66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -227,7 +227,7 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
         "simd": {"result": "not_checked", "isa": []}
       },
       "current": {
-        "source_sha256": "0987dc6aa5be6ca4abb4f90015e80c5144cb18ef17d62c04718c17d6932ae7e2",
+        "source_sha256": "66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -275,7 +275,7 @@ SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を
 
 解析資料とmanifestは次のコマンドで最終ソースから再生成します。`tools/extract_function_call_findings.py` の純粋関数が生成済み資料を読み、manifestの `findings` を構成します。V8の標準出力と標準エラーは別々に収集してから、区切り付きでトレースへ保存します。
 
-`source_sha256` はソースの生バイト列から計算します。対象のC・Python・JavaScriptソースは `.gitattributes` でLF改行に固定し、Windowsの `core.autocrlf` 設定によるハッシュ差を防ぎます。生成スクリプトはリポジトリを作業ディレクトリにして各処理系を実行します。再生成後はmanifestの構造に加え、3ソースのSHA-256と、保存されたGCC・Python・V8資料から再抽出した `findings` を照合してください。処理系の版や実行オプションが異なる環境の測定では、保存済みの解析結果を条件一致として扱いません。
+`source_sha256` は、解析時と実行時それぞれの実ファイルのバイト列について、CRLFペアだけをLFへ変換した後のSHA-256です。単独のCRや改行以外のバイトは変更しません。`.gitattributes` は新規チェックアウトをLFにしますが、既存のWindows作業ツリーではmainから通常更新しても変更のないソースがCRLFのまま残るため、生成スクリプト、各ランナー、照合テストで同じ定義を使います。生成スクリプトは解析前後のソースハッシュが同じことを確認し、リポジトリを作業ディレクトリにして各処理系を実行します。再生成後はmanifestの構造に加え、3ソースの正規化SHA-256と、保存されたGCC・Python・V8資料から再抽出した `findings` を照合してください。ソース内容、処理系の版、アーキテクチャ、実行オプションが異なる環境の測定では、保存済みの解析結果を条件一致として扱いません。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/generate_function_call_analysis.ps1
