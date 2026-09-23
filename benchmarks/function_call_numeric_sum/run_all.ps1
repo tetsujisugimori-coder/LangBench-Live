@@ -17,7 +17,16 @@ if ([string]::IsNullOrWhiteSpace($ExperimentId)) {
 }
 
 Push-Location $projectRoot
+$lock = $null
 try {
+    # Staging files still have fixed names, so only one full run may use them at a time.
+    [System.IO.Directory]::CreateDirectory((Join-Path $projectRoot "results")) | Out-Null
+    $lock = [System.IO.File]::Open(
+        (Join-Path $projectRoot "results/function_call_numeric_sum.lock"),
+        [System.IO.FileMode]::OpenOrCreate,
+        [System.IO.FileAccess]::ReadWrite,
+        [System.IO.FileShare]::None
+    )
     $pythonRunId = "$(New-TimestampId)_python_$benchmark"
     & python "benchmarks/function_call_numeric_sum/python/main.py" "--experiment-id=$ExperimentId" "--run-id=$pythonRunId"
     if ($LASTEXITCODE -ne 0) { throw "Python benchmark failed with exit code $LASTEXITCODE" }
@@ -35,7 +44,14 @@ try {
         results/function_call_numeric_sum_javascript_result.json `
         results/function_call_numeric_sum_c_result.json
     if ($LASTEXITCODE -ne 0) { throw "Result validation failed with exit code $LASTEXITCODE" }
+
+    & python tools/archive_results.py --experiment-id $ExperimentId `
+        results/function_call_numeric_sum_python_result.json `
+        results/function_call_numeric_sum_javascript_result.json `
+        results/function_call_numeric_sum_c_result.json
+    if ($LASTEXITCODE -ne 0) { throw "Result archival failed with exit code $LASTEXITCODE" }
 } finally {
+    if ($null -ne $lock) { $lock.Dispose() }
     Pop-Location
 }
 

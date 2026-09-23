@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from tools import validate_result_json
+from tools.archive_results import archive_results
 from tools.extract_function_call_findings import (
     analyze_c_artifacts,
     analyze_python_bytecode,
@@ -123,23 +124,26 @@ def build_error_document(language: str = "python") -> dict:
     }
 
 
+def function_call_document(language: str) -> dict:
+    samples = [1.0, 2.0]
+    build = None if language != "c" else {"required": True, "compiler": "gcc", "compiler_version": "gcc 15", "compile_command": "gcc -O2 main.c", "compile_ms": 1.0, "source_path": "main.c"}
+    return {
+        "type": "langbench_result", "schema_version": "1.0", "project": "LangBench Live",
+        "benchmark": "function_call_numeric_sum", "experiment_id": "20260801_130000_function_call_numeric_sum",
+        "run_id": f"20260801_130001_{language}_function_call_numeric_sum", "language": language,
+        "created_at": "2026-08-01T13:00:01+09:00", "status": "success",
+        "engine": {"runtime": language}, "execution": {"runner": None, "runner_label": None, "cwd": None, "argv": []},
+        "environment": {"os": None, "os_version": None, "architecture": None, "cpu": None, "logical_processors": None, "memory_bytes": None},
+        "build": build, "config": {"item_count": 2, "warmup_iterations": 1, "measurement_iterations": 2, "numeric_type": "integer", "value_field": "value", "cases": ["direct", "function_call"]},
+        "timing": {"process_startup_ms": None, "setup_ms": 1.0, "warmup_ms": 1.0, "measurement_ms": 6.0, "benchmark_total_ms": 8.0},
+        "results": {case: {"samples_ms": samples, "min_ms": 1.0, "max_ms": 2.0, "mean_ms": 1.5, "median_ms": 1.5} for case in ("direct", "function_call")},
+        "validation": {"direct_checksum": 3, "function_call_checksum": 3, "expected_checksum": 3, "tolerance": 0, "passed": True}, "error": None,
+    }
+
+
 class ResultSchemaTests(unittest.TestCase):
     def test_function_call_documents_and_invalid_variants(self) -> None:
-        def case_document(language: str) -> dict:
-            samples = [1.0, 2.0]
-            build = None if language != "c" else {"required": True, "compiler": "gcc", "compiler_version": "gcc 15", "compile_command": "gcc -O2 main.c", "compile_ms": 1.0, "source_path": "main.c"}
-            return {
-                "type": "langbench_result", "schema_version": "1.0", "project": "LangBench Live",
-                "benchmark": "function_call_numeric_sum", "experiment_id": "20260801_130000_function_call_numeric_sum",
-                "run_id": f"20260801_130001_{language}_function_call_numeric_sum", "language": language,
-                "created_at": "2026-08-01T13:00:01+09:00", "status": "success",
-                "engine": {"runtime": language}, "execution": {"runner": None, "runner_label": None, "cwd": None, "argv": []},
-                "environment": {"os": None, "os_version": None, "architecture": None, "cpu": None, "logical_processors": None, "memory_bytes": None},
-                "build": build, "config": {"item_count": 2, "warmup_iterations": 1, "measurement_iterations": 2, "numeric_type": "integer", "value_field": "value", "cases": ["direct", "function_call"]},
-                "timing": {"process_startup_ms": None, "setup_ms": 1.0, "warmup_ms": 1.0, "measurement_ms": 6.0, "benchmark_total_ms": 8.0},
-                "results": {case: {"samples_ms": samples, "min_ms": 1.0, "max_ms": 2.0, "mean_ms": 1.5, "median_ms": 1.5} for case in ("direct", "function_call")},
-                "validation": {"direct_checksum": 3, "function_call_checksum": 3, "expected_checksum": 3, "tolerance": 0, "passed": True}, "error": None,
-            }
+        case_document = function_call_document
         documents = [case_document(language) for language in ("python", "javascript", "c")]
         self.assertTrue(all(not validate(document, Path(language)) for document, language in zip(documents, ("python", "javascript", "c"))))
         invalid_cases = {
@@ -621,6 +625,60 @@ Disassembly of <code object other at 0x2, file \"main.py\", line 2>:
                 self.assertEqual(0, validate_result_json.main())
             finally:
                 sys.argv = old_argv
+
+
+class ArchiveResultsTests(unittest.TestCase):
+    def test_repeated_archives_preserve_both_validated_result_sets(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sources = []
+            for language in ("python", "javascript", "c"):
+                source = root / f"{language}.json"
+                source.write_text(json.dumps(function_call_document(language)) + "\n", encoding="utf-8")
+                sources.append(source)
+            eid = function_call_document("python")["experiment_id"]
+            first = archive_results(sources, eid, root / "history")
+            first_bytes = (first / "python.json").read_bytes()
+            document = function_call_document("python")
+            document["execution"]["runner_label"] = "second run"
+            sources[0].write_text(json.dumps(document) + "\n", encoding="utf-8")
+            second = archive_results(sources, eid, root / "history")
+            self.assertNotEqual(first, second)
+            self.assertEqual(first_bytes, (first / "python.json").read_bytes())
+            self.assertNotEqual(first_bytes, (second / "python.json").read_bytes())
+            for folder in (first, second):
+                index = json.loads((folder / "archive.json").read_text(encoding="utf-8"))
+                self.assertEqual({"c", "python", "javascript"}, {entry["language"] for entry in index["results"]})
+                for entry in index["results"]:
+                    raw = (folder / entry["file"]).read_bytes()
+                    self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["sha256"])
+                    self.assertEqual([], validate(json.loads(raw), folder / entry["file"]))
+
+    def test_mismatched_or_invalid_results_do_not_create_an_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sources = []
+            for language in ("python", "javascript", "c"):
+                source = root / f"{language}.json"
+                source.write_text(json.dumps(function_call_document(language)) + "\n", encoding="utf-8")
+                sources.append(source)
+            eid = function_call_document("python")["experiment_id"]
+            history = root / "history"
+            with self.assertRaises(ValueError):
+                archive_results(sources, "20260802_130000_function_call_numeric_sum", history)
+            self.assertFalse(history.exists())
+            variant = function_call_document("c")
+            variant["config"]["warmup_iterations"] = 2
+            sources[2].write_text(json.dumps(variant), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "config differs"):
+                archive_results(sources, eid, history)
+            self.assertFalse(history.exists())
+            broken = function_call_document("c")
+            broken["validation"]["passed"] = False
+            sources[2].write_text(json.dumps(broken), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                archive_results(sources, eid, history)
+            self.assertFalse(history.exists())
 
 
 if __name__ == "__main__":

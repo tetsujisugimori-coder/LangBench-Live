@@ -82,7 +82,16 @@ powershell -ExecutionPolicy Bypass -File benchmarks/function_call_numeric_sum/ru
 
 C版は `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルします。加算関数はMSVCの`__declspec(noinline)`、GCC/Clangの`__attribute__((noinline))`でインライン化を抑制しますが、非対応コンパイラでの呼び出し保持は保証できません。JavaScriptではV8のJITがインライン化する場合があります。この実験は関数呼び出しを含む特定ループの比較であり、言語全体の性能を示すものではありません。
 
-結果は `results/function_call_numeric_sum_<language>_result.json` に保存します。`results.direct` と `results.function_call` はそれぞれのサンプルと統計値を持ち、`validation` は両ケースと期待値の合計（checksum）が一致したことを示します。
+各言語は従来どおり `results/function_call_numeric_sum_<language>_result.json` に最新結果を出力します。`run_all.ps1` は3結果を検証した後、`results/history/<experiment_id>/<archive_id>/` へ一組として追記保存します。同じ秒に実行して `experiment_id` が重なっても、保存フォルダは毎回異なります。`archive.json` には各JSONのSHA-256と元の `run_id` を記録します。履歴フォルダはGit管理の対象外なので、必要に応じて別途バックアップしてください。
+
+表示された `archive_path` の結果は現行Validatorで再検証できます。
+
+```powershell
+$archive = "results/history/<experiment_id>/<archive_id>" # 表示されたarchive_pathに置き換える
+python tools/validate_result_json.py "$archive/python.json" "$archive/javascript.json" "$archive/c.json"
+```
+
+`run_all.ps1` 同士の同時実行はロックで防ぎます。各言語のスクリプトを単独で同時起動した場合は、従来の固定名ファイルを共有するため履歴保存の対象外です。`results.direct` と `results.function_call` はそれぞれのサンプルと統計値を持ち、`validation` は両ケースと期待値の合計（checksum）が一致したことを示します。
 
 `jit_object_numeric_sum` の結果は、既存のファイル命名規則に従って次へ保存されます。
 
