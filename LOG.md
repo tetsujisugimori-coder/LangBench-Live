@@ -792,3 +792,9 @@
 * 追跡済みの3言語結果は現行Validatorで `validated=3`。
 * Linux環境での全Pythonテスト22件中、解析manifest整合テストのC・Python・JavaScriptに対応する3つのsubtestが失敗。保存済みSHA-256が現在のmainのソースと一致しない。今回の変更対象外であり、解析成果物を検証せずにハッシュだけ書き換えることはしない。
 * Windows専用のC実行とPowerShellの統合実行はローカルLinux環境では未実施。
+
+### 2026-09-24 Windowsでの追加検証
+
+* `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1` でPython・JavaScript・Cの統合実行が成功し、`validated=3` の後に `results/history/20260924_020315_function_call_numeric_sum/645802ee42c5428796463f3b25f8f978/` を作成した。
+* 保存された3件のJSONを読み戻し、`archive.json` のSHA-256と各ファイルの実測値がすべて一致すること、および保存ファイルを現行Validatorに渡して `validated=3` となることを確認した。
+* `python -m unittest tests.test_result_schema.ArchiveResultsTests -v` は2件成功。`python -m unittest discover -s tests -v` は22件を実行し、履歴保存の2件を含む他のテストは成功した。解析manifestの保存済みソースSHA-256と現在のソースが一致しない既存の3つのsubtest（C・Python・JavaScript）は引き続き失敗する。
