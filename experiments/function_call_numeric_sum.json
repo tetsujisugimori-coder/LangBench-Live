@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "benchmark": "function_call_numeric_sum",
+  "languages": ["c", "javascript", "python"],
+  "config": {
+    "item_count": 1000000,
+    "warmup_iterations": 5,
+    "measurement_iterations": 50,
+    "numeric_type": "integer",
+    "value_field": "value",
+    "cases": ["direct", "function_call"]
+  },
+  "expected_checksum": 500000500000
+}

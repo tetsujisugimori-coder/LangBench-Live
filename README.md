@@ -84,6 +84,10 @@ C版は `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルします。加算関
 
 各言語は従来どおり `results/function_call_numeric_sum_<language>_result.json` に最新結果を出力します。`run_all.ps1` は3結果を検証した後、`results/history/<experiment_id>/<archive_id>/` へ一組として追記保存します。同じ秒に実行して `experiment_id` が重なっても、保存フォルダは毎回異なります。`archive.json` には各JSONのSHA-256と元の `run_id` を記録します。履歴フォルダはGit管理の対象外なので、必要に応じて別途バックアップしてください。
 
+この実験の現在の条件は `experiments/function_call_numeric_sum.json` に記録します。履歴保存時に3言語の出力の `config` と `validation.expected_checksum` をこの定義と照合し、定義と一致しなければ保存しません。保存に成功すると、そのとき使用した定義のバイト列を履歴内の `experiment.json` にコピーし、`archive.json` にそのSHA-256を記録します。後からリポジトリ側の定義を変更しても、過去の条件を確認できます。定義を変更するだけで測定条件が切り替わる仕組みではなく、各言語の測定コードに設定した値との一致を検査する段階です。
+
+`archive_id` は保存した3言語一組を区別する一意のIDです。保存済みの各言語結果を指す際は `archive_id` と言語名を組にしてください。既存の秒単位の `run_id` は引き続き結果に残りますが、一意の保存キーには使いません。
+
 表示された `archive_path` の結果は現行Validatorで再検証できます。
 
 ```powershell

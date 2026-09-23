@@ -628,26 +628,41 @@ Disassembly of <code object other at 0x2, file \"main.py\", line 2>:
 
 
 class ArchiveResultsTests(unittest.TestCase):
+    def write_fixture_manifest(self, root: Path) -> Path:
+        path = root / "experiment-definition.json"
+        document = function_call_document("python")
+        path.write_text(json.dumps({
+            "schema_version": "1.0",
+            "benchmark": "function_call_numeric_sum",
+            "languages": ["c", "javascript", "python"],
+            "config": document["config"],
+            "expected_checksum": document["validation"]["expected_checksum"],
+        }), encoding="utf-8")
+        return path
+
     def test_repeated_archives_preserve_both_validated_result_sets(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            manifest_path = self.write_fixture_manifest(root)
             sources = []
             for language in ("python", "javascript", "c"):
                 source = root / f"{language}.json"
                 source.write_text(json.dumps(function_call_document(language)) + "\n", encoding="utf-8")
                 sources.append(source)
             eid = function_call_document("python")["experiment_id"]
-            first = archive_results(sources, eid, root / "history")
+            first = archive_results(sources, eid, root / "history", manifest_path)
             first_bytes = (first / "python.json").read_bytes()
             document = function_call_document("python")
             document["execution"]["runner_label"] = "second run"
             sources[0].write_text(json.dumps(document) + "\n", encoding="utf-8")
-            second = archive_results(sources, eid, root / "history")
+            second = archive_results(sources, eid, root / "history", manifest_path)
             self.assertNotEqual(first, second)
             self.assertEqual(first_bytes, (first / "python.json").read_bytes())
             self.assertNotEqual(first_bytes, (second / "python.json").read_bytes())
             for folder in (first, second):
                 index = json.loads((folder / "archive.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest_path.read_bytes(), (folder / "experiment.json").read_bytes())
+                self.assertEqual(hashlib.sha256(manifest_path.read_bytes()).hexdigest(), index["experiment_manifest"]["sha256"])
                 self.assertEqual({"c", "python", "javascript"}, {entry["language"] for entry in index["results"]})
                 for entry in index["results"]:
                     raw = (folder / entry["file"]).read_bytes()
@@ -657,6 +672,7 @@ class ArchiveResultsTests(unittest.TestCase):
     def test_mismatched_or_invalid_results_do_not_create_an_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            manifest_path = self.write_fixture_manifest(root)
             sources = []
             for language in ("python", "javascript", "c"):
                 source = root / f"{language}.json"
@@ -665,19 +681,45 @@ class ArchiveResultsTests(unittest.TestCase):
             eid = function_call_document("python")["experiment_id"]
             history = root / "history"
             with self.assertRaises(ValueError):
-                archive_results(sources, "20260802_130000_function_call_numeric_sum", history)
+                archive_results(sources, "20260802_130000_function_call_numeric_sum", history, manifest_path)
             self.assertFalse(history.exists())
             variant = function_call_document("c")
             variant["config"]["warmup_iterations"] = 2
             sources[2].write_text(json.dumps(variant), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "config differs"):
-                archive_results(sources, eid, history)
+                archive_results(sources, eid, history, manifest_path)
             self.assertFalse(history.exists())
             broken = function_call_document("c")
             broken["validation"]["passed"] = False
             sources[2].write_text(json.dumps(broken), encoding="utf-8")
             with self.assertRaises(ValueError):
-                archive_results(sources, eid, history)
+                archive_results(sources, eid, history, manifest_path)
+            self.assertFalse(history.exists())
+
+    def test_manifest_mismatch_prevents_archiving(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest_path = self.write_fixture_manifest(root)
+            sources = []
+            for language in ("python", "javascript", "c"):
+                source = root / f"{language}.json"
+                source.write_text(json.dumps(function_call_document(language)), encoding="utf-8")
+                sources.append(source)
+            eid = function_call_document("python")["experiment_id"]
+            history = root / "history"
+
+            definition = json.loads(manifest_path.read_text(encoding="utf-8"))
+            definition["config"]["warmup_iterations"] = 2
+            manifest_path.write_text(json.dumps(definition), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "config differs"):
+                archive_results(sources, eid, history, manifest_path)
+            self.assertFalse(history.exists())
+
+            definition["config"]["warmup_iterations"] = 1
+            definition["expected_checksum"] = 4
+            manifest_path.write_text(json.dumps(definition), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid experiment conditions"):
+                archive_results(sources, eid, history, manifest_path)
             self.assertFalse(history.exists())
 
 

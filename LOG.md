@@ -780,6 +780,21 @@
 * `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: `mismatched`、JIT・対象findingsの `not_checked` を確認
 * `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの通常実行と3結果の検証が成功（`validated=3`）
 
+## 2026-09-24 実験条件の定義と履歴への保存
+
+* `experiments/function_call_numeric_sum.json` に対象言語、測定設定、期待checksumを定義した。各言語の既存測定処理と結果schema 1.0は変更していない。
+* 履歴保存前に定義の構造・期待checksum・3言語の実測設定との一致を確認する。失敗時は履歴フォルダを作成しない。
+* 成功時は使用した定義を `experiment.json` として各履歴にコピーし、`archive.json` にSHA-256を記録する。保存の一意IDには既存の `archive_id` を使う。
+* 次の段階は保存済み定義に加えて処理系・環境条件を照合し、履歴間の比較可能性を判定すること。定義だけを変更して実測条件を変える機能はまだない。
+
+### 確認結果
+
+* `python -m unittest tests.test_result_schema.ArchiveResultsTests -v`: 3件成功。定義との不一致を保存前に拒否し、保存した定義とハッシュの一致も確認した。
+* `python -m py_compile tools/archive_results.py` と `git diff --check`: 成功。
+* `python tools/validate_result_json.py` に追跡済み3言語結果を渡して `validated=3`。
+* `python -m unittest discover -s tests -v`: 23件実行し、既存の解析manifest対現在ソースSHA-256照合に関する3言語のsubtestだけ失敗。PR #8から継続する既知の不一致で、解析資料の再生成なしに保存済みハッシュは変更していない。
+* この環境ではWindows用のC実行とPowerShell統合実行は未確認。
+
 ## 2026-09-24 function_call_numeric_sumの結果履歴保存
 
 * 既存schema 1.0と各言語の測定処理は維持し、3件の結果検証後に `results/history/<experiment_id>/<archive_id>/` へ元のJSONを追記保存する。
