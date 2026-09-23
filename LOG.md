@@ -779,3 +779,22 @@
 * Python・JavaScript構文検査: 成功
 * `node --jitless benchmarks/function_call_numeric_sum/javascript/main.js`: `mismatched`、JIT・対象findingsの `not_checked` を確認
 * `benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの通常実行と3結果の検証が成功（`validated=3`）
+
+## 2026-09-24 function_call_numeric_sumの結果履歴保存
+
+* 既存schema 1.0と各言語の測定処理は維持し、3件の結果検証後に `results/history/<experiment_id>/<archive_id>/` へ元のJSONを追記保存する。
+* `archive.json` にarchive ID、元のrun ID、SHA-256、保存日時を記録する。異なるexperiment ID、重複言語、不正なJSON、Validator不合格の結果は保存しない。
+* 既存の固定名出力ファイルは実行中の一時的な置き場として残し、`run_all.ps1` 同士の同時実行をロックで防ぐ。履歴はGitの管理対象外にする。
+
+### 確認結果
+
+* 履歴保存の2件の回帰テストが成功。再実行で前回の3結果が維持され、不一致や不正値では履歴が作成されない。
+* 追跡済みの3言語結果は現行Validatorで `validated=3`。
+* Linux環境での全Pythonテスト22件中、解析manifest整合テストのC・Python・JavaScriptに対応する3つのsubtestが失敗。保存済みSHA-256が現在のmainのソースと一致しない。今回の変更対象外であり、解析成果物を検証せずにハッシュだけ書き換えることはしない。
+* Windows専用のC実行とPowerShellの統合実行はローカルLinux環境では未実施。
+
+### 2026-09-24 Windowsでの追加検証
+
+* `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1` でPython・JavaScript・Cの統合実行が成功し、`validated=3` の後に `results/history/20260924_020315_function_call_numeric_sum/645802ee42c5428796463f3b25f8f978/` を作成した。
+* 保存された3件のJSONを読み戻し、`archive.json` のSHA-256と各ファイルの実測値がすべて一致すること、および保存ファイルを現行Validatorに渡して `validated=3` となることを確認した。
+* `python -m unittest tests.test_result_schema.ArchiveResultsTests -v` は2件成功。`python -m unittest discover -s tests -v` は22件を実行し、履歴保存の2件を含む他のテストは成功した。解析manifestの保存済みソースSHA-256と現在のソースが一致しない既存の3つのsubtest（C・Python・JavaScript）は引き続き失敗する。
