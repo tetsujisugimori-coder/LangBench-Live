@@ -846,3 +846,28 @@
 ### 残る確認範囲
 
 * この再生成と統合実行はWindows、GCC 16.1.0、CPython 3.14.7、Node.js 24.20.0 / V8 13.6.233.17-node.53で確認した。他の処理系・バージョン・アーキテクチャでの資料再生成や統合実行は未実施で、条件不一致時は保存済み解析結論を適用しない。
+
+## 2026-09-24 PR #9 既存Windows作業ツリーの改行と解析ハッシュ
+
+### 原因と再現
+
+* `core.autocrlf=true` の一時worktreeで `origin/main` (`a264782`) からPR先端へ `git switch --detach` で通常更新した。更新前のC・Python・JavaScriptソースのCRLF件数は順に191・230・21件、生バイトSHA-256は `66de6d87…`・`fe6aef96…`・`cbbebeae…`、旧manifestは `3c2ef4d2…`・`21608363…`・`081a8d31…` で、Pythonの3言語照合subtestがすべて失敗した。
+* 先行PR先端 (`ae7c39d`) への通常更新では3ソースのGit blobが変わらず、`.gitattributes` の `eol=lf` が追加されても実ファイルはC・Python・JavaScriptともCRLFのままだった。`git ls-files --eol` は `i/lf w/crlf attr/text eol=lf` を示し、Pythonの3言語照合subtestとC解析テストは失敗した。Gitは属性が変わっただけの既存・未変更ファイルを書き直さない。新規チェックアウトでLFになることは、既存作業ツリーの修復を証明しない。
+* 修正コミット `9a622b4` へmainから通常更新すると、変更のないCソースはCRLF 191件のまま、生バイトSHA-256 `66de6d87e593e3beeb8b45c2ddd6954faa2cec0a4262836435460979eb9d0e0b` のままだった。PythonとJavaScriptは今回の実装変更によりGitが書き直してLFになった。3言語ともCRLFになる条件も一時複製で追加検証した。
+
+### 採用した定義と変更
+
+* `source_sha256` を「解析・実行それぞれの実ファイルのバイト列からCRLFペアだけをLFに変換し、残りのバイトを変えずに計算したSHA-256」と定義した。C `4fc174a622cb8dd9289cf3d7ea59eb5d7f1cd3367cb8922995d0d26ceb805657`、Python `66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217`、JavaScript `6acceacabf8a90c13a544957208fa762751f58d0d340e7d2b436e4f3555bae6c` が新manifestと現行ソースで一致した。単独のCRや内容変更は同一視しない。
+* `tools/source_hash.ps1` を追加し、`tools/generate_function_call_analysis.ps1` とCランナーで共用した。Python・JavaScriptランナー、Python・JavaScript・Cの照合テスト、READMEも同じ定義へ変更した。生成スクリプトは解析前後の正規化ソースハッシュが同じことを確認する。ハッシュのみの手修正はせず、Windows PowerShell 5.1でGCCレポート・アセンブリ、Pythonバイトコード、V8トレース、manifestを再生成した (`analysis_id=function-call-analysis-20260924-pr9-canonical`)。C資料は内容差分なし。各言語のfindingsを実資料から再抽出して照合した。
+* `.gitattributes` は新規チェックアウトのLF化に引き続き使用する。既存ツリーの修正手順に強制チェックアウト、hard reset、cleanは含めない。処理系・版・アーキテクチャ・オプションの比較は維持し、内容変更や条件差は従来どおり `mismatched` となる。
+
+### 実測した確認
+
+* mainから新PRコミットへの通常更新: Cは `i/lf w/crlf attr/text eol=lf` のまま、Cの正規化SHA-256とmanifestは一致。PythonとJavaScriptはLFで、3言語のmanifest照合テスト、C解析テスト16件、JavaScript解析テスト22件が成功した。さらに一時複製のPython・JavaScriptをCRLFへ変換し、C 191件・Python 233件・JavaScript 22件のCRLF状態で、Python全体24件、JavaScript22件、C16件が成功した。正規化SHA-256は3言語ともmanifestと一致し、生バイトSHA-256はすべて異なった。
+* この3言語CRLF状態で統合実行が成功し、`results/history/20260924_042004_function_call_numeric_sum/0022fb3141af4b44b1d1f36431352583/` を保存した。定義原本と保存定義はバイト一致、定義1件と結果3件のSHA-256は読み戻し再計算値と一致し、保存結果は `validated=3`、3言語のprovenanceは `matched` だった。
+* 新規チェックアウトでは3ソースともLFで、Python全体24件、JavaScript22件、C16件、統合実行が成功した。保存先 `results/history/20260924_042054_function_call_numeric_sum/9aaeb9f0b5bd4e348ad08d0fd8cdf9f6/` についても定義原本のバイト一致、4件のSHA-256、`validated=3`、3言語の `matched` を再確認した。PR作業ツリーでも同じテスト群と統合実行が成功した。
+* 一時複製のCソースへコメントを追記して照合すると `status=mismatched`、`mismatches=[source_sha256]`、インライン化 `not_checked` となり、元のバイト列へ復元した。Python・JavaScript・Cの単体テストでもCRLFだけの同値と内容変更の不一致を確認した。
+
+### 未確認事項
+
+* 他のOS、処理系・版、CPUアーキテクチャでの再生成と統合実行は未実施。異なる実行条件では解析結論を流用せず、不一致として扱う。
