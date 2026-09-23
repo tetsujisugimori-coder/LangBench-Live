@@ -216,6 +216,39 @@ class CompareArchiveTests(unittest.TestCase):
             load_archive(folder)
         self.assertEqual("RESULT_DEFINITION_MISMATCH", caught.exception.code)
 
+    def test_rehashed_invalid_result_types_return_json_error(self) -> None:
+        left = self.make_archive("20260801_130000")
+        cases = (
+            ("config array", lambda d: d.update(config=[])),
+            ("config null", lambda d: d.update(config=None)),
+            ("engine array", lambda d: d.update(engine=[])),
+            ("environment null", lambda d: d.update(environment=None)),
+            ("benchmark array", lambda d: d.update(benchmark=[])),
+            ("language array", lambda d: d.update(language=[])),
+            ("status array", lambda d: d.update(status=[])),
+            ("provenance status array", lambda d: d["optimization_analysis"]["provenance"].update(status=[])),
+            ("provenance applies_to nested array", lambda d: d["optimization_analysis"]["provenance"].update(applies_to=[["jit"]])),
+            ("artifact finding result array", lambda d: d["optimization_analysis"]["provenance"]["artifact_findings"]["inlining"].update(result=[])),
+            ("optimization result array", lambda d: d["optimization_analysis"]["jit"].update(result=[])),
+            ("SIMD result array", lambda d: d["optimization_analysis"]["simd"].update(result=[])),
+            ("other optimization result array", lambda d: d["optimization_analysis"].update(other_optimizations=[{"name": "other", "result": []}])),
+            ("oversized sample integer", lambda d: d["results"]["direct"]["samples_ms"].__setitem__(0, 10 ** 400)),
+        )
+        for index, (label, mutate) in enumerate(cases):
+            with self.subTest(label=label):
+                right = self.make_archive(f"20260802_1300{index:02}")
+                self.rewrite(right, "python.json", mutate)
+                result_path = right / "python.json"
+                document = json.loads(result_path.read_text(encoding="utf-8"))
+                self.assertTrue(validate(document, result_path))
+                completed = subprocess.run([sys.executable, str(COMMAND), "--json", str(left), str(right)],
+                                           capture_output=True, text=True, check=False)
+                self.assertEqual(2, completed.returncode, completed.stderr)
+                output = json.loads(completed.stdout)
+                self.assertEqual("RESULT_VALIDATION_FAILED", output["error"]["code"])
+                self.assertNotIn("verdict", output)
+                self.assertNotIn("Traceback", completed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

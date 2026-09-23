@@ -120,10 +120,7 @@ def load_archive(folder: Path) -> dict:
         files.add(entry["file"])
         raw, document = read_json(path)
         check_hash(raw, entry["sha256"], path)
-        try:
-            errors = validate(document, path)
-        except (KeyError, TypeError, ValueError) as error:
-            raise ArchiveError("RESULT_VALIDATION_FAILED", f"result validation failed: {path}: {error}") from error
+        errors = validate(document, path)
         if errors:
             raise ArchiveError("RESULT_VALIDATION_FAILED", "; ".join(errors))
         expected = {

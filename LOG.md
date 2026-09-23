@@ -891,3 +891,21 @@
 ### 未確認事項
 
 * 他のOS、CPU、コンパイラ・処理系版での実機統合は未実施。履歴にはマシン固有ID、実行時負荷、ソース原本がないため、それらの同一性や性能差の理由は判定できない。
+
+## 2026-09-24 PR #11 不正型の履歴検証とPython CI
+
+### 再現と修正理由
+
+* ハッシュを更新した保存履歴で結果の `config` を配列・nullに変えた場合、現行の `validate_function_call` は辞書型ガードにより既に検証エラーを返した。一方、benchmark・language・status・解析provenance等の配列では、Validatorの集合照合が `TypeError` を起こした。比較コマンドはその一部を `RESULT_VALIDATION_FAILED` に変換していたが、Validator自身の型誤りを隠していた。
+* Validatorが文字列型を確認してから許可値集合と照合するようにした。解析の対象一覧・findings・最適化結果でも配列などを先に拒否し、比較で使用するengine・execution・environmentのコンテナ型を検査する。`tools/compare_archives.py` の `KeyError`・`TypeError`・`ValueError` 捕捉を外し、内部バグを検証エラーとして隠さない。
+* 新しい回帰テストは `archive_results` で本物の履歴を作り、結果JSONの型変更後に `archive.json` のSHA-256を更新する。各例でValidatorがエラーを返し、`--json` の標準出力が解析可能な `error.code=RESULT_VALIDATION_FAILED`、終了コード2、`verdict` とスタックトレースなしであることを確認する。
+* リポジトリに既存の `.github/workflows` はなかった。公式の安定版を確認し、Python 3.14と `actions/checkout@v7`・`actions/setup-python@v7` を使用するUbuntuジョブを追加した。`pull_request` とmainへのpushで `python -B -m unittest discover -s tests -q` だけを実行する。
+
+### ローカル実測
+
+* 修正前の新規テストでは、直接Validatorを呼ぶとbenchmark・language・status・provenance status・provenance applies_to・最適化結果の6種で `TypeError` を再現した。configの配列・nullは再現しなかった。
+* 修正後、ハッシュ更新済み履歴の不正型・範囲14種を検査する新規テストが成功。過大整数で `math.isfinite` が起こす `OverflowError` も数値検証エラーとして扱う。`python -B -m unittest discover -s tests -q` は33件成功、`node --test tests/test_javascript_optimization_analysis.js` は22件成功、`pwsh -NoProfile -File tests/test_c_optimization_analysis.ps1` は16件成功。`git diff --check` も成功。
+
+### CIと未確認事項
+
+* CI結果はブランチ更新後に追記する。Ubuntu以外のOSでのPython CI、実機ベンチマークとWindows C統合はこのCIの対象外。
