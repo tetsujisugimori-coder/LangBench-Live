@@ -104,6 +104,7 @@ function Test-ManifestDocument {
 
 $scriptDir = Split-Path -Parent $PSCommandPath
 $projectRoot = (Resolve-Path (Join-Path $scriptDir "..\..\..")).Path
+. (Join-Path $projectRoot "tools\source_hash.ps1")
 $sourcePath = (Resolve-Path (Join-Path $scriptDir "main.c")).Path
 $manifestPath = if ([string]::IsNullOrWhiteSpace($AnalysisManifestPath)) { Join-Path $projectRoot "artifacts\function-call-analysis\manifest.json" } else { $AnalysisManifestPath }
 $exePath = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-function-call-{0}.exe" -f [guid]::NewGuid().ToString("N"))
@@ -133,7 +134,7 @@ $optimizationArgs = @("-O2", "-std=c11", "-Wall", "-Wextra")
 $gccArgs = @($sourcePath) + $optimizationArgs + @("-o", $exePath)
 $compileCommand = "gcc " + (($gccArgs | ForEach-Object { Format-CommandPart $_ }) -join " ")
 $currentCondition = [ordered]@{
-    source_sha256 = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    source_sha256 = (Get-CanonicalSourceHash -Path $sourcePath)
     implementation = [ordered]@{ name = "GCC"; version = $compilerVersion }
     architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
     options = $optimizationArgs

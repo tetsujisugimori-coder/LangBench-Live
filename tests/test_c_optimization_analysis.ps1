@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $runner = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\c\run_c.ps1"
 $manifestPath = Join-Path $projectRoot "artifacts\function-call-analysis\manifest.json"
+. (Join-Path $projectRoot "tools\source_hash.ps1")
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-c-analysis-test-" + [guid]::NewGuid().ToString("N"))
 [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
 
@@ -23,10 +24,24 @@ function Write-ManifestVariant {
 }
 
 try {
+    $lfPath = Join-Path $tempRoot "lf.c"
+    $crlfPath = Join-Path $tempRoot "crlf.c"
+    $changedPath = Join-Path $tempRoot "changed.c"
+    [System.IO.File]::WriteAllBytes($lfPath, [System.Text.Encoding]::ASCII.GetBytes("first`nsecond`n"))
+    [System.IO.File]::WriteAllBytes($crlfPath, [System.Text.Encoding]::ASCII.GetBytes("first`r`nsecond`r`n"))
+    [System.IO.File]::WriteAllBytes($changedPath, [System.Text.Encoding]::ASCII.GetBytes("first`nchanged`n"))
+    Assert-True ((Get-CanonicalSourceHash -Path $lfPath) -eq (Get-CanonicalSourceHash -Path $crlfPath)) "C source hash differed for CRLF only"
+    Assert-True ((Get-CanonicalSourceHash -Path $lfPath) -ne (Get-CanonicalSourceHash -Path $changedPath)) "C source hash missed changed content"
+
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $matched = Resolve-Analysis $manifestPath
     Assert-True ($matched.provenance.status -eq "matched") "valid C manifest did not match"
     Assert-True (($matched.simd | ConvertTo-Json -Compress) -eq ($manifest.languages.c.findings.simd | ConvertTo-Json -Compress)) "C SIMD finding was not loaded from the manifest"
+    $hashMismatchPath = Write-ManifestVariant "source-hash-mismatch" { param($d) $d.languages.c.condition.source_sha256 = "0" * 64 }
+    $hashMismatch = Resolve-Analysis $hashMismatchPath
+    Assert-True ($hashMismatch.provenance.status -eq "mismatched") "changed C source hash was accepted"
+    Assert-True (@($hashMismatch.provenance.mismatches).Count -eq 1 -and $hashMismatch.provenance.mismatches[0] -eq "source_sha256") "C source mismatch reason differed"
+    Assert-True ($hashMismatch.inlining.result -eq "not_checked") "C source mismatch reused inlining finding"
 
     $syntaxPath = Join-Path $tempRoot "syntax.json"
     [System.IO.File]::WriteAllText($syntaxPath, "{", [System.Text.UTF8Encoding]::new($false))
@@ -58,7 +73,7 @@ try {
         Assert-True ($analysis.simd.result -eq "unknown" -and @($analysis.simd.isa).Count -eq 0) "invalid C manifest did not clear SIMD: $($case.Path)"
         Assert-True (@($analysis.evidence).Count -eq 0) "invalid C manifest exposed evidence: $($case.Path)"
     }
-    Write-Host "tests=14 passed=14"
+    Write-Host "tests=16 passed=16"
 } finally {
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
 }

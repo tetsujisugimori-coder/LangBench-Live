@@ -158,10 +158,13 @@ def classify_jit(jit_info):
     except Exception:
         return {"applicable": True, "result": "unknown"}
     return {"applicable": True, "result": "unknown" if enabled else "not_detected"}
+def canonical_source_sha256(source: bytes) -> str:
+    return hashlib.sha256(source.replace(b"\r\n", b"\n")).hexdigest()
+
 def current_analysis_condition(implementation_name=None, implementation_version=None, architecture=None, options=None, source_sha256=None):
     source = Path(__file__).read_bytes()
     return {
-        "source_sha256": source_sha256 or hashlib.sha256(source).hexdigest(),
+        "source_sha256": source_sha256 or canonical_source_sha256(source),
         "implementation": {"name": implementation_name or platform.python_implementation(), "version": implementation_version or platform.python_version()},
         "architecture": architecture or platform.machine().lower(),
         "options": options if options is not None else [f"optimize={sys.flags.optimize}"],

@@ -84,6 +84,10 @@ C版は `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルします。加算関
 
 各言語は従来どおり `results/function_call_numeric_sum_<language>_result.json` に最新結果を出力します。`run_all.ps1` は3結果を検証した後、`results/history/<experiment_id>/<archive_id>/` へ一組として追記保存します。同じ秒に実行して `experiment_id` が重なっても、保存フォルダは毎回異なります。`archive.json` には各JSONのSHA-256と元の `run_id` を記録します。履歴フォルダはGit管理の対象外なので、必要に応じて別途バックアップしてください。
 
+この実験の現在の条件は `experiments/function_call_numeric_sum.json` に記録します。履歴保存時に3言語の出力の `config` と `validation.expected_checksum` をこの定義と照合し、定義と一致しなければ保存しません。保存に成功すると、そのとき使用した定義のバイト列を履歴内の `experiment.json` にコピーし、`archive.json` にそのSHA-256を記録します。後からリポジトリ側の定義を変更しても、過去の条件を確認できます。定義を変更するだけで測定条件が切り替わる仕組みではなく、各言語の測定コードに設定した値との一致を検査する段階です。
+
+`archive_id` は保存した3言語一組を区別する一意のIDです。保存済みの各言語結果を指す際は `archive_id` と言語名を組にしてください。既存の秒単位の `run_id` は引き続き結果に残りますが、一意の保存キーには使いません。
+
 表示された `archive_path` の結果は現行Validatorで再検証できます。
 
 ```powershell
@@ -208,11 +212,11 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
     },
     "provenance": {
       "status": "matched",
-      "artifact_id": "function-call-analysis-20260901-review3-python",
-      "analyzed_at": "2026-08-31T21:00:49Z",
+      "artifact_id": "function-call-analysis-20260924-pr9-canonical-python",
+      "analyzed_at": "2026-09-23T19:16:37Z",
       "applies_to": ["inlining", "vectorization", "simd"],
       "analysis": {
-        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
+        "source_sha256": "66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -223,7 +227,7 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
         "simd": {"result": "not_checked", "isa": []}
       },
       "current": {
-        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
+        "source_sha256": "66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -270,6 +274,8 @@ SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を
 処理系は言語名とは別に `implementation` へ保存します。JavaScriptの場合、`engine.runtime` はNode.js、`optimization_analysis.implementation` はV8です。CではGCC、Pythonでは実行中の処理系名を記録します。今後、測定された性能差をこの4項目で説明できない場合だけ、必要な項目を `other_optimizations` へ追加していきます。
 
 解析資料とmanifestは次のコマンドで最終ソースから再生成します。`tools/extract_function_call_findings.py` の純粋関数が生成済み資料を読み、manifestの `findings` を構成します。V8の標準出力と標準エラーは別々に収集してから、区切り付きでトレースへ保存します。
+
+`source_sha256` は、解析時と実行時それぞれの実ファイルのバイト列について、CRLFペアだけをLFへ変換した後のSHA-256です。単独のCRや改行以外のバイトは変更しません。`.gitattributes` は新規チェックアウトをLFにしますが、既存のWindows作業ツリーではmainから通常更新しても変更のないソースがCRLFのまま残るため、生成スクリプト、各ランナー、照合テストで同じ定義を使います。生成スクリプトは解析前後のソースハッシュが同じことを確認し、リポジトリを作業ディレクトリにして各処理系を実行します。再生成後はmanifestの構造に加え、3ソースの正規化SHA-256と、保存されたGCC・Python・V8資料から再抽出した `findings` を照合してください。ソース内容、処理系の版、アーキテクチャ、実行オプションが異なる環境の測定では、保存済みの解析結果を条件一致として扱いません。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/generate_function_call_analysis.ps1

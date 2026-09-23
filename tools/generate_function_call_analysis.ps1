@@ -48,11 +48,20 @@ function Write-Utf8 {
 }
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $projectRoot "tools\source_hash.ps1")
 $artifactDir = Join-Path $projectRoot "artifacts\function-call-analysis"
 [System.IO.Directory]::CreateDirectory($artifactDir) | Out-Null
+$cRelativeSource = "benchmarks/function_call_numeric_sum/c/main.c"
+$pythonRelativeSource = "benchmarks/function_call_numeric_sum/python/main.py"
+$javascriptRelativeSource = "benchmarks/function_call_numeric_sum/javascript/main.js"
 $cSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\c\main.c"
 $pythonSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\python\main.py"
 $javascriptSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\javascript\main.js"
+$sources = [ordered]@{ c = $cSource; python = $pythonSource; javascript = $javascriptSource }
+$sourceHashes = @{}
+foreach ($language in $sources.Keys) {
+    $sourceHashes[$language] = Get-CanonicalSourceHash -Path $sources[$language]
+}
 $gccReport = Join-Path $artifactDir "gcc-optimization.txt"
 $assembly = Join-Path $artifactDir "main.s"
 $pythonBytecode = Join-Path $artifactDir "python-bytecode.txt"
@@ -68,17 +77,16 @@ if ([string]::IsNullOrWhiteSpace($gccVersion)) { throw "failed to obtain GCC ver
 $gccVersion = $gccVersion -replace '^gcc\.exe ', 'gcc '
 $cOptions = @("-O2", "-std=c11", "-Wall", "-Wextra")
 Remove-Item -LiteralPath $gccReport, $assembly -Force -ErrorAction SilentlyContinue
-$gccArgs = @($cSource) + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=$gccReport", "-o", $assembly)
-& gcc @gccArgs
-if ($LASTEXITCODE -ne 0) { throw "GCC analysis failed with exit code $LASTEXITCODE" }
+$gccArgs = @($cRelativeSource) + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=$gccReport", "-o", $assembly)
+Invoke-CapturedProcess "gcc" $gccArgs $projectRoot | Out-Null
 
 $pythonInfo = (Invoke-CapturedProcess "python" @("-c", "import json,platform; print(json.dumps({'name': platform.python_implementation(), 'version': platform.python_version(), 'architecture': platform.machine().lower()}))") $projectRoot).stdout | ConvertFrom-Json
-$pythonDis = Invoke-CapturedProcess "python" @("-m", "dis", $pythonSource) $projectRoot
+$pythonDis = Invoke-CapturedProcess "python" @("-m", "dis", $pythonRelativeSource) $projectRoot
 if (-not [string]::IsNullOrWhiteSpace($pythonDis.stderr)) { throw "Python disassembly wrote to stderr: $($pythonDis.stderr)" }
 Write-Utf8 $pythonBytecode $pythonDis.stdout
 
 $nodeInfo = (Invoke-CapturedProcess "node" @("-p", "JSON.stringify({node:process.version,v8:process.versions.v8,architecture:require('os').arch()})") $projectRoot).stdout | ConvertFrom-Json
-$traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", $javascriptSource, "--experiment-id=20000101_000000_function_call_numeric_sum", "--run-id=20000101_000000_javascript_function_call_numeric_sum")
+$traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", $javascriptRelativeSource, "--experiment-id=20000101_000000_function_call_numeric_sum", "--run-id=20000101_000000_javascript_function_call_numeric_sum")
 $nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot
 $traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ -and $_ -notmatch '^status=' }) -join "`n"
 $traceStderr = (($nodeTrace.stderr -split "`r?`n") | Where-Object { $_ }) -join "`n"
@@ -92,6 +100,11 @@ $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitect
 $cFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "c", "--report", $gccReport, "--assembly", $assembly, "--architecture", $architecture) $projectRoot).stdout | ConvertFrom-Json
 $pythonFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "python", "--artifact", $pythonBytecode) $projectRoot).stdout | ConvertFrom-Json
 $javascriptFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "javascript", "--artifact", $v8Trace) $projectRoot).stdout | ConvertFrom-Json
+foreach ($language in $sources.Keys) {
+    if ((Get-CanonicalSourceHash -Path $sources[$language]) -ne $sourceHashes[$language]) {
+        throw "source changed while generating $language analysis"
+    }
+}
 $manifest = [ordered]@{
     schema_version = "1.0"
     analysis_id = $AnalysisId
@@ -102,7 +115,7 @@ $manifest = [ordered]@{
             analyzed_at = $analyzedAt
             applies_to = @("inlining", "vectorization", "simd")
             condition = [ordered]@{
-                source_sha256 = (Get-FileHash -LiteralPath $cSource -Algorithm SHA256).Hash.ToLowerInvariant()
+                source_sha256 = $sourceHashes.c
                 implementation = [ordered]@{ name = "GCC"; version = $gccVersion }
                 architecture = $architecture
                 options = $cOptions
@@ -121,7 +134,7 @@ $manifest = [ordered]@{
             analyzed_at = $analyzedAt
             applies_to = @("inlining", "vectorization", "simd")
             condition = [ordered]@{
-                source_sha256 = (Get-FileHash -LiteralPath $pythonSource -Algorithm SHA256).Hash.ToLowerInvariant()
+                source_sha256 = $sourceHashes.python
                 implementation = [ordered]@{ name = $pythonInfo.name; version = $pythonInfo.version }
                 architecture = $pythonInfo.architecture
                 options = @("optimize=0")
@@ -135,7 +148,7 @@ $manifest = [ordered]@{
             analyzed_at = $analyzedAt
             applies_to = @("jit", "inlining", "vectorization", "simd")
             condition = [ordered]@{
-                source_sha256 = (Get-FileHash -LiteralPath $javascriptSource -Algorithm SHA256).Hash.ToLowerInvariant()
+                source_sha256 = $sourceHashes.javascript
                 implementation = [ordered]@{ name = "V8"; version = $nodeInfo.v8 }
                 architecture = $nodeInfo.architecture
                 options = @()

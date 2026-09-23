@@ -5,7 +5,22 @@ const path = require("node:path");
 const {
   optimizationAnalysis,
   parseManifestEntry,
+  sourceSha256,
+  currentAnalysisCondition,
 } = require("../benchmarks/function_call_numeric_sum/javascript/main.js");
+
+test("source hash equates CRLF with LF and detects other byte changes", () => {
+  const lf = Buffer.from("first\nsecond\n");
+  assert.equal(sourceSha256(lf), sourceSha256(Buffer.from("first\r\nsecond\r\n")));
+  assert.notEqual(sourceSha256(lf), sourceSha256(Buffer.from("first\nchanged\n")));
+  assert.notEqual(sourceSha256(lf), sourceSha256(Buffer.from("first\rsecond\n")));
+});
+
+test("current JavaScript source hash agrees with the manifest", () => {
+  const manifestPath = path.join(__dirname, "..", "artifacts", "function-call-analysis", "manifest.json");
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  assert.equal(currentAnalysisCondition().source_sha256, manifest.languages.javascript.condition.source_sha256);
+});
 
 function fixture() {
   const condition = {
