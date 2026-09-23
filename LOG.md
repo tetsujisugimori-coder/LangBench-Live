@@ -908,4 +908,4 @@
 
 ### CIと未確認事項
 
-* CI結果はブランチ更新後に追記する。Ubuntu以外のOSでのPython CI、実機ベンチマークとWindows C統合はこのCIの対象外。
+* コミット `a3b225e` のpull_request CIは [Python tests run 35933969426](https://github.com/tetsujisugimori-coder/LangBench-Live/actions/runs/35933969426) で成功した。Ubuntu 24.04.5、CPython 3.14.7、`python -B -m unittest discover -s tests -q` の実行ログに `Ran 33 tests` と `OK` を確認した。Ubuntu以外のOSでのPython CI、実機ベンチマークとWindows C統合はこのCIの対象外。
