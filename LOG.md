@@ -821,3 +821,27 @@
 * `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1` でPython・JavaScript・Cの統合実行が成功し、`validated=3` の後に `results/history/20260924_020315_function_call_numeric_sum/645802ee42c5428796463f3b25f8f978/` を作成した。
 * 保存された3件のJSONを読み戻し、`archive.json` のSHA-256と各ファイルの実測値がすべて一致すること、および保存ファイルを現行Validatorに渡して `validated=3` となることを確認した。
 * `python -m unittest tests.test_result_schema.ArchiveResultsTests -v` は2件成功。`python -m unittest discover -s tests -v` は22件を実行し、履歴保存の2件を含む他のテストは成功した。解析manifestの保存済みソースSHA-256と現在のソースが一致しない既存の3つのsubtest（C・Python・JavaScript）は引き続き失敗する。
+
+## 2026-09-24 PR #9 最適化解析の根拠再生成と履歴の再検証
+
+### 原因
+
+* 修正前のmainとPR #9で、Python全体テストはそれぞれ22件中3言語のsubtest、23件中3言語のsubtestが失敗した。C解析テストも両ブランチで`valid C manifest did not match`となった。
+* 解析manifestに保存された3言語の`source_sha256`は、現行ソースのGit保存バイト列と一致しなかった。Windowsの`core.autocrlf=true`は作業ツリーの3ソースをCRLFに変え、生バイトをハッシュするテストとランナーにさらに別の値を与えていた。Cランナーの不一致項目は`source_sha256`だけで、GCCの版・アーキテクチャ・オプションは一致していた。古いハッシュの生成時点の未コミット状態までは特定できていない。
+
+### 変更
+
+* `.gitattributes`で対象3ソースと解析資料をLF改行に固定した。`tools/generate_function_call_analysis.ps1`はリポジトリを作業ディレクトリとして相対ソースパスでGCC・Python・Node.jsを起動し、作業ツリーの場所を資料に埋め込まないようにした。
+* 現行ソースからGCCレポート・アセンブリ、Pythonバイトコード、V8トレースを実行して得た。アセンブリは再生成後も内容差分がなく、残る資料と`manifest.json`を更新した。`README.md`の解析例と生成・ハッシュ条件も更新した。
+* `tests/test_result_schema.py`で、実資料から再抽出した3言語の`findings`とmanifestとの一致、および期待checksumが定義と異なる結果を保存前に拒否することを検査した。結果schema 1.0と測定ループは変更していない。
+
+### 実測した確認
+
+* Windows PowerShell 5.1で生成スクリプトをリポジトリ外の作業ディレクトリから実行し、`analysis_id=function-call-analysis-20260924-pr9-rebuild`で成功した。manifest構造検証は`validated_manifest=1`。3ソースの実測SHA-256がmanifestと一致し、GCC・Python・V8資料から再抽出した`findings`も各言語で一致した。
+* `python -B -m unittest discover -s tests -v`: 23件すべて成功。`node --test tests/test_javascript_optimization_analysis.js`: 20件すべて成功。`pwsh -NoProfile -File tests/test_c_optimization_analysis.ps1`: 14件すべて成功。
+* `python -B -m unittest tests.test_result_schema.ArchiveResultsTests -v`: 3件成功。定義と設定・期待checksumが異なる場合、履歴フォルダが作成されないことを確認した。
+* `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1`: C・Python・JavaScriptの統合実行が成功し、`validated=3`の後に`results/history/20260924_034054_function_call_numeric_sum/7dcea74c253543bf908974c60a66bb95/`を作成した。保存された`experiment.json`は定義原本とバイト単位で一致し、`archive.json`に記録された定義1件と結果3件のSHA-256はすべて読み戻し値と一致した。保存結果の再検証は`validated=3`、3言語の解析provenanceは`matched`だった。
+
+### 残る確認範囲
+
+* この再生成と統合実行はWindows、GCC 16.1.0、CPython 3.14.7、Node.js 24.20.0 / V8 13.6.233.17-node.53で確認した。他の処理系・バージョン・アーキテクチャでの資料再生成や統合実行は未実施で、条件不一致時は保存済み解析結論を適用しない。

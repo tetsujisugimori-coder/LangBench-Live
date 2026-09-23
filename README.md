@@ -212,11 +212,11 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
     },
     "provenance": {
       "status": "matched",
-      "artifact_id": "function-call-analysis-20260901-review3-python",
-      "analyzed_at": "2026-08-31T21:00:49Z",
+      "artifact_id": "function-call-analysis-20260924-pr9-rebuild-python",
+      "analyzed_at": "2026-09-23T18:39:20Z",
       "applies_to": ["inlining", "vectorization", "simd"],
       "analysis": {
-        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
+        "source_sha256": "0987dc6aa5be6ca4abb4f90015e80c5144cb18ef17d62c04718c17d6932ae7e2",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -227,7 +227,7 @@ manifestが存在しない、JSONや必須構造が壊れている、`findings`�
         "simd": {"result": "not_checked", "isa": []}
       },
       "current": {
-        "source_sha256": "21608363e79b527a6b789c5c274cd4061ea743aec3b6fb4e56c8e5379e0af762",
+        "source_sha256": "0987dc6aa5be6ca4abb4f90015e80c5144cb18ef17d62c04718c17d6932ae7e2",
         "implementation": {"name": "CPython", "version": "3.14.7"},
         "architecture": "amd64",
         "options": ["optimize=0"]
@@ -274,6 +274,8 @@ SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を
 処理系は言語名とは別に `implementation` へ保存します。JavaScriptの場合、`engine.runtime` はNode.js、`optimization_analysis.implementation` はV8です。CではGCC、Pythonでは実行中の処理系名を記録します。今後、測定された性能差をこの4項目で説明できない場合だけ、必要な項目を `other_optimizations` へ追加していきます。
 
 解析資料とmanifestは次のコマンドで最終ソースから再生成します。`tools/extract_function_call_findings.py` の純粋関数が生成済み資料を読み、manifestの `findings` を構成します。V8の標準出力と標準エラーは別々に収集してから、区切り付きでトレースへ保存します。
+
+`source_sha256` はソースの生バイト列から計算します。対象のC・Python・JavaScriptソースは `.gitattributes` でLF改行に固定し、Windowsの `core.autocrlf` 設定によるハッシュ差を防ぎます。生成スクリプトはリポジトリを作業ディレクトリにして各処理系を実行します。再生成後はmanifestの構造に加え、3ソースのSHA-256と、保存されたGCC・Python・V8資料から再抽出した `findings` を照合してください。処理系の版や実行オプションが異なる環境の測定では、保存済みの解析結果を条件一致として扱いません。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/generate_function_call_analysis.ps1

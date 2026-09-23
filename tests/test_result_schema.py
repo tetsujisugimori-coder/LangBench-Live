@@ -189,6 +189,23 @@ class ResultSchemaTests(unittest.TestCase):
             with self.subTest(language=language):
                 actual = hashlib.sha256(source.read_bytes()).hexdigest()
                 self.assertEqual(actual, manifest["languages"][language]["condition"]["source_sha256"])
+        artifacts = path.parent
+        findings = {
+            "c": analyze_c_artifacts(
+                (artifacts / "gcc-optimization.txt").read_text(encoding="utf-8"),
+                (artifacts / "main.s").read_text(encoding="utf-8"),
+                manifest["languages"]["c"]["condition"]["architecture"],
+            ),
+            "python": analyze_python_bytecode(
+                (artifacts / "python-bytecode.txt").read_text(encoding="utf-8")
+            ),
+            "javascript": analyze_v8_trace(
+                (artifacts / "v8-optimization.txt").read_text(encoding="utf-8")
+            ),
+        }
+        for language, actual in findings.items():
+            with self.subTest(language=language, check="findings"):
+                self.assertEqual(actual, manifest["languages"][language]["findings"])
 
     def test_findings_are_derived_from_artifact_content(self) -> None:
         report = "main.c:73: optimized: loop vectorized using 16 byte vectors\n"
@@ -693,6 +710,13 @@ class ArchiveResultsTests(unittest.TestCase):
             broken["validation"]["passed"] = False
             sources[2].write_text(json.dumps(broken), encoding="utf-8")
             with self.assertRaises(ValueError):
+                archive_results(sources, eid, history, manifest_path)
+            self.assertFalse(history.exists())
+            different_checksum = function_call_document("c")
+            for key in ("direct_checksum", "function_call_checksum", "expected_checksum"):
+                different_checksum["validation"][key] += 1
+            sources[2].write_text(json.dumps(different_checksum), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "expected_checksum differs"):
                 archive_results(sources, eid, history, manifest_path)
             self.assertFalse(history.exists())
 

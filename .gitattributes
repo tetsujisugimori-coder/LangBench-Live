@@ -1,0 +1,4 @@
+/benchmarks/function_call_numeric_sum/c/main.c text eol=lf
+/benchmarks/function_call_numeric_sum/python/main.py text eol=lf
+/benchmarks/function_call_numeric_sum/javascript/main.js text eol=lf
+/artifacts/function-call-analysis/** text eol=lf

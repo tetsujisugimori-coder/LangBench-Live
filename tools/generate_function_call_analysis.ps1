@@ -50,6 +50,9 @@ function Write-Utf8 {
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $artifactDir = Join-Path $projectRoot "artifacts\function-call-analysis"
 [System.IO.Directory]::CreateDirectory($artifactDir) | Out-Null
+$cRelativeSource = "benchmarks/function_call_numeric_sum/c/main.c"
+$pythonRelativeSource = "benchmarks/function_call_numeric_sum/python/main.py"
+$javascriptRelativeSource = "benchmarks/function_call_numeric_sum/javascript/main.js"
 $cSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\c\main.c"
 $pythonSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\python\main.py"
 $javascriptSource = Join-Path $projectRoot "benchmarks\function_call_numeric_sum\javascript\main.js"
@@ -68,17 +71,16 @@ if ([string]::IsNullOrWhiteSpace($gccVersion)) { throw "failed to obtain GCC ver
 $gccVersion = $gccVersion -replace '^gcc\.exe ', 'gcc '
 $cOptions = @("-O2", "-std=c11", "-Wall", "-Wextra")
 Remove-Item -LiteralPath $gccReport, $assembly -Force -ErrorAction SilentlyContinue
-$gccArgs = @($cSource) + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=$gccReport", "-o", $assembly)
-& gcc @gccArgs
-if ($LASTEXITCODE -ne 0) { throw "GCC analysis failed with exit code $LASTEXITCODE" }
+$gccArgs = @($cRelativeSource) + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=$gccReport", "-o", $assembly)
+Invoke-CapturedProcess "gcc" $gccArgs $projectRoot | Out-Null
 
 $pythonInfo = (Invoke-CapturedProcess "python" @("-c", "import json,platform; print(json.dumps({'name': platform.python_implementation(), 'version': platform.python_version(), 'architecture': platform.machine().lower()}))") $projectRoot).stdout | ConvertFrom-Json
-$pythonDis = Invoke-CapturedProcess "python" @("-m", "dis", $pythonSource) $projectRoot
+$pythonDis = Invoke-CapturedProcess "python" @("-m", "dis", $pythonRelativeSource) $projectRoot
 if (-not [string]::IsNullOrWhiteSpace($pythonDis.stderr)) { throw "Python disassembly wrote to stderr: $($pythonDis.stderr)" }
 Write-Utf8 $pythonBytecode $pythonDis.stdout
 
 $nodeInfo = (Invoke-CapturedProcess "node" @("-p", "JSON.stringify({node:process.version,v8:process.versions.v8,architecture:require('os').arch()})") $projectRoot).stdout | ConvertFrom-Json
-$traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", $javascriptSource, "--experiment-id=20000101_000000_function_call_numeric_sum", "--run-id=20000101_000000_javascript_function_call_numeric_sum")
+$traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", $javascriptRelativeSource, "--experiment-id=20000101_000000_function_call_numeric_sum", "--run-id=20000101_000000_javascript_function_call_numeric_sum")
 $nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot
 $traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ -and $_ -notmatch '^status=' }) -join "`n"
 $traceStderr = (($nodeTrace.stderr -split "`r?`n") | Where-Object { $_ }) -join "`n"
