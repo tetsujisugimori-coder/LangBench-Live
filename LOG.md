@@ -795,6 +795,14 @@
 * `python -m unittest discover -s tests -v`: 23件実行し、既存の解析manifest対現在ソースSHA-256照合に関する3言語のsubtestだけ失敗。PR #8から継続する既知の不一致で、解析資料の再生成なしに保存済みハッシュは変更していない。
 * この環境ではWindows用のC実行とPowerShell統合実行は未確認。
 
+### 2026-09-24 Windowsでの追加検証
+
+* `python -B -m unittest tests.test_result_schema.ArchiveResultsTests -v`: 3件成功。定義の不一致で履歴を作らず、再実行時に両方の履歴が残ることを確認した。
+* `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1`: Python・JavaScript・Cの統合実行と`validated=3`が成功し、`results/history/20260924_032155_function_call_numeric_sum/863c1aed3a874301a647f44c794fff25/`を作成した。
+* 保存された`experiment.json`と3言語の結果を読み戻した。`archive.json`に記録された4件のSHA-256がすべて実ファイルと一致し、保存結果の再検証も`validated=3`となった。
+* `node --test tests/test_javascript_optimization_analysis.js`: 20件成功。
+* `python -B -m unittest discover -s tests -v`: 23件中、解析manifestの保存済みソースSHA-256と現行ソースの不一致に対応するC・Python・JavaScriptの3 subtestが失敗し、他は成功した。`pwsh -NoProfile -File tests/test_c_optimization_analysis.ps1`も同じ不一致で`valid C manifest did not match`となった。解析成果物を再生成せずにSHA-256だけ変更していない。
+
 ## 2026-09-24 function_call_numeric_sumの結果履歴保存
 
 * 既存schema 1.0と各言語の測定処理は維持し、3件の結果検証後に `results/history/<experiment_id>/<archive_id>/` へ元のJSONを追記保存する。
