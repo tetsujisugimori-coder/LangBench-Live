@@ -790,5 +790,5 @@
 
 * 履歴保存の2件の回帰テストが成功。再実行で前回の3結果が維持され、不一致や不正値では履歴が作成されない。
 * 追跡済みの3言語結果は現行Validatorで `validated=3`。
-* Linux環境での全Pythonテスト22件中19件成功、3件失敗。既存解析manifestのC・Python・JavaScriptソースSHA-256が現在のmainのソースと一致しない。今回の変更対象外であり、解析成果物を検証せずにハッシュだけ書き換えることはしない。
+* Linux環境での全Pythonテスト22件中、解析manifest整合テストのC・Python・JavaScriptに対応する3つのsubtestが失敗。保存済みSHA-256が現在のmainのソースと一致しない。今回の変更対象外であり、解析成果物を検証せずにハッシュだけ書き換えることはしない。
 * Windows専用のC実行とPowerShellの統合実行はローカルLinux環境では未実施。
