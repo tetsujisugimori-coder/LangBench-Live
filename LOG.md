@@ -871,3 +871,23 @@
 ### 未確認事項
 
 * 他のOS、処理系・版、CPUアーキテクチャでの再生成と統合実行は未実施。異なる実行条件では解析結論を流用せず、不一致として扱う。
+
+## 2026-09-24 保存済み履歴2件の比較条件判定
+
+### 変更理由と判定基準
+
+* PR #9の `archive.json` が指す `experiment.json` とC・JavaScript・Pythonの結果を読み、4件の記録SHA-256を各ファイルの生バイトで再計算する読み取り専用コマンド `tools/compare_archives.py` を追加した。固定ファイル名以外の参照、重複、欠落、壊れたJSON、ハッシュ不一致、既存Validatorの失敗、履歴内定義との不一致は終了コード2の検証エラーにする。
+* 両履歴が整合してから定義のbenchmark・schema_version・config・expected_checksumを比較する。差があれば `incomparable` と項目別理由を出す。実験ID・実行ID・保存ID・保存日時や定義JSONの空白・キー順は条件差に使わない。
+* 条件が一致した場合は同じ言語同士でOS・OS版・CPU名・アーキテクチャ・処理系と版を確認し、Cコンパイラと版、保存結果の解析用current条件にあるオプション・ソースSHA-256も照合する。差または欠落は `caution`、すべて記録済みで一致した場合は `comparable`。Cのコンパイルコマンドには毎回異なる一時パスが含まれるため、その文字列は比較しない。処理系が言語ごとに違うことは理由にしない。
+* JSONは `schema_version: "1.0"`、`verdict`、理由の安定コード・フィールド・説明、入力パスを返す。破損時は `error` だけを返す。これは記録項目の一致判定で、同じCPU名による同一マシンの証明、速度ランキング、統計的有意差、最適化の因果関係は含まない。
+
+### 実測した確認
+
+* 新規テスト8件で同条件、定義JSONの整形・キー順差、ハッシュを正しく更新したconfig/schema差、環境差、情報不足、ソース差、コンパイルオプション差、保存結果改変、欠落、重複、不正参照、壊れたJSON、Validator失敗、定義との不一致、CLIのエラー終了を確認した。
+* `python -B -m unittest discover -s tests -v`: 32件成功。`node --test tests/test_javascript_optimization_analysis.js`: 22件成功。`pwsh -NoProfile -File tests/test_c_optimization_analysis.ps1`: 16件成功。
+* Windowsの隔離作業ツリーで `pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1` を2回実行し、各回 `validated=3` と履歴保存が成功した。保存先は `20260924_080825_function_call_numeric_sum/76e604b6b6a44dc7bd2d91fd56967774` と `20260924_080901_function_call_numeric_sum/9aed0ca1e08c4361a48d29c3735e661b`。新コマンドでこの2件を検証・比較すると終了コード0、`caution`、理由は `INFORMATION_MISSING` / `environment.os_version` / `c` の1件だった。Cの実結果ではOS版がnullなので、他が一致しても注意付きとなる。
+* 通常のWindowsサンドボックスではPythonが作成した一時ディレクトリへの書き込みと統合ランナーが作成した履歴の読み取りを拒否したため、該当テストと統合確認は承認付き実行経路で完了した。最初のサンドボックス失敗をテスト成功には算入していない。
+
+### 未確認事項
+
+* 他のOS、CPU、コンパイラ・処理系版での実機統合は未実施。履歴にはマシン固有ID、実行時負荷、ソース原本がないため、それらの同一性や性能差の理由は判定できない。
