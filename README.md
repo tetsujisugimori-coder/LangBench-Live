@@ -1,5 +1,17 @@
 # LangBench Live
 
+## Windows C/direct CPU affinity 診断
+
+通常のベンチマーク設定は変更せず、専用スクリプトで normal、指定した論理CPU A、論理CPU Bを比較します。診断系列ごとにCを一度だけ `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルし、同じ実行バイナリ、入力1〜1,000,000、direct→function_call、各ケースのウォームアップ5回・測定50回で各条件を交互に実行します。affinityはCプロセス自身がセットアップ前にWindows APIで設定・確認します。normalには設定引数を渡しません。CPU番号は現在のWindowsプロセッサグループ内の論理CPU番号で、プロセスに許可されたmaskから選んでください。
+
+```powershell
+python -B tools/diagnose_c_affinity.py --runs 40 --cpu-a 0 --cpu-b 1 --output results/diagnostics/c-affinity-<一意な名前>
+```
+
+`--runs` は各条件の回数で、短い動作確認なら `--runs 1` を指定できます。指定CPUがプロセスの許可mask外、2番号が同一、Windows以外の場合は測定前にエラーにします。保存先が既存の場合も上書きしません。`runs.json`には各回の条件・CPU番号（normalはnull）・開始終了時刻・50件のdirect生サンプル・中央値・最小最大・0.2 ms以上の件数・ベンチマーク条件・バイナリSHA-256・成否を記録します。元の正式結果JSONとログも各回ごとに保存し、`summary.json`には条件別の成功run数、中央値の中央値と範囲、0.2 ms以上のサンプル数と該当run数を保存します。静的なOS・CPU情報は記録しますが、CPU周波数・電源状態は測定しません。結果は通常の3言語履歴に取り込みません。
+
+normalのみ変動して固定CPUで安定すればスケジューリングやCPU移動を、特定CPUだけ遅ければCPU間の差を、全条件で変動すればaffinity以外の要因を追加調査する材料になります。全条件で安定なら稀な外乱を含め長期観測を検討します。いずれも原因の確定判定ではありません。50サンプルは各run内の反復であり、独立した50実験ではありません。
+
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 
 マージ済みPR #24を起点とし、通常の3言語履歴・通常結果JSON・C測定本体は変更せず、専用の[`tools/diagnose_c_measurement_order_followup.ps1`](tools/diagnose_c_measurement_order_followup.ps1)で別系列を実行します。実行前に40回の`plan.json`と全40回の未確定行を含む`runs.json`を保存します。20組の各ペアにA（direct→function_call）とB（function_call→direct）を1回ずつ置き、AB/BAは各10組です。各組の一方だけを監視し、A/B×監視あり/なしは各10回、各条件のペア内先・後は各5回です。結果を見て計画を変更しません。
