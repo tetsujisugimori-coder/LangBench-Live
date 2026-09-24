@@ -1034,3 +1034,70 @@
 
 * `python tools/compare_archives.py --json <旧履歴> <今回の1回目>` で旧履歴との判定は `caution`。理由はCの `INFORMATION_MISSING` / `environment.os_version` と、Cソース変更による `ENVIRONMENT_DIFFERENT` / `optimization_analysis.provenance.current.source_sha256`。旧履歴やハッシュは変更していない。
 * 制限: この5回は1台のWindows機での記述的な揺れを示す。OS版一致だけでは負荷や電源状態などの一致は分からず、最適化の効果・統計的有意差・言語全体の優劣は示さない。履歴と集計JSONはGit管理外の隔離作業ツリーにある。CIの対象は別途確認する。
+
+## 2026-09-24 C/direct の50サンプル診断と逐次10回再測定
+
+### 実装と検証方法
+
+* 最新mainのGitHub SHA `839630f5f5866cac02331402b16e696d9dd786a4` とローカルHEADの一致をGitHub APIで確認。通常の `git fetch` はこの端末の `SEC_E_NO_CREDENTIALS` で失敗したため、SHA照合を用いた。元の作業ツリーの未追跡ファイルは変更せず、隔離作業ツリー `langbench-c-sample-stability` で着手した。
+* 着手前にREADME・LOG、`archive_results.py`、`compare_archives.py` の `load_archive`、`show_archive_metrics.py`、`show_archive_variability.py`、`validate_result_json.py`、`run_all.ps1`、Cの `measure()` 呼び出し順を確認。言語順はPython→JavaScript→C、Cはdirectの全ウォームアップ・50測定を終えてからfunction_callを測る。Cの各サンプルは0.001 msに丸めて保存される。
+* `show_archive_samples.py` は既存の履歴検証を通った値だけを入力順に表示し、共通の `median_from_samples` で全体・前半25・後半25の中央値を再計算する。Cが既定、`--all-languages` で3言語。JSONとテキストを実装。回帰テストは正常な50サンプル、前後半の異なる中央値、異なる2履歴の入力順と値、改変SHA、欠落ファイル、再ハッシュした定義不一致、同一履歴の重複を確認した。
+* `remeasure_function_call.ps1` は同じチェックアウトで10回を逐次起動する。各回の前後に入力ファイルのSHA-256を照合し、時刻・成否・理由・実験ID・履歴ID・パスと端末状態を記録。保存した履歴を `show_archive_samples.py` 経由で再検証してから成功とする。CPU使用率・AC給電は常に `未取得`、取得失敗項目も `未取得`。測定中の常時監視はしない。
+* `python -B -m unittest discover -s tests -q`: **74件成功**。最初の通常サンドボックスではPythonの一時fixtureディレクトリへのアクセス拒否で新規テストが失敗した。権限付き経路で再実行して74件成功。この失敗はアサーションの失敗ではない。通常サンドボックスの1回のスモーク測定は `validated=3` 後、履歴保存先のアクセス拒否で失敗し、成功回に含めていない。以下の10回は権限付き経路で別途実行した。
+
+### 既存5履歴の実サンプル
+
+前節のPR #17の5履歴を別作業ツリーから**再読み込み**し、全件 `load_archive` のSHA-256、Validator、保存定義の検証を通過した。5履歴の10組はすべて `comparable`。C/directの前半25件 / 後半25件の中央値は1回目 `0.433 / 0.104` ms、5回目 `0.443 / 0.111` ms。0.2 ms以上の件数は1回目22/50、5回目25/50で、同様の前半寄りの遅い区間は5回目だけではなかった。5回目の全体中央値0.2465 msは、遅い値が50件の中央順位に届いた結果である。5回目のC/function_call中央値0.387 ms、JavaScript direct/function_call `0.4325 / 0.4315` ms、Python `18.8755 / 32.7195` msに同様の大きな増加は見られない。最小・最大・他の回はREADME表を参照。履歴の元JSON・SHA-256は変更していない。
+
+### 新しいWindows実機10回
+
+隔離作業ツリーの `839630f` を使用し、2026-09-24 JSTに `pwsh -NoProfile -File tools/remeasure_function_call.ps1 -Count 10 -OutputDirectory results/diagnostics/ten-20260924` を実行。実行ごとにPython→JavaScript→C/direct→C/function_call。各回の `archive_path` は `results/history/<experiment_id>/<archive_id>` に対応する。10回すべて `run_all.ps1` 成功、履歴保存、保存後の再検証成功。以下の時刻はJST。
+
+| 順 | 開始 | 終了 | 結果 | experiment_id | archive_id |
+| ---: | --- | --- | --- | --- | --- |
+| 1 | 11:17:20 | 11:17:29 | 成功 | 20260924_111720_function_call_numeric_sum | 5a90d70f0e42400c82d153bb8163f60b |
+| 2 | 11:17:30 | 11:17:39 | 成功 | 20260924_111730_function_call_numeric_sum | 7f0e3d339a8a4e0c93ab61d4974882fc |
+| 3 | 11:17:39 | 11:17:47 | 成功 | 20260924_111739_function_call_numeric_sum | 371ad3f708be4d329cc22d730251003c |
+| 4 | 11:17:47 | 11:17:56 | 成功 | 20260924_111747_function_call_numeric_sum | 4c655a6a954749a78a4fc763b9622a88 |
+| 5 | 11:17:57 | 11:18:06 | 成功 | 20260924_111757_function_call_numeric_sum | 18bd33e6863d4282bf4db0b2d289e02d |
+| 6 | 11:18:06 | 11:18:15 | 成功 | 20260924_111806_function_call_numeric_sum | 506e20ab33e14ecd809cd9a8fe3f529f |
+| 7 | 11:18:15 | 11:18:23 | 成功 | 20260924_111815_function_call_numeric_sum | 7b283e76559148c6810e6b02c5729438 |
+| 8 | 11:18:24 | 11:18:33 | 成功 | 20260924_111824_function_call_numeric_sum | 5d33ab6bbc384fc5863733bacfcee4e4 |
+| 9 | 11:18:34 | 11:18:42 | 成功 | 20260924_111834_function_call_numeric_sum | d088899f46e440738b7d6a0a333989e3 |
+| 10 | 11:18:43 | 11:18:52 | 成功 | 20260924_111843_function_call_numeric_sum | 243fb765338b41e3b1cc5b8fb010e906 |
+
+`show_archive_variability.py --json` の全組判定は新10履歴の45組で `comparable=45, caution=0, incomparable=0`。PR #17の5履歴と合わせた15履歴の105組も `comparable=105`。条件判定は測定値の安定性を保証しない。
+
+新10回のC/directとC/function_callの50サンプルの中央値、最小・最大、前後半中央値、および0.2 ms以上のC/direct件数はREADME表に記録。新3回目のC/directは `0.295` ms、43/50件が0.2 ms以上、前後半中央値 `0.387 / 0.239` ms、最小〜最大 `0.111〜0.546` ms。初めの27件は0.235〜0.546 ms、その後7件が約0.111〜0.112 ms、後段でも0.202〜0.289 msの区間がある。C/function_callは中央値0.415 ms（前後半0.426 / 0.395 ms）。この遅さは1サンプルだけの外れ値でも、回全体の全ケースが一様に遅い状態でもない。
+
+| 新回 | JavaScript direct / function_call 中央値 (ms) | Python direct / function_call 中央値 (ms) |
+| ---: | ---: | ---: |
+| 1 | 0.537 / 0.5555 | 18.7605 / 32.410 |
+| 2 | 0.4775 / 0.505 | 19.6625 / 33.5675 |
+| 3 | 0.485 / 0.491 | 19.0825 / 32.5505 |
+| 4 | 0.475 / 0.5035 | 18.5805 / 32.131 |
+| 5 | 0.480 / 0.491 | 18.695 / 31.905 |
+| 6 | 0.471 / 0.4905 | 19.705 / 32.5525 |
+| 7 | 0.440 / 0.438 | 18.773 / 32.3855 |
+| 8 | 0.504 / 0.4925 | 19.4965 / 31.8805 |
+| 9 | 0.4805 / 0.492 | 19.062 / 32.369 |
+| 10 | 0.469 / 0.532 | 19.5895 / 32.331 |
+
+各回の前後に取得した端末状態は次のとおり。電源プランは全行で前後とも `381b4222-f694-41f0-9685-ff5bb260df2e`（バランス）。CPU使用率・AC給電は全行で `未取得`。
+
+| 新回 | 空き物理メモリ 前 / 後 (MB) | プロセス数 前 / 後 |
+| ---: | ---: | ---: |
+| 1 | 2013.4 / 2166.6 | 428 / 428 |
+| 2 | 2154.6 / 2227.1 | 428 / 428 |
+| 3 | 2228.8 / 2090.5 | 428 / 428 |
+| 4 | 2099.7 / 2232.6 | 428 / 428 |
+| 5 | 2235.4 / 2236.9 | 428 / 428 |
+| 6 | 2239.3 / 1534.0 | 428 / 432 |
+| 7 | 1462.2 / 2217.4 | 432 / 428 |
+| 8 | 2211.6 / 2135.2 | 428 / 435 |
+| 9 | 2042.8 / 2249.7 | 434 / 428 |
+| 10 | 2245.7 / 2264.1 | 428 / 428 |
+
+新3回目の開始前空き物理メモリは2228.8 MBで、7回目は開始前1462.2 MBでもC/direct中央値0.105 ms。境界値だけから測定中の負荷は分からず、原因を特定できない。C/directがC/function_callより先に測定される順序との関連も未確定。50サンプルを独立した50実験とみなさず、10回から統計的有意差や最適化効果を主張しない。次の判断は、同条件の反復だけでは原因を分けられないため、測定順または端末状態を制御する別計画が必要か検討すること。今回の実験設定・測定ループ・schema・比較規則は変更しない。
+
+診断の全50サンプルと前後半値はローカルの `results/diagnostics/pr17-five-samples.json`、`results/diagnostics/ten-20260924/all-samples.json` に記録した（Git管理外）。新10回の開始・終了の完全なISO時刻、成否・理由、履歴パス、前後端末状態は `results/diagnostics/ten-20260924/runs.json` にある。レビュー側で履歴ファイルが利用できない場合は、上記CLIを手元の履歴に対して再実行する必要がある。
