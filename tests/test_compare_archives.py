@@ -110,6 +110,22 @@ class CompareArchiveTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertEqual("comparable", json.loads(completed.stdout)["verdict"])
 
+    def test_new_os_versions_compare_but_legacy_null_stays_caution(self) -> None:
+        old = self.make_archive("20260801_130000")
+        fresh_a = self.make_archive("20260802_130000")
+        fresh_b = self.make_archive("20260803_130000")
+        self.rewrite(old, "c.json", lambda d: d["environment"].update(os_version=None))
+        self.assertEqual("comparable", compare_archives(load_archive(fresh_a), load_archive(fresh_b))["verdict"])
+        for fresh in (fresh_a, fresh_b):
+            comparison = compare_archives(load_archive(old), load_archive(fresh))
+            self.assertEqual("caution", comparison["verdict"])
+            self.assertIn(("INFORMATION_MISSING", "environment.os_version", "c"),
+                          {(r["code"], r["field"], r.get("language")) for r in comparison["reasons"]})
+        # Rehashing a saved file is still required; changing its bytes alone is corruption.
+        (fresh_b / "c.json").write_bytes(b"{}")
+        with self.assertRaisesRegex(ArchiveError, "SHA-256 mismatch"):
+            load_archive(fresh_b)
+
     def test_rehashed_condition_difference_is_incomparable_not_corrupt(self) -> None:
         left = self.make_archive("20260801_130000")
         right = self.make_archive("20260802_130000")
