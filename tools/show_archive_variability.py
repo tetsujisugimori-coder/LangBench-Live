@@ -64,7 +64,7 @@ def print_text(report: dict) -> None:
     print(f"全組判定: comparable={counts['comparable']}, caution={counts['caution']}, "
           f"incomparable={counts['incomparable']}")
     for pair in report["pairwise"]["pairs"]:
-        print(f"  履歴 {pair['left_index'] + 1}–{pair['right_index'] + 1}: {pair['verdict']}")
+        print(f"  履歴 {pair['left_index'] + 1}-{pair['right_index'] + 1}: {pair['verdict']}")
         for reason in pair["reasons"]:
             print(f"    [{reason['code']}] {reason['field']}: {reason['message']}")
     if report["verdict"] == "incomparable":

@@ -124,6 +124,15 @@ class ShowArchiveVariabilityTests(unittest.TestCase):
         self.assertEqual(2, completed.returncode)
         self.assertEqual("DUPLICATE_ARCHIVE", json.loads(completed.stdout)["error"]["code"])
 
+    def test_text_output_supports_windows_default_encoding(self) -> None:
+        paths = self.three_archives()[:2]
+        completed = subprocess.run([sys.executable, str(COMMAND), *(str(path) for path in paths)],
+                                   capture_output=True, text=True, encoding="cp932",
+                                   env={**os.environ, "PYTHONIOENCODING": "cp932",
+                                        "PYTHONDONTWRITEBYTECODE": "1"}, check=False)
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("履歴 1-2: comparable", completed.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
