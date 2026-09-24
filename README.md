@@ -82,6 +82,8 @@ powershell -ExecutionPolicy Bypass -File benchmarks/function_call_numeric_sum/ru
 
 C版は `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルします。加算関数はMSVCの`__declspec(noinline)`、GCC/Clangの`__attribute__((noinline))`でインライン化を抑制しますが、非対応コンパイラでの呼び出し保持は保証できません。JavaScriptではV8のJITがインライン化する場合があります。この実験は関数呼び出しを含む特定ループの比較であり、言語全体の性能を示すものではありません。
 
+Cの `environment.os_version` は、`ntdll.dll` の `RtlGetVersion` が返す実行中のWindows NT版の major.minor.build を文字列にした値です。表示名や更新リビジョン（UBR）は含みません。`GetVersionEx` は実行ファイルの manifest によって返値が変わるため使用しません（[Microsoftの説明](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getversionexa)、[RtlGetVersion](https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlgetversion)）。APIの取得・呼び出しに失敗した場合、Cは `status=error` と理由を標準エラーに出して終了し、その回の新しい結果JSONを保存しません。`run_all.ps1` 経由でもC単独の `c/run_c.ps1` 経由でも同じC実行ファイルがこの処理を行います。
+
 各言語は従来どおり `results/function_call_numeric_sum_<language>_result.json` に最新結果を出力します。`run_all.ps1` は3結果を検証した後、`results/history/<experiment_id>/<archive_id>/` へ一組として追記保存します。同じ秒に実行して `experiment_id` が重なっても、保存フォルダは毎回異なります。`archive.json` には各JSONのSHA-256と元の `run_id` を記録します。履歴フォルダはGit管理の対象外なので、必要に応じて別途バックアップしてください。
 
 この実験の現在の条件は `experiments/function_call_numeric_sum.json` に記録します。履歴保存時に3言語の出力の `config` と `validation.expected_checksum` をこの定義と照合し、定義と一致しなければ保存しません。保存に成功すると、そのとき使用した定義のバイト列を履歴内の `experiment.json` にコピーし、`archive.json` にそのSHA-256を記録します。後からリポジトリ側の定義を変更しても、過去の条件を確認できます。定義を変更するだけで測定条件が切り替わる仕組みではなく、各言語の測定コードに設定した値との一致を検査する段階です。
@@ -163,6 +165,8 @@ python tools/show_archive_variability.py --json @archives
 ```
 
 `tools/show_archive_variability.py` は異なる履歴フォルダを2件以上受け付けます。各履歴の `archive_id`、`experiment_id`、`archived_at` とC・JavaScript・Pythonの `direct` / `function_call` の計6中央値を表示し、全組を既存の2履歴判定で調べます。5履歴なら10組です。全組が `comparable` のときだけ実行間の最小中央値・最大中央値・差（最大−最小、ms）を通常の比較値として示します。`caution` を含み `incomparable` がなければ、それらを**参考値**として示し、各組の原因コードと対象フィールドを添えます。CのOS版 `environment.os_version` が未記録なら、同じマシンの5回でも `INFORMATION_MISSING` の `caution` になり得ます。`incomparable` を含む場合は6ケースそれぞれの各履歴の中央値だけを示し、集団の最小・最大・差は出しません。不正・改変履歴、同一フォルダの重複指定は検証エラーです。別の場所にコピーされた履歴でも、検証後の `archive_id` が重複すれば同じ測定として `DUPLICATE_ARCHIVE` エラーにし、集計値は出しません。
+
+以前のCのOS版が `null` の履歴はそのまま保持します。新しい版記録済み履歴同士は他の条件も一致すれば `comparable` になりますが、新旧の組は引き続き `INFORMATION_MISSING` / `environment.os_version` の `caution` です。保存履歴のJSONやSHA-256を書き換えて注意判定を消さないでください。
 
 JSONは `unit: "ms"`、全体の `verdict`、`runs`（入力順の身元情報と6中央値）、`pairwise.counts`、`pairwise.pairs`（0始まりの入力位置、判定、理由）を分けます。集団の数値を出せるときだけ `aggregate` を含み、その `status` は `comparable` または `reference`、`cases` に6ケースの `min_median_ms`、`max_median_ms`、`range_ms` を入れます。差が有限値にならない場合は `range_ms: null` と理由コードを返し、NaNやInfinityは出しません。中央値は各回の50個の `samples_ms` から既存Validatorと同じ関数で計算します。5回の範囲は記述的な揺れであり、統計的有意差、最適化の効果、言語全体の優劣を判定しません。
 

@@ -67,6 +67,32 @@ static const char *architecture_name(WORD architecture) {
     }
 }
 
+typedef LONG (WINAPI *RtlGetVersionFn)(OSVERSIONINFOW *);
+
+/* RtlGetVersion reports the running NT version without GetVersionEx manifest virtualization. */
+static int format_os_version(RtlGetVersionFn query, char *buffer, size_t size) {
+    OSVERSIONINFOW version = {0};
+    int written;
+    if (!query) return 0;
+    version.dwOSVersionInfoSize = sizeof(version);
+    if (query(&version) != 0) return 0;
+    written = snprintf(buffer, size, "%lu.%lu.%lu",
+        (unsigned long)version.dwMajorVersion, (unsigned long)version.dwMinorVersion,
+        (unsigned long)version.dwBuildNumber);
+    return written > 0 && (size_t)written < size;
+}
+
+static int get_os_version(char *buffer, size_t size) {
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    FARPROC symbol;
+    RtlGetVersionFn query;
+    if (!ntdll) return 0;
+    symbol = GetProcAddress(ntdll, "RtlGetVersion");
+    if (!symbol || sizeof(symbol) != sizeof(query)) return 0;
+    memcpy(&query, &symbol, sizeof(query));
+    return format_os_version(query, buffer, size);
+}
+
 static void cpu_model(char *buffer, DWORD size) {
     HKEY key = NULL; DWORD type = 0;
     buffer[0] = '\0';
@@ -132,12 +158,13 @@ static int optional_arg(int argc, char *argv[], const char *prefix, char *output
 
 int main(int argc, char *argv[]) {
     double compile_ms, setup_start, setup_ms, direct_warmup, call_warmup, direct_samples[MEASUREMENT_ITERATIONS], call_samples[MEASUREMENT_ITERATIONS], measurement_ms;
-    int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", output_path[PATH_SIZE];
+    int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", os_version[64], output_path[PATH_SIZE];
     SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index;
     if (argc < 6 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0] || !argv[5][0]) {
         fprintf(stderr, "status=error\nmessage=expected build and optimization analysis arguments\n"); return 1;
     }
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) { fprintf(stderr, "status=error\nmessage=high-resolution timer is unavailable\n"); return 1; }
+    if (!get_os_version(os_version, sizeof(os_version))) { fprintf(stderr, "status=error\nmessage=failed to get OS version via RtlGetVersion\n"); return 1; }
     if (!optional_arg(argc, argv, "--experiment-id=", experiment_id, sizeof(experiment_id))) {
         const char *value = getenv("LANGBENCH_EXPERIMENT_ID"); if (value) strncpy(experiment_id, value, sizeof(experiment_id) - 1);
     }
@@ -167,7 +194,7 @@ int main(int argc, char *argv[]) {
     fprintf(out, ",\n  \"run_id\": "); write_json_string(out, run_id); fprintf(out, ",\n  \"language\": \"c\",\n  \"created_at\": "); write_json_string(out, created_at);
     fprintf(out, ",\n  \"status\": \"success\",\n  \"engine\": {\"runtime\": \"native\", \"runtime_version\": null},\n  \"execution\": {\"runner\": \"vscode_terminal_powershell\", \"runner_label\": \"VSCode Terminal / PowerShell\", \"cwd\": "); write_json_string(out, cwd); fprintf(out, ", \"argv\": [");
     for (int i = 0; i < argc; i++) { write_json_string(out, argv[i]); fprintf(out, "%s", i + 1 == argc ? "" : ", "); }
-    fprintf(out, "]},\n  \"environment\": {\"os\": \"Windows\", \"os_version\": null, \"architecture\": "); if (architecture_name(system.wProcessorArchitecture)) write_json_string(out, architecture_name(system.wProcessorArchitecture)); else fputs("null", out);
+    fprintf(out, "]},\n  \"environment\": {\"os\": \"Windows\", \"os_version\": "); write_json_string(out, os_version); fprintf(out, ", \"architecture\": "); if (architecture_name(system.wProcessorArchitecture)) write_json_string(out, architecture_name(system.wProcessorArchitecture)); else fputs("null", out);
     fprintf(out, ", \"cpu\": "); if (cpu[0]) write_json_string(out, cpu); else fputs("null", out); fprintf(out, ", \"logical_processors\": %lu, \"memory_bytes\": ", system.dwNumberOfProcessors); if (memory.ullTotalPhys) fprintf(out, "%" PRIu64, (uint64_t)memory.ullTotalPhys); else fputs("null", out);
     fprintf(out, "},\n  \"build\": {\"required\": true, \"compiler\": \"gcc\", \"compiler_version\": "); write_json_string(out, argv[2]); fprintf(out, ", \"compile_command\": "); write_json_string(out, argv[3]); fprintf(out, ", \"compile_ms\": %.3f, \"source_path\": ", compile_ms); write_json_string(out, argv[4]);
     fprintf(out, "},\n  \"optimization_analysis\": ");

@@ -612,108 +612,120 @@
 	.align 8
 .LC23:
 	.ascii "status=error\12message=high-resolution timer is unavailable\12\0"
+	.align 2
 .LC24:
-	.ascii "--experiment-id=\0"
+	.ascii "n\0t\0d\0l\0l\0.\0d\0l\0l\0\0\0"
 .LC25:
-	.ascii "LANGBENCH_EXPERIMENT_ID\0"
+	.ascii "RtlGetVersion\0"
 .LC26:
-	.ascii "--run-id=\0"
+	.ascii "%lu.%lu.%lu\0"
 .LC27:
-	.ascii "LANGBENCH_RUN_ID\0"
+	.ascii "--experiment-id=\0"
+	.align 8
 .LC28:
-	.ascii "%s_%s\0"
+	.ascii "status=error\12message=failed to get OS version via RtlGetVersion\12\0"
 .LC29:
-	.ascii "function_call_numeric_sum\0"
+	.ascii "LANGBENCH_EXPERIMENT_ID\0"
 .LC30:
-	.ascii "%s_%s_%s\0"
+	.ascii "--run-id=\0"
 .LC31:
+	.ascii "LANGBENCH_RUN_ID\0"
+.LC32:
+	.ascii "%s_%s\0"
+.LC33:
+	.ascii "function_call_numeric_sum\0"
+.LC34:
+	.ascii "%s_%s_%s\0"
+.LC35:
 	.ascii "c\0"
 	.align 8
-.LC32:
+.LC36:
 	.ascii "status=error\12message=failed to allocate array\12\0"
 	.align 8
-.LC36:
+.LC40:
 	.ascii "status=error\12message=checksum mismatch\12\0"
 	.align 8
-.LC37:
+.LC41:
 	.ascii "status=error\12message=failed to get cwd\12\0"
 	.align 8
-.LC38:
+.LC42:
 	.ascii "status=error\12message=result path is too long\12\0"
 	.align 8
-.LC39:
+.LC43:
 	.ascii "results\\function_call_numeric_sum_c_result.json\0"
-.LC40:
+.LC44:
 	.ascii "%Y-%m-%dT%H:%M:%S\0"
-.LC41:
+.LC45:
 	.ascii "%s%c%02d:%02d\0"
 	.align 8
-.LC42:
+.LC46:
 	.ascii "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0\0"
-.LC43:
+.LC47:
 	.ascii "ProcessorNameString\0"
-.LC44:
+.LC48:
 	.ascii "wb\0"
 	.align 8
-.LC45:
+.LC49:
 	.ascii "status=error\12message=failed to open result: %s\12\0"
 	.align 8
-.LC46:
+.LC50:
 	.ascii "{\12  \"type\": \"langbench_result\",\12  \"schema_version\": \"1.0\",\12  \"project\": \"LangBench Live\",\12  \"benchmark\": \"%s\",\12  \"experiment_id\": \0"
-.LC47:
+.LC51:
 	.ascii ",\12  \"run_id\": \0"
 	.align 8
-.LC48:
+.LC52:
 	.ascii ",\12  \"language\": \"c\",\12  \"created_at\": \0"
 	.align 8
-.LC49:
+.LC53:
 	.ascii ",\12  \"status\": \"success\",\12  \"engine\": {\"runtime\": \"native\", \"runtime_version\": null},\12  \"execution\": {\"runner\": \"vscode_terminal_powershell\", \"runner_label\": \"VSCode Terminal / PowerShell\", \"cwd\": \0"
-.LC50:
+.LC54:
 	.ascii ", \"argv\": [\0"
-.LC51:
+.LC55:
 	.ascii ", \0"
 	.align 8
-.LC52:
-	.ascii "]},\12  \"environment\": {\"os\": \"Windows\", \"os_version\": null, \"architecture\": \0"
-.LC53:
+.LC56:
+	.ascii "]},\12  \"environment\": {\"os\": \"Windows\", \"os_version\": \0"
+.LC57:
+	.ascii ", \"architecture\": \0"
+.LC58:
 	.ascii "null\0"
-.LC54:
+.LC59:
 	.ascii ", \"cpu\": \0"
 	.align 8
-.LC55:
+.LC60:
 	.ascii ", \"logical_processors\": %lu, \"memory_bytes\": \0"
-.LC56:
+.LC61:
 	.ascii "%llu\0"
 	.align 8
-.LC57:
+.LC62:
 	.ascii "},\12  \"build\": {\"required\": true, \"compiler\": \"gcc\", \"compiler_version\": \0"
-.LC58:
+.LC63:
 	.ascii ", \"compile_command\": \0"
 	.align 8
-.LC59:
+.LC64:
 	.ascii ", \"compile_ms\": %.3f, \"source_path\": \0"
 	.align 8
-.LC60:
+.LC65:
 	.ascii "},\12  \"optimization_analysis\": \0"
-.LC61:
+.LC66:
 	.ascii "rb\0"
-.LC62:
+.LC67:
 	.ascii ",\12\0"
 	.align 8
-.LC63:
+.LC68:
 	.ascii "  \"config\": {\"item_count\": %d, \"warmup_iterations\": %d, \"measurement_iterations\": %d, \"numeric_type\": \"integer\", \"value_field\": \"value\", \"cases\": [\"direct\", \"function_call\"]},\12  \"timing\": {\"process_startup_ms\": null, \"setup_ms\": %.3f, \"warmup_ms\": %.3f, \"measurement_ms\": %.3f, \"benchmark_total_ms\": %.3f},\12  \"results\": {\"direct\": \0"
-.LC64:
+.LC69:
 	.ascii ", \"function_call\": \0"
 	.align 8
-.LC65:
+.LC70:
 	.ascii "},\12  \"validation\": {\"direct_checksum\": %lld, \"function_call_checksum\": %lld, \"expected_checksum\": %lld, \"tolerance\": 0, \"passed\": true},\12  \"error\": null\12}\12\0"
 	.align 8
-.LC66:
+.LC71:
 	.ascii "status=error\12message=failed to read optimization analysis JSON\12\0"
 	.align 8
-.LC67:
+.LC72:
 	.ascii "status=error\12message=failed to finish writing result JSON\12\0"
-.LC68:
+.LC73:
 	.ascii "status=success\0"
 	.section	.text.startup,"x"
 	.p2align 4
@@ -723,7 +735,7 @@
 "main":
 	push	r15
 	.seh_pushreg	r15
-	mov	eax, 14232
+	mov	eax, 14296
 	push	r14
 	.seh_pushreg	r14
 	push	rbp
@@ -736,26 +748,22 @@
 	.seh_pushreg	rbx
 	call	___chkstk_ms
 	sub	rsp, rax
-	.seh_stackalloc	14232
-	movups	XMMWORD PTR 14160[rsp], xmm6
-	.seh_savexmm	xmm6, 14160
-	movups	XMMWORD PTR 14176[rsp], xmm7
-	.seh_savexmm	xmm7, 14176
-	movups	XMMWORD PTR 14192[rsp], xmm8
-	.seh_savexmm	xmm8, 14192
-	movups	XMMWORD PTR 14208[rsp], xmm9
-	.seh_savexmm	xmm9, 14208
+	.seh_stackalloc	14296
+	movups	XMMWORD PTR 14224[rsp], xmm6
+	.seh_savexmm	xmm6, 14224
+	movups	XMMWORD PTR 14240[rsp], xmm7
+	.seh_savexmm	xmm7, 14240
+	movups	XMMWORD PTR 14256[rsp], xmm8
+	.seh_savexmm	xmm8, 14256
+	movups	XMMWORD PTR 14272[rsp], xmm9
+	.seh_savexmm	xmm9, 14272
 	.seh_endprologue
-	mov	ebx, ecx
-	mov	rbp, rdx
+	mov	ebp, ecx
+	mov	rbx, rdx
 	call	"__main"
 	pxor	xmm0, xmm0
 	mov	QWORD PTR 120[rsp], 0
 	mov	QWORD PTR 128[rsp], 0
-	movups	XMMWORD PTR 304[rsp], xmm0
-	movups	XMMWORD PTR 320[rsp], xmm0
-	movups	XMMWORD PTR 336[rsp], xmm0
-	movups	XMMWORD PTR 352[rsp], xmm0
 	movups	XMMWORD PTR 368[rsp], xmm0
 	movups	XMMWORD PTR 384[rsp], xmm0
 	movups	XMMWORD PTR 400[rsp], xmm0
@@ -800,15 +808,19 @@
 	movups	XMMWORD PTR 1024[rsp], xmm0
 	movups	XMMWORD PTR 1040[rsp], xmm0
 	movups	XMMWORD PTR 1056[rsp], xmm0
-	cmp	ebx, 5
+	movups	XMMWORD PTR 1072[rsp], xmm0
+	movups	XMMWORD PTR 1088[rsp], xmm0
+	movups	XMMWORD PTR 1104[rsp], xmm0
+	movups	XMMWORD PTR 1120[rsp], xmm0
+	cmp	ebp, 5
 	jle	.L62
-	mov	rcx, QWORD PTR 8[rbp]
+	mov	rcx, QWORD PTR 8[rbx]
 	lea	r8, 96[rsp]
 	lea	rdx, .LC21[rip]
 	call	"sscanf"
 	mov	r10d, eax
 	cmp	eax, 1
-	je	.L128
+	je	.L137
 .L62:
 	mov	ecx, 2
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
@@ -819,12 +831,12 @@
 	call	"fwrite"
 	mov	r10d, 1
 .L61:
-	movups	xmm6, XMMWORD PTR 14160[rsp]
+	movups	xmm6, XMMWORD PTR 14224[rsp]
 	mov	eax, r10d
-	movups	xmm7, XMMWORD PTR 14176[rsp]
-	movups	xmm8, XMMWORD PTR 14192[rsp]
-	movups	xmm9, XMMWORD PTR 14208[rsp]
-	add	rsp, 14232
+	movups	xmm7, XMMWORD PTR 14240[rsp]
+	movups	xmm8, XMMWORD PTR 14256[rsp]
+	movups	xmm9, XMMWORD PTR 14272[rsp]
+	add	rsp, 14296
 	pop	rbx
 	pop	rsi
 	pop	rdi
@@ -832,20 +844,20 @@
 	pop	r14
 	pop	r15
 	ret
-.L128:
+.L137:
 	pxor	xmm0, xmm0
 	comisd	xmm0, QWORD PTR 96[rsp]
 	ja	.L62
-	mov	rax, QWORD PTR 16[rbp]
+	mov	rax, QWORD PTR 16[rbx]
 	cmp	BYTE PTR [rax], 0
 	je	.L62
-	mov	rax, QWORD PTR 24[rbp]
+	mov	rax, QWORD PTR 24[rbx]
 	cmp	BYTE PTR [rax], 0
 	je	.L62
-	mov	rax, QWORD PTR 32[rbp]
+	mov	rax, QWORD PTR 32[rbx]
 	cmp	BYTE PTR [rax], 0
 	je	.L62
-	mov	rax, QWORD PTR 40[rbp]
+	mov	rax, QWORD PTR 40[rbx]
 	cmp	BYTE PTR [rax], 0
 	je	.L62
 	mov	DWORD PTR 80[rsp], r10d
@@ -856,32 +868,86 @@
 	je	.L65
 	cmp	QWORD PTR "timer_frequency"[rip], 0
 	je	.L65
-	lea	r9, 304[rsp]
-	lea	r8, .LC24[rip]
-	mov	rdx, rbp
-	mov	ecx, ebx
 	mov	DWORD PTR 80[rsp], r10d
-	call	"optional_arg.constprop.0"
+	lea	rcx, .LC24[rip]
+	call	[QWORD PTR __imp_GetModuleHandleW[rip]]
+	mov	r10d, DWORD PTR 80[rsp]
+	test	rax, rax
+	je	.L67
+	lea	rdx, .LC25[rip]
+	mov	rcx, rax
+	call	[QWORD PTR __imp_GetProcAddress[rip]]
+	mov	r10d, DWORD PTR 80[rsp]
+	test	rax, rax
+	je	.L67
+	xor	edx, edx
+	mov	r8d, 276
+	mov	QWORD PTR 88[rsp], rax
+	lea	rcx, 10128[rsp]
+	call	"memset"
+	lea	rcx, 10128[rsp]
+	mov	DWORD PTR 10128[rsp], 276
+	call	[QWORD PTR 88[rsp]]
 	mov	r10d, DWORD PTR 80[rsp]
 	test	eax, eax
-	je	.L129
+	je	.L138
 .L67:
-	lea	r9, 560[rsp]
+	mov	DWORD PTR 80[rsp], r10d
+	mov	ecx, 2
+	call	[QWORD PTR __imp___acrt_iob_func[rip]]
+	mov	r8d, 64
+	mov	edx, 1
+	lea	rcx, .LC28[rip]
+	mov	r9, rax
+	call	"fwrite"
+	mov	r10d, DWORD PTR 80[rsp]
+	jmp	.L61
+.L65:
+	mov	DWORD PTR 80[rsp], r10d
+	mov	ecx, 2
+	call	[QWORD PTR __imp___acrt_iob_func[rip]]
+	mov	r8d, 58
+	mov	edx, 1
+	lea	rcx, .LC23[rip]
+	mov	r9, rax
+	call	"fwrite"
+	mov	r10d, DWORD PTR 80[rsp]
+	jmp	.L61
+.L138:
+	mov	eax, DWORD PTR 10140[rsp]
+	mov	r9d, DWORD PTR 10132[rsp]
 	lea	r8, .LC26[rip]
-	mov	rdx, rbp
-	mov	ecx, ebx
+	mov	edx, 64
+	lea	rcx, 240[rsp]
+	mov	DWORD PTR 40[rsp], eax
+	mov	eax, DWORD PTR 10136[rsp]
+	mov	DWORD PTR 32[rsp], eax
+	call	"snprintf"
+	lea	r9, 368[rsp]
+	lea	r8, .LC27[rip]
+	mov	ecx, ebp
+	mov	rdx, rbx
+	call	"optional_arg.constprop.0"
+	mov	r10d, DWORD PTR 80[rsp]
+	test	eax, eax
+	je	.L139
+.L70:
+	lea	r9, 624[rsp]
+	lea	r8, .LC30[rip]
+	mov	rdx, rbx
+	mov	ecx, ebp
 	mov	DWORD PTR 80[rsp], r10d
 	call	"optional_arg.constprop.0"
 	mov	r10d, DWORD PTR 80[rsp]
 	test	eax, eax
-	je	.L130
-.L68:
-	cmp	BYTE PTR 304[rsp], 0
-	je	.L131
-.L69:
-	cmp	BYTE PTR 560[rsp], 0
-	je	.L132
-.L70:
+	je	.L140
+.L72:
+	cmp	BYTE PTR 368[rsp], 0
+	je	.L141
+.L73:
+	cmp	BYTE PTR 624[rsp], 0
+	je	.L142
+.L74:
 	mov	DWORD PTR 80[rsp], r10d
 	call	"now_ms"
 	mov	ecx, 4000000
@@ -890,16 +956,16 @@
 	mov	r10d, DWORD PTR 80[rsp]
 	test	rax, rax
 	mov	r14, rax
-	je	.L133
+	je	.L143
 	movdqu	xmm0, XMMWORD PTR .LC16[rip]
-	movdqu	xmm5, XMMWORD PTR .LC33[rip]
+	movdqu	xmm5, XMMWORD PTR .LC37[rip]
 	lea	rdx, 4000000[rax]
-	movdqu	xmm4, XMMWORD PTR .LC34[rip]
-	movdqu	xmm3, XMMWORD PTR .LC35[rip]
+	movdqu	xmm4, XMMWORD PTR .LC38[rip]
+	movdqu	xmm3, XMMWORD PTR .LC39[rip]
 	.p2align 6
 	.p2align 4
 	.p2align 3
-.L73:
+.L76:
 	movdqa	xmm2, xmm0
 	movdqa	xmm1, xmm0
 	paddq	xmm0, xmm3
@@ -909,12 +975,12 @@
 	paddd	xmm1, xmm4
 	movups	XMMWORD PTR -16[rax], xmm1
 	cmp	rax, rdx
-	jne	.L73
+	jne	.L76
 	mov	DWORD PTR 80[rsp], r10d
 	call	"now_ms"
 	lea	rax, 120[rsp]
 	mov	rcx, r14
-	lea	r9, 1072[rsp]
+	lea	r9, 1136[rsp]
 	mov	QWORD PTR 32[rsp], rax
 	lea	r8, 104[rsp]
 	lea	rdx, "direct_sum"[rip]
@@ -922,67 +988,67 @@
 	call	"measure.constprop.0"
 	mov	r10d, DWORD PTR 80[rsp]
 	test	eax, eax
-	je	.L74
+	je	.L77
 	lea	rax, 128[rsp]
 	lea	r8, 112[rsp]
 	mov	rcx, r14
 	mov	QWORD PTR 32[rsp], rax
-	lea	r9, 1472[rsp]
+	lea	r9, 1536[rsp]
 	lea	rdx, "function_call_sum"[rip]
 	call	"measure.constprop.0"
 	mov	r10d, DWORD PTR 80[rsp]
 	test	eax, eax
 	mov	r15d, eax
-	je	.L74
-	lea	rcx, 1072[rsp]
-	lea	rdx, 1872[rsp]
+	je	.L77
+	lea	rcx, 1136[rsp]
+	lea	rdx, 1936[rsp]
 	call	"sample_total"
-	lea	rcx, 1472[rsp]
+	lea	rcx, 1536[rsp]
 	movapd	xmm8, xmm0
 	call	"sample_total"
 	mov	ecx, 4096
 	movapd	xmm9, xmm0
 	call	[QWORD PTR __imp_GetCurrentDirectoryA[rip]]
 	test	eax, eax
-	je	.L134
-	lea	rcx, 1872[rsp]
+	je	.L144
+	lea	rcx, 1936[rsp]
 	call	"strlen"
 	mov	r8, rax
 	lea	rax, 49[rax]
 	cmp	rax, 4096
-	ja	.L135
-	lea	rdx, 1872[rsp]
-	lea	rcx, 5968[rsp]
+	ja	.L145
+	lea	rdx, 1936[rsp]
+	lea	rcx, 6032[rsp]
 	mov	QWORD PTR 80[rsp], r8
 	call	"memcpy"
 	mov	r8, QWORD PTR 80[rsp]
-	mov	ecx, DWORD PTR .LC39[rip+44]
-	lea	rsi, .LC39[rip]
-	mov	DWORD PTR 6013[rsp+r8], ecx
-	lea	rdi, 5969[rsp+r8]
+	mov	ecx, DWORD PTR .LC43[rip+44]
+	lea	rsi, .LC43[rip]
+	mov	DWORD PTR 6077[rsp+r8], ecx
+	lea	rdi, 6033[rsp+r8]
 	mov	ecx, 11
-	mov	BYTE PTR 5968[rsp+r8], 92
+	mov	BYTE PTR 6032[rsp+r8], 92
 	rep movsd
 	call	_time64
 	lea	rdx, 136[rsp]
-	lea	rcx, 240[rsp]
+	lea	rcx, 304[rsp]
 	mov	QWORD PTR 136[rsp], rax
 	call	_localtime64_s
-	lea	r9, 240[rsp]
-	lea	r8, .LC40[rip]
+	lea	r9, 304[rsp]
+	lea	r8, .LC44[rip]
 	mov	edx, 32
 	lea	rcx, 192[rsp]
 	call	"strftime"
-	lea	rcx, 10064[rsp]
+	lea	rcx, 10128[rsp]
 	call	[QWORD PTR __imp_GetTimeZoneInformation[rip]]
-	mov	ecx, DWORD PTR 10064[rsp]
+	mov	ecx, DWORD PTR 10128[rsp]
 	cmp	eax, 1
-	je	.L136
+	je	.L146
 	mov	edx, ecx
-	add	ecx, DWORD PTR 10232[rsp]
+	add	ecx, DWORD PTR 10296[rsp]
 	cmp	eax, 2
 	cmovne	ecx, edx
-.L80:
+.L83:
 	mov	eax, ecx
 	lea	r9, 192[rsp]
 	mov	r8d, 60
@@ -991,7 +1057,7 @@
 	cdq
 	idiv	r8d
 	test	ecx, ecx
-	lea	r8, .LC41[rip]
+	lea	r8, .LC45[rip]
 	setg	cl
 	movzx	ecx, cl
 	lea	ecx, 43[rcx+rcx]
@@ -1004,55 +1070,55 @@
 	xor	edx, edx
 	xor	ecx, ecx
 	xor	r8d, r8d
-	lea	rax, 10064[rsp]
-	mov	QWORD PTR 10064[rsp], rdx
+	lea	rax, 10128[rsp]
+	mov	QWORD PTR 10128[rsp], rdx
 	mov	r9d, 131097
-	lea	rdx, .LC42[rip]
-	mov	DWORD PTR 240[rsp], ecx
+	lea	rdx, .LC46[rip]
+	mov	DWORD PTR 304[rsp], ecx
 	mov	rcx, -2147483646
 	mov	DWORD PTR 136[rsp], 256
-	mov	BYTE PTR 816[rsp], 0
+	mov	BYTE PTR 880[rsp], 0
 	mov	QWORD PTR 32[rsp], rax
 	call	[QWORD PTR __imp_RegOpenKeyExA[rip]]
 	test	eax, eax
-	je	.L137
-.L82:
+	je	.L147
+.L85:
 	lea	rcx, 192[rsp]
 	call	[QWORD PTR __imp_GetNativeSystemInfo[rip]]
-	lea	rcx, 240[rsp]
-	mov	DWORD PTR 240[rsp], 64
+	lea	rcx, 304[rsp]
+	mov	DWORD PTR 304[rsp], 64
 	call	[QWORD PTR __imp_GlobalMemoryStatusEx[rip]]
 	test	eax, eax
-	jne	.L83
+	jne	.L86
 	xor	eax, eax
-	mov	QWORD PTR 248[rsp], rax
-.L83:
-	lea	rdx, .LC44[rip]
-	lea	rcx, 5968[rsp]
+	mov	QWORD PTR 312[rsp], rax
+.L86:
+	lea	rdx, .LC48[rip]
+	lea	rcx, 6032[rsp]
 	call	"fopen"
 	mov	rsi, rax
 	test	rax, rax
-	je	.L138
-	lea	r8, .LC29[rip]
-	lea	rdx, .LC46[rip]
+	je	.L148
+	lea	r8, .LC33[rip]
+	lea	rdx, .LC50[rip]
 	mov	rcx, rax
 	call	"fprintf"
-	lea	rdx, 304[rsp]
+	lea	rdx, 368[rsp]
 	mov	rcx, rsi
-	lea	edi, -1[rbx]
+	lea	edi, -1[rbp]
 	call	"write_json_string"
 	mov	r9, rsi
 	mov	r8d, 14
 	mov	edx, 1
-	lea	rcx, .LC47[rip]
+	lea	rcx, .LC51[rip]
 	call	"fwrite"
-	lea	rdx, 560[rsp]
+	lea	rdx, 624[rsp]
 	mov	rcx, rsi
 	call	"write_json_string"
 	mov	r9, rsi
 	mov	r8d, 37
 	mov	edx, 1
-	lea	rcx, .LC48[rip]
+	lea	rcx, .LC52[rip]
 	call	"fwrite"
 	lea	rdx, 144[rsp]
 	mov	rcx, rsi
@@ -1060,133 +1126,141 @@
 	mov	r9, rsi
 	mov	r8d, 196
 	mov	edx, 1
-	lea	rcx, .LC49[rip]
+	lea	rcx, .LC53[rip]
 	call	"fwrite"
-	lea	rdx, 1872[rsp]
+	lea	rdx, 1936[rsp]
 	mov	rcx, rsi
 	call	"write_json_string"
 	mov	r9, rsi
 	mov	r8d, 11
 	mov	edx, 1
-	lea	rcx, .LC50[rip]
+	lea	rcx, .LC54[rip]
 	call	"fwrite"
 	xor	r10d, r10d
-	jmp	.L86
-.L139:
+	jmp	.L89
+.L149:
 	mov	r9, rsi
 	mov	r8d, 2
 	mov	edx, 1
-	lea	rcx, .LC51[rip]
+	lea	rcx, .LC55[rip]
 	call	"fwrite"
 	mov	r10, QWORD PTR 80[rsp]
 	add	r10, 1
-	cmp	ebx, r10d
-	jle	.L85
-.L86:
-	mov	rdx, QWORD PTR 0[rbp+r10*8]
+	cmp	ebp, r10d
+	jle	.L88
+.L89:
+	mov	rdx, QWORD PTR [rbx+r10*8]
 	mov	rcx, rsi
 	mov	QWORD PTR 80[rsp], r10
 	call	"write_json_string"
 	cmp	rdi, QWORD PTR 80[rsp]
-	jne	.L139
-.L85:
+	jne	.L149
+.L88:
 	mov	r9, rsi
-	mov	r8d, 75
+	mov	r8d, 53
 	mov	edx, 1
-	lea	rcx, .LC52[rip]
+	lea	rcx, .LC56[rip]
 	call	"fwrite"
-	movzx	eax, WORD PTR 192[rsp]
-	cmp	ax, 9
-	je	.L102
-	ja	.L88
-	test	ax, ax
-	je	.L103
-	lea	rdx, .LC18[rip]
-	cmp	ax, 5
-	jne	.L89
-.L87:
+	lea	rdx, 240[rsp]
 	mov	rcx, rsi
 	call	"write_json_string"
-.L90:
 	mov	r9, rsi
-	mov	r8d, 9
-	mov	edx, 1
-	lea	rcx, .LC54[rip]
-	call	"fwrite"
-	cmp	BYTE PTR 816[rsp], 0
-	je	.L91
-	lea	rdx, 816[rsp]
-	mov	rcx, rsi
-	call	"write_json_string"
-.L92:
-	mov	r8d, DWORD PTR 224[rsp]
-	lea	rdx, .LC55[rip]
-	mov	rcx, rsi
-	call	"fprintf"
-	mov	r8, QWORD PTR 248[rsp]
-	test	r8, r8
-	je	.L93
-	lea	rdx, .LC56[rip]
-	mov	rcx, rsi
-	call	"fprintf"
-.L94:
-	mov	r9, rsi
-	mov	r8d, 72
+	mov	r8d, 18
 	mov	edx, 1
 	lea	rcx, .LC57[rip]
 	call	"fwrite"
-	mov	rdx, QWORD PTR 16[rbp]
+	movzx	eax, WORD PTR 192[rsp]
+	cmp	ax, 9
+	je	.L105
+	ja	.L91
+	test	ax, ax
+	je	.L106
+	lea	rdx, .LC18[rip]
+	cmp	ax, 5
+	jne	.L92
+.L90:
+	mov	rcx, rsi
+	call	"write_json_string"
+.L93:
+	mov	r9, rsi
+	mov	r8d, 9
+	mov	edx, 1
+	lea	rcx, .LC59[rip]
+	call	"fwrite"
+	cmp	BYTE PTR 880[rsp], 0
+	je	.L94
+	lea	rdx, 880[rsp]
+	mov	rcx, rsi
+	call	"write_json_string"
+.L95:
+	mov	r8d, DWORD PTR 224[rsp]
+	lea	rdx, .LC60[rip]
+	mov	rcx, rsi
+	call	"fprintf"
+	mov	r8, QWORD PTR 312[rsp]
+	test	r8, r8
+	je	.L96
+	lea	rdx, .LC61[rip]
+	mov	rcx, rsi
+	call	"fprintf"
+.L97:
+	mov	r9, rsi
+	mov	r8d, 72
+	mov	edx, 1
+	lea	rcx, .LC62[rip]
+	call	"fwrite"
+	mov	rdx, QWORD PTR 16[rbx]
 	mov	rcx, rsi
 	call	"write_json_string"
 	mov	r9, rsi
 	mov	r8d, 21
 	mov	edx, 1
-	lea	rcx, .LC58[rip]
+	lea	rcx, .LC63[rip]
 	call	"fwrite"
-	mov	rdx, QWORD PTR 24[rbp]
+	mov	rdx, QWORD PTR 24[rbx]
 	mov	rcx, rsi
 	call	"write_json_string"
 	movsd	xmm2, QWORD PTR 96[rsp]
-	lea	rdx, .LC59[rip]
+	lea	rdx, .LC64[rip]
 	mov	rcx, rsi
 	movq	r8, xmm2
 	call	"fprintf"
-	mov	rdx, QWORD PTR 32[rbp]
+	mov	rdx, QWORD PTR 32[rbx]
 	mov	rcx, rsi
 	call	"write_json_string"
 	mov	r9, rsi
 	mov	r8d, 30
 	mov	edx, 1
-	lea	rcx, .LC60[rip]
+	lea	rcx, .LC65[rip]
 	call	"fwrite"
-	mov	rcx, QWORD PTR 40[rbp]
-	lea	rdx, .LC61[rip]
+	mov	rcx, QWORD PTR 40[rbx]
+	lea	rdx, .LC66[rip]
 	call	"fopen"
 	mov	rbp, rax
 	test	rax, rax
-	jne	.L96
-	jmp	.L95
-.L97:
+	jne	.L99
+	jmp	.L98
+.L100:
 	mov	r9, rsi
 	mov	r8, rbx
 	mov	edx, 1
-	lea	rcx, 10064[rsp]
+	lea	rcx, 10128[rsp]
 	call	"fwrite"
 	cmp	rbx, rax
-	jne	.L127
-.L96:
+	jne	.L136
+.L99:
 	mov	r9, rbp
 	mov	r8d, 4096
 	mov	edx, 1
-	lea	rcx, 10064[rsp]
+	lea	rcx, 10128[rsp]
 	call	"fread"
 	mov	rbx, rax
 	test	rax, rax
-	jne	.L97
+	jne	.L100
 	mov	rcx, rbp
 	call	"ferror"
 	test	eax, eax
-	jne	.L127
+	jne	.L136
 	movapd	xmm0, xmm7
 	pxor	xmm4, xmm4
 	pxor	xmm5, xmm5
@@ -1211,7 +1285,7 @@
 	mov	r9, rsi
 	mov	r8d, 2
 	mov	edx, 1
-	lea	rcx, .LC62[rip]
+	lea	rcx, .LC67[rip]
 	call	"fwrite"
 	movsd	xmm2, QWORD PTR 104[rsp]
 	mov	rcx, rsi
@@ -1227,7 +1301,7 @@
 	addsd	xmm0, xmm4
 	addsd	xmm2, xmm3
 	movsd	QWORD PTR 56[rsp], xmm5
-	lea	rdx, .LC63[rip]
+	lea	rdx, .LC68[rip]
 	addsd	xmm0, xmm3
 	mulsd	xmm2, xmm1
 	addsd	xmm2, QWORD PTR .LC2[rip]
@@ -1245,22 +1319,22 @@
 	divsd	xmm0, xmm1
 	movsd	QWORD PTR 48[rsp], xmm0
 	call	"fprintf"
-	lea	rdx, 1072[rsp]
+	lea	rdx, 1136[rsp]
 	mov	rcx, rsi
 	call	"write_case"
 	mov	r9, rsi
 	mov	r8d, 19
 	mov	edx, 1
-	lea	rcx, .LC64[rip]
+	lea	rcx, .LC69[rip]
 	call	"fwrite"
-	lea	rdx, 1472[rsp]
+	lea	rdx, 1536[rsp]
 	mov	rcx, rsi
 	call	"write_case"
 	mov	r9, QWORD PTR 128[rsp]
 	mov	r8, QWORD PTR 120[rsp]
 	mov	rcx, rsi
 	movabs	rax, 500000500000
-	lea	rdx, .LC65[rip]
+	lea	rdx, .LC70[rip]
 	mov	QWORD PTR 32[rsp], rax
 	call	"fprintf"
 	mov	rcx, rsi
@@ -1269,31 +1343,20 @@
 	mov	ebx, eax
 	call	"fclose"
 	or	eax, ebx
-	je	.L140
+	je	.L150
 	mov	rcx, r14
 	call	"free"
 	mov	ecx, 2
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8d, 58
 	mov	edx, 1
-	lea	rcx, .LC67[rip]
+	lea	rcx, .LC72[rip]
 	mov	r9, rax
 	call	"fwrite"
-.L77:
+.L80:
 	mov	r10d, r15d
 	jmp	.L61
-.L65:
-	mov	DWORD PTR 80[rsp], r10d
-	mov	ecx, 2
-	call	[QWORD PTR __imp___acrt_iob_func[rip]]
-	mov	r8d, 58
-	mov	edx, 1
-	lea	rcx, .LC23[rip]
-	mov	r9, rax
-	call	"fwrite"
-	mov	r10d, DWORD PTR 80[rsp]
-	jmp	.L61
-.L74:
+.L77:
 	mov	rcx, r14
 	mov	DWORD PTR 80[rsp], r10d
 	call	"free"
@@ -1301,78 +1364,79 @@
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8d, 39
 	mov	edx, 1
-	lea	rcx, .LC36[rip]
+	lea	rcx, .LC40[rip]
 	mov	r9, rax
 	call	"fwrite"
 	mov	r10d, DWORD PTR 80[rsp]
 	jmp	.L61
-.L132:
-	lea	rcx, 10064[rsp]
+.L142:
+	lea	rcx, 10128[rsp]
 	mov	DWORD PTR 80[rsp], r10d
 	call	"timestamp_id.constprop.0"
-	lea	rax, .LC29[rip]
+	lea	rax, .LC33[rip]
 	mov	edx, 256
-	lea	r9, 10064[rsp]
+	lea	r9, 10128[rsp]
 	mov	QWORD PTR 40[rsp], rax
-	lea	rax, .LC31[rip]
-	lea	r8, .LC30[rip]
+	lea	rax, .LC35[rip]
+	lea	r8, .LC34[rip]
 	mov	QWORD PTR 32[rsp], rax
-	lea	rcx, 560[rsp]
+	lea	rcx, 624[rsp]
 	call	"snprintf"
+	mov	r10d, DWORD PTR 80[rsp]
+	jmp	.L74
+.L141:
+	lea	rcx, 10128[rsp]
+	mov	DWORD PTR 80[rsp], r10d
+	call	"timestamp_id.constprop.0"
+	lea	rax, .LC33[rip]
+	mov	edx, 256
+	lea	r9, 10128[rsp]
+	mov	QWORD PTR 32[rsp], rax
+	lea	r8, .LC32[rip]
+	lea	rcx, 368[rsp]
+	call	"snprintf"
+	mov	r10d, DWORD PTR 80[rsp]
+	jmp	.L73
+.L140:
+	lea	rcx, .LC31[rip]
+	call	"getenv"
+	mov	r10d, DWORD PTR 80[rsp]
+	test	rax, rax
+	je	.L72
+	mov	r8d, 255
+	mov	rdx, rax
+	lea	rcx, 624[rsp]
+	call	"strncpy"
+	mov	r10d, DWORD PTR 80[rsp]
+	jmp	.L72
+.L139:
+	lea	rcx, .LC29[rip]
+	mov	DWORD PTR 80[rsp], r10d
+	call	"getenv"
+	mov	r10d, DWORD PTR 80[rsp]
+	test	rax, rax
+	je	.L70
+	mov	r8d, 255
+	mov	rdx, rax
+	lea	rcx, 368[rsp]
+	call	"strncpy"
 	mov	r10d, DWORD PTR 80[rsp]
 	jmp	.L70
-.L131:
-	lea	rcx, 10064[rsp]
-	mov	DWORD PTR 80[rsp], r10d
-	call	"timestamp_id.constprop.0"
-	lea	rax, .LC29[rip]
-	mov	edx, 256
-	lea	r9, 10064[rsp]
-	mov	QWORD PTR 32[rsp], rax
-	lea	r8, .LC28[rip]
-	lea	rcx, 304[rsp]
-	call	"snprintf"
-	mov	r10d, DWORD PTR 80[rsp]
-	jmp	.L69
-.L130:
-	lea	rcx, .LC27[rip]
-	call	"getenv"
-	mov	r10d, DWORD PTR 80[rsp]
-	test	rax, rax
-	je	.L68
-	mov	r8d, 255
-	mov	rdx, rax
-	lea	rcx, 560[rsp]
-	call	"strncpy"
-	mov	r10d, DWORD PTR 80[rsp]
-	jmp	.L68
-.L129:
-	lea	rcx, .LC25[rip]
-	call	"getenv"
-	mov	r10d, DWORD PTR 80[rsp]
-	test	rax, rax
-	je	.L67
-	mov	r8d, 255
-	mov	rdx, rax
-	lea	rcx, 304[rsp]
-	call	"strncpy"
-	mov	r10d, DWORD PTR 80[rsp]
-	jmp	.L67
-.L135:
+.L145:
 	mov	rcx, r14
 	call	"free"
 	mov	ecx, 2
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8d, 45
 	mov	edx, 1
-	lea	rcx, .LC38[rip]
+	lea	rcx, .LC42[rip]
 	mov	r9, rax
 	call	"fwrite"
-	jmp	.L77
-.L127:
+	jmp	.L80
+.L136:
 	mov	rcx, rbp
 	call	"fclose"
-.L95:
+.L98:
 	mov	rcx, rsi
 	call	"fclose"
 	mov	rcx, r14
@@ -1381,77 +1445,71 @@
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8d, 63
 	mov	edx, 1
-	lea	rcx, .LC66[rip]
+	lea	rcx, .LC71[rip]
 	mov	r9, rax
 	call	"fwrite"
-	jmp	.L77
-.L93:
-	mov	r9, rsi
-	mov	r8d, 4
-	mov	edx, 1
-	lea	rcx, .LC53[rip]
-	call	"fwrite"
-	jmp	.L94
-.L91:
-	mov	r9, rsi
-	mov	r8d, 4
-	mov	edx, 1
-	lea	rcx, .LC53[rip]
-	call	"fwrite"
-	jmp	.L92
-.L134:
+	jmp	.L80
+.L144:
 	mov	rcx, r14
 	call	"free"
 	mov	ecx, 2
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8d, 39
 	mov	edx, 1
-	lea	rcx, .LC37[rip]
+	lea	rcx, .LC41[rip]
 	mov	r9, rax
 	call	"fwrite"
-	jmp	.L77
-.L136:
-	add	ecx, DWORD PTR 10148[rsp]
 	jmp	.L80
-.L137:
-	lea	rax, 136[rsp]
-	mov	rcx, QWORD PTR 10064[rsp]
-	xor	r8d, r8d
-	lea	r9, 240[rsp]
-	mov	QWORD PTR 40[rsp], rax
-	lea	rax, 816[rsp]
-	lea	rdx, .LC43[rip]
-	mov	QWORD PTR 32[rsp], rax
-	call	[QWORD PTR __imp_RegQueryValueExA[rip]]
-	mov	rcx, QWORD PTR 10064[rsp]
-	call	[QWORD PTR __imp_RegCloseKey[rip]]
-	jmp	.L82
-.L140:
-	mov	rcx, r14
-	mov	DWORD PTR 80[rsp], eax
-	call	"free"
-	lea	rcx, .LC68[rip]
-	call	"puts"
-	mov	r10d, DWORD PTR 80[rsp]
-	jmp	.L61
-.L88:
-	lea	rdx, .LC20[rip]
-	cmp	ax, 12
-	je	.L87
-.L89:
+.L96:
 	mov	r9, rsi
 	mov	r8d, 4
 	mov	edx, 1
-	lea	rcx, .LC53[rip]
+	lea	rcx, .LC58[rip]
 	call	"fwrite"
-	jmp	.L90
-.L102:
-	lea	rdx, .LC17[rip]
-	jmp	.L87
-.L103:
-	lea	rdx, .LC19[rip]
-	jmp	.L87
-.L138:
+	jmp	.L97
+.L94:
+	mov	r9, rsi
+	mov	r8d, 4
+	mov	edx, 1
+	lea	rcx, .LC58[rip]
+	call	"fwrite"
+	jmp	.L95
+.L147:
+	lea	rax, 136[rsp]
+	mov	rcx, QWORD PTR 10128[rsp]
+	xor	r8d, r8d
+	lea	r9, 304[rsp]
+	mov	QWORD PTR 40[rsp], rax
+	lea	rax, 880[rsp]
+	lea	rdx, .LC47[rip]
+	mov	QWORD PTR 32[rsp], rax
+	call	[QWORD PTR __imp_RegQueryValueExA[rip]]
+	mov	rcx, QWORD PTR 10128[rsp]
+	call	[QWORD PTR __imp_RegCloseKey[rip]]
+	jmp	.L85
+.L146:
+	add	ecx, DWORD PTR 10212[rsp]
+	jmp	.L83
+.L91:
+	lea	rdx, .LC20[rip]
+	cmp	ax, 12
+	je	.L90
+.L92:
+	mov	r9, rsi
+	mov	r8d, 4
+	mov	edx, 1
+	lea	rcx, .LC58[rip]
+	call	"fwrite"
+	jmp	.L93
+.L150:
+	mov	rcx, r14
+	mov	DWORD PTR 80[rsp], eax
+	call	"free"
+	lea	rcx, .LC73[rip]
+	call	"puts"
+	mov	r10d, DWORD PTR 80[rsp]
+	jmp	.L61
+.L148:
 	mov	rcx, r14
 	call	"free"
 	call	[QWORD PTR __imp__errno[rip]]
@@ -1461,16 +1519,22 @@
 	mov	rbx, rax
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8, rbx
-	lea	rdx, .LC45[rip]
+	lea	rdx, .LC49[rip]
 	mov	rcx, rax
 	call	"fprintf"
-	jmp	.L77
-.L133:
+	jmp	.L80
+.L106:
+	lea	rdx, .LC19[rip]
+	jmp	.L90
+.L105:
+	lea	rdx, .LC17[rip]
+	jmp	.L90
+.L143:
 	mov	ecx, 2
 	call	[QWORD PTR __imp___acrt_iob_func[rip]]
 	mov	r8d, 46
 	mov	edx, 1
-	lea	rcx, .LC32[rip]
+	lea	rcx, .LC36[rip]
 	mov	r9, rax
 	call	"fwrite"
 	mov	r10d, DWORD PTR 80[rsp]
@@ -1495,17 +1559,17 @@
 	.quad	0
 	.quad	1
 	.align 16
-.LC33:
+.LC37:
 	.quad	2
 	.quad	2
 	.align 16
-.LC34:
+.LC38:
 	.long	1
 	.long	1
 	.long	1
 	.long	1
 	.align 16
-.LC35:
+.LC39:
 	.quad	4
 	.quad	4
 	.def	"__main";	.scl	2;	.type	32;	.endef
@@ -1519,6 +1583,7 @@
 	.def	"strncpy";	.scl	2;	.type	32;	.endef
 	.def	"snprintf";	.scl	2;	.type	32;	.endef
 	.def	"sscanf";	.scl	2;	.type	32;	.endef
+	.def	"memset";	.scl	2;	.type	32;	.endef
 	.def	"malloc";	.scl	2;	.type	32;	.endef
 	.def	"memcpy";	.scl	2;	.type	32;	.endef
 	.def	"strftime";	.scl	2;	.type	32;	.endef

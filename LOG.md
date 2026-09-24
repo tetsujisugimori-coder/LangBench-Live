@@ -997,3 +997,40 @@
 
 * `python -B -m unittest tests.test_show_archive_variability tests.test_show_archive_metrics tests.test_compare_archives -q`: **35件成功**。新しいテストはコピー元とコピー先が別パスでも同じ `archive_id` ならJSONとテキストの両方で検証エラーになることを確認した。コピー先を改変した場合は重複判定より先に `SHA256_MISMATCH` になる。既存の正常集計テストには異なる `archive_id` の確認を追加した。
 * `python -B -m unittest discover -s tests -q`: **59件成功**。
+
+## 2026-09-24 CのOS版記録と新しい5履歴の比較基準
+
+### 設計判断
+
+* `benchmarks/function_call_numeric_sum/c/main.c` が `environment.os_version` を常に `null` と書いていた。Pythonは `platform.version()`、JavaScriptは `os.release()` を記録していた。Validatorは従来履歴の `null` を受け入れ、比較CLIは新旧の欠落を `INFORMATION_MISSING` / `environment.os_version` の `caution` とする。履歴のバイト列・SHA-256、schema 1.0、測定ループ・設定・checksum、判定規則は変更しない。
+* Cで `ntdll.dll` の `RtlGetVersion` を動的に呼び、実行中のNT版の major.minor.build を記録する。`GetVersionEx` は実行ファイルmanifestによって版が仮想化されるため使用しない。取得失敗なら版を推測せず、測定・結果保存の前に `status=error` と理由を出して非0終了する。`run_c.ps1` の単独実行も同じC実装を通る。文字列はWindowsの表示名と更新リビジョンを含まない。
+* 最終Cソースから `pwsh -NoProfile -File tools/generate_function_call_analysis.ps1 -AnalysisId function-call-analysis-20260924-c-os-version` を実行し、GCCレポート・アセンブリ・Pythonバイトコード・V8トレース・manifestを再生成した。ハッシュのみは手修正していない。
+
+### 検証と実測
+
+* `pwsh -NoProfile -File tests/test_c_os_version.ps1`: モック成功・失敗・関数欠落・短いバッファ・実OS照合の5件成功。実OS値はC・Node `os.release()`・Python `platform.version()` が `10.0.26200`、Windowsレジストリの major=10、minor=0、build=26200とも一致した。`cmd /c ver` は `10.0.26200.9457` と表示され、末尾の更新リビジョンは記録対象外。`pwsh -NoProfile -File benchmarks/function_call_numeric_sum/c/run_c.ps1` の単独実行も成功。
+* `pwsh -NoProfile -File tests/test_c_optimization_analysis.ps1`: 16件成功、Cのprovenanceは `matched`。`python -B -m unittest discover -s tests -q`: 60件成功、`validated_manifest=1`。新規回帰テストは版記録済み履歴同士の `comparable`、旧 `null` 履歴との `caution`、改変履歴のSHA-256拒否を確認した。
+* `node tests/test_javascript_optimization_analysis.js`: 22件成功。`python tools/validate_result_json.py --manifest artifacts/function-call-analysis/manifest.json`: `validated_manifest=1`。`git diff --check`: 成功。
+* 同一の隔離作業ツリー、ソース、設定で `1..5 | ForEach-Object { pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1 }` を逐次実行した。通常サンドボックスの最初の試行は `validated=3` の後に一時保存先のアクセス拒否で停止し、履歴にならなかった。その試行と単独C実行、回帰テストの履歴は以下の5件に数えない。通常の作業ツリー権限で再実行した5回は、各回 `validated=3`・履歴保存成功・保存履歴の再検証 `validated=3`。5つの `archive_id` は一意で、各保存C結果のOS版は `10.0.26200`、解析provenanceは `matched`。
+
+| 回 | experiment_idの時刻 | archive_id |
+| --- | --- | --- |
+| 1 | 20260924_105054 | 858b2f79a49b43f082d0886c54860e61 |
+| 2 | 20260924_105104 | f2e6532bc4fa455684f10d6f00ea0f53 |
+| 3 | 20260924_105112 | 7cfa329719bb4e9091fe5bf6d9056dda |
+| 4 | 20260924_105120 | e623d946a9394b3c9922652bbbd08783 |
+| 5 | 20260924_105128 | aa5230a548434fffb32215679b19407d |
+
+* 上記5パスを `$archives` に順序どおり指定し、`python tools/show_archive_variability.py --json @archives` を実行。全10組は `comparable=10`、`caution=0`、`incomparable=0`。各ケースの50サンプルから再計算した中央値と、5中央値の最小・最大・差（ms）は次のとおり。
+
+| ケース | 1 | 2 | 3 | 4 | 5 | 最小 | 最大 | 差 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| C / direct | 0.107 | 0.106 | 0.1135 | 0.113 | 0.2465 | 0.106 | 0.2465 | 0.1405 |
+| C / function_call | 0.386 | 0.3905 | 0.387 | 0.3965 | 0.387 | 0.386 | 0.3965 | 0.0105 |
+| JavaScript / direct | 0.457 | 0.481 | 0.4755 | 0.5005 | 0.4325 | 0.4325 | 0.5005 | 0.068 |
+| JavaScript / function_call | 0.4655 | 0.493 | 0.49 | 0.5155 | 0.4315 | 0.4315 | 0.5155 | 0.084 |
+| Python / direct | 20.813 | 20.041 | 18.8075 | 18.75 | 18.8755 | 18.75 | 20.813 | 2.063 |
+| Python / function_call | 32.928 | 33.302 | 32.382 | 32.1705 | 32.7195 | 32.1705 | 33.302 | 1.1315 |
+
+* `python tools/compare_archives.py --json <旧履歴> <今回の1回目>` で旧履歴との判定は `caution`。理由はCの `INFORMATION_MISSING` / `environment.os_version` と、Cソース変更による `ENVIRONMENT_DIFFERENT` / `optimization_analysis.provenance.current.source_sha256`。旧履歴やハッシュは変更していない。
+* 制限: この5回は1台のWindows機での記述的な揺れを示す。OS版一致だけでは負荷や電源状態などの一致は分からず、最適化の効果・統計的有意差・言語全体の優劣は示さない。履歴と集計JSONはGit管理外の隔離作業ツリーにある。CIの対象は別途確認する。
