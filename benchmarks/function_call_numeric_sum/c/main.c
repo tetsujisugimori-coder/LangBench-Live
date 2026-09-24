@@ -196,11 +196,38 @@ static int optional_arg(int argc, char *argv[], const char *prefix, char *output
     return 0;
 }
 
+/* Diagnostic only: set the current process mask before setup, warmup, and samples. */
+static int apply_diagnostic_affinity(const char *argument) {
+    char *end; unsigned long cpu; DWORD_PTR process_mask, system_mask, requested;
+    if (!argument[0]) {
+        fprintf(stderr, "status=error\nmessage=invalid logical CPU number: empty\n"); return 0;
+    }
+    errno = 0;
+    cpu = strtoul(argument, &end, 10);
+    if (errno || end == argument || *end || cpu >= sizeof(DWORD_PTR) * 8) {
+        fprintf(stderr, "status=error\nmessage=invalid logical CPU number: %s\n", argument); return 0;
+    }
+    if (!GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask)) {
+        fprintf(stderr, "status=error\nmessage=GetProcessAffinityMask failed: %lu\n", GetLastError()); return 0;
+    }
+    requested = (DWORD_PTR)1 << cpu;
+    if (!(requested & process_mask)) {
+        fprintf(stderr, "status=error\nmessage=logical CPU %lu is outside the process allowed affinity mask\n", cpu); return 0;
+    }
+    if (!SetProcessAffinityMask(GetCurrentProcess(), requested)) {
+        fprintf(stderr, "status=error\nmessage=SetProcessAffinityMask failed for logical CPU %lu: %lu\n", cpu, GetLastError()); return 0;
+    }
+    if (!GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask) || process_mask != requested) {
+        fprintf(stderr, "status=error\nmessage=logical CPU %lu affinity verification failed\n", cpu); return 0;
+    }
+    return 1;
+}
+
 int main(int argc, char *argv[]) {
     double compile_ms, setup_start, setup_ms, direct_warmup, call_warmup, direct_samples[MEASUREMENT_ITERATIONS], call_samples[MEASUREMENT_ITERATIONS], measurement_ms;
     int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", os_version[64], output_path[PATH_SIZE];
     SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index;
-    char order_arg[32] = "", result_arg[PATH_SIZE] = "", trace_arg[PATH_SIZE] = "";
+    char order_arg[32] = "", result_arg[PATH_SIZE] = "", trace_arg[PATH_SIZE] = "", affinity_arg[64] = "";
     CaseTrace direct_trace, call_trace; uint64_t anchor_filetime = 0; int64_t anchor_before = 0, anchor_after = 0;
     int call_first;
     if (argc < 6 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0] || !argv[5][0]) {
@@ -217,6 +244,12 @@ int main(int argc, char *argv[]) {
     if (!call_first) optional_arg(argc, argv, "--result-path=", result_arg, sizeof(result_arg));
     optional_arg(argc, argv, "--diagnostic-trace=", trace_arg, sizeof(trace_arg));
     if (trace_arg[0] && !result_arg[0]) { fprintf(stderr, "status=error\nmessage=diagnostic trace requires result path\n"); return 1; }
+    if (optional_arg(argc, argv, "--diagnostic-affinity=", affinity_arg, sizeof(affinity_arg))) {
+        if (!result_arg[0] || !apply_diagnostic_affinity(affinity_arg)) {
+            if (!result_arg[0]) fprintf(stderr, "status=error\nmessage=diagnostic affinity requires result path\n");
+            return 1;
+        }
+    }
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) { fprintf(stderr, "status=error\nmessage=high-resolution timer is unavailable\n"); return 1; }
     if (!get_os_version(os_version, sizeof(os_version))) { fprintf(stderr, "status=error\nmessage=failed to get OS version via RtlGetVersion\n"); return 1; }
     if (trace_arg[0]) { anchor_before = qpc_tick(); anchor_filetime = filetime_tick(); anchor_after = qpc_tick(); }

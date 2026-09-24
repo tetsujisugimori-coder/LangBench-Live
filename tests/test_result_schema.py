@@ -142,6 +142,21 @@ def function_call_document(language: str) -> dict:
 
 
 class ResultSchemaTests(unittest.TestCase):
+    def test_affinity_run_id_requires_explicit_diagnostic_validation(self) -> None:
+        document = function_call_document("c")
+        document["run_id"] = "20260801_130000_c_function_call_numeric_sum_run_001"
+        self.assertTrue(validate(document, Path("affinity.json")))
+        self.assertEqual([], validate(document, Path("affinity.json"), allow_affinity_diagnostic_id=True))
+        for run_id in (
+            "20260801_130000_c_function_call_numeric_sum_run_000",
+            "20260801_130000_c_function_call_numeric_sum_run_xyz",
+            "20260801_130001_c_function_call_numeric_sum_run_001",
+        ):
+            with self.subTest(run_id=run_id):
+                candidate = copy.deepcopy(document)
+                candidate["run_id"] = run_id
+                self.assertTrue(validate(candidate, Path("invalid-affinity.json"), allow_affinity_diagnostic_id=True))
+
     def test_function_call_documents_and_invalid_variants(self) -> None:
         case_document = function_call_document
         documents = [case_document(language) for language in ("python", "javascript", "c")]
