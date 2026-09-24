@@ -54,6 +54,30 @@ def conditions(cpu_a: int, cpu_b: int) -> list[tuple[str, int | None]]:
     return [("normal", None), ("affinity", cpu_a), ("affinity", cpu_b)]
 
 
+def build_plan(repeats: int, cpu_a: int, cpu_b: int, stamp: str) -> list[dict]:
+    """Precompute a deterministic three-cycle rotation before any measurement."""
+    base = conditions(cpu_a, cpu_b)
+    runs = []
+    for cycle in range(1, repeats + 1):
+        shift = (cycle - 1) % len(base)
+        ordered = base[shift:] + base[:shift]
+        scheduled_order = ["normal" if cpu is None else f"cpu:{cpu}" for _, cpu in ordered]
+        for position, (mode, cpu) in enumerate(ordered, start=1):
+            number = len(runs) + 1
+            runs.append({
+                "number": number, "cycle": cycle, "position": position,
+                "scheduled_order": scheduled_order, "condition": mode, "logical_cpu": cpu,
+                "run_id": f"{stamp}_c_function_call_numeric_sum_run_{number:03d}",
+                "started_at": None, "ended_at": None, "status": "pending",
+                "result_file": f"run-{number:03d}.json", "binary_sha256": None,
+                "benchmark": "C/direct",
+                "benchmark_config": {"item_count": 1000000, "warmup_iterations": 5, "measurement_iterations": 50},
+                "samples_ms": None, "median_ms": None, "min_ms": None, "max_ms": None,
+                "samples_ge_0_2_ms": None, "error": None,
+            })
+    return runs
+
+
 def summarize(runs: list[dict], planned: list[tuple[str, int | None]]) -> list[dict]:
     summary = []
     for mode, cpu in planned:
@@ -92,8 +116,25 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int) -> dict:
     if output.exists():
         raise FileExistsError(f"output directory already exists: {output}")
     output.mkdir(parents=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    experiment_id = f"{stamp}_function_call_numeric_sum"
+    runs = build_plan(repeats, cpu_a, cpu_b, stamp)
     binary = output / "c-benchmark.exe"
     analysis = output / "optimization-analysis.json"
+    source_hash = hashlib.sha256(SOURCE.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+    record = {
+        "schema_version": "1.0", "benchmark": "function_call_numeric_sum", "case": "C/direct",
+        "experiment_id": experiment_id,
+        "conditions": [{"condition": mode, "logical_cpu": cpu} for mode, cpu in planned],
+        "runs_per_condition": repeats, "binary_sha256": None, "c_source_sha256": source_hash,
+        "compiler": None, "compiler_options": OPTIONS, "compile_ms": None,
+        "environment": {"os": platform.platform(), "logical_processors": os.cpu_count(), "cpu_model": platform.processor() or None},
+        "started_at": now(), "ended_at": None, "runs": runs, "summary": [],
+    }
+    plan_fields = ("number", "cycle", "position", "scheduled_order", "condition", "logical_cpu", "run_id", "status")
+    save(output / "plan.json", {"experiment_id": experiment_id,
+                               "runs": [{name: run[name] for name in plan_fields} for run in runs]})
+    save(output / "runs.json", record)
     runner = ROOT / "benchmarks/function_call_numeric_sum/c/run_c.ps1"
     analysis.write_text(run_checked(["pwsh", "-NoProfile", "-File", str(runner), "-ResolveAnalysisOnly"]).stdout.strip(), encoding="utf-8")
     compiler_version = run_checked(["gcc", "--version"]).stdout.splitlines()[0].removeprefix("gcc.exe ")
@@ -102,66 +143,54 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int) -> dict:
     run_checked(command)
     compile_ms = round((datetime.now().timestamp() - start_compile) * 1000, 3)
     binary_hash = sha256(binary)
-    source_hash = hashlib.sha256(SOURCE.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-    record = {
-        "schema_version": "1.0", "benchmark": "function_call_numeric_sum", "case": "C/direct",
-        "conditions": [{"condition": mode, "logical_cpu": cpu} for mode, cpu in planned],
-        "runs_per_condition": repeats, "binary_sha256": binary_hash, "c_source_sha256": source_hash,
-        "compiler": compiler_version, "compiler_options": OPTIONS, "compile_ms": compile_ms,
-        "environment": {"os": platform.platform(), "logical_processors": os.cpu_count(), "cpu_model": platform.processor() or None},
-        "started_at": now(), "ended_at": None, "runs": [], "summary": [],
-    }
+    record.update(binary_sha256=binary_hash, compiler=compiler_version, compile_ms=compile_ms)
+    for run in runs:
+        run["binary_sha256"] = binary_hash
     save(output / "runs.json", record)
-    number = 0
-    # Interleave conditions to make the scheduled order explicit in runs.json.
-    for _ in range(repeats):
-        for mode, cpu in planned:
-            number += 1
-            result_path = output / f"run-{number:03d}.json"
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            arguments = [str(binary), str(compile_ms), compiler_version, subprocess.list2cmdline(command), str(SOURCE), str(analysis),
-                         f"--experiment-id={stamp}_function_call_numeric_sum", f"--run-id={stamp}_c_function_call_numeric_sum",
-                         "--measurement-order=direct_first", f"--result-path={result_path}"]
-            if cpu is not None:
-                arguments.append(f"--diagnostic-affinity={cpu}")
-            run = {"number": number, "condition": mode, "logical_cpu": cpu, "started_at": now(), "ended_at": None,
-                   "status": "pending", "result_file": result_path.name, "binary_sha256": binary_hash,
-                   "benchmark": "C/direct", "benchmark_config": {"item_count": 1000000, "warmup_iterations": 5, "measurement_iterations": 50},
-                   "samples_ms": None, "median_ms": None, "min_ms": None, "max_ms": None, "samples_ge_0_2_ms": None,
-                   "error": None}
-            record["runs"].append(run)
+    # Execute the immutable precommitted order, leaving future runs pending if interrupted.
+    for run in runs:
+        number, mode, cpu = run["number"], run["condition"], run["logical_cpu"]
+        result_path = output / run["result_file"]
+        arguments = [str(binary), str(compile_ms), compiler_version, subprocess.list2cmdline(command), str(SOURCE), str(analysis),
+                     f"--experiment-id={experiment_id}", f"--run-id={run['run_id']}",
+                     "--measurement-order=direct_first", f"--result-path={result_path}"]
+        if cpu is not None:
+            arguments.append(f"--diagnostic-affinity={cpu}")
+        run["started_at"] = now()
+        save(output / "runs.json", record)
+        try:
+            process = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True)
+            (output / f"run-{number:03d}.log").write_text(process.stdout + process.stderr, encoding="utf-8")
+            if process.returncode:
+                raise RuntimeError(f"benchmark exited {process.returncode}: {process.stderr.strip()}")
+            document = json.loads(result_path.read_text(encoding="utf-8"))
+            errors = validate(document, result_path, allow_affinity_diagnostic_id=True)
+            if errors:
+                raise ValueError("; ".join(errors))
+            if document["run_id"] != run["run_id"] or document["experiment_id"] != experiment_id:
+                raise ValueError("result IDs differ from the precommitted plan")
+            if document["config"]["item_count"] != 1000000 or document["config"]["warmup_iterations"] != 5 or document["config"]["measurement_iterations"] != 50:
+                raise ValueError("benchmark config differs from fixed conditions")
+            samples = document["results"]["direct"]["samples_ms"]
+            if len(samples) != 50 or document["validation"]["direct_checksum"] != 500000500000:
+                raise ValueError("direct samples or checksum differ from fixed conditions")
+            if number == 1:
+                environment = document["environment"]
+                record["environment"] = {
+                    "os": environment["os"], "os_version": environment["os_version"],
+                    "logical_processors": environment["logical_processors"], "cpu_model": environment["cpu"],
+                }
+            if sha256(binary) != binary_hash:
+                raise ValueError("binary changed during diagnosis")
+            run.update(samples_ms=samples, median_ms=statistics.median(samples), min_ms=min(samples), max_ms=max(samples),
+                       samples_ge_0_2_ms=sum(sample >= THRESHOLD_MS for sample in samples), status="success")
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+            run.update(status="failed", error=str(error))
+        finally:
+            run["ended_at"] = now()
+            record["summary"] = summarize(record["runs"], planned)
             save(output / "runs.json", record)
-            try:
-                process = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True)
-                (output / f"run-{number:03d}.log").write_text(process.stdout + process.stderr, encoding="utf-8")
-                if process.returncode:
-                    raise RuntimeError(f"benchmark exited {process.returncode}: {process.stderr.strip()}")
-                document = json.loads(result_path.read_text(encoding="utf-8"))
-                errors = validate(document, result_path)
-                if errors:
-                    raise ValueError("; ".join(errors))
-                if document["config"]["item_count"] != 1000000 or document["config"]["warmup_iterations"] != 5 or document["config"]["measurement_iterations"] != 50:
-                    raise ValueError("benchmark config differs from fixed conditions")
-                samples = document["results"]["direct"]["samples_ms"]
-                if len(samples) != 50 or document["validation"]["direct_checksum"] != 500000500000:
-                    raise ValueError("direct samples or checksum differ from fixed conditions")
-                if number == 1:
-                    environment = document["environment"]
-                    record["environment"] = {
-                        "os": environment["os"], "os_version": environment["os_version"],
-                        "logical_processors": environment["logical_processors"], "cpu_model": environment["cpu"],
-                    }
-                if sha256(binary) != binary_hash:
-                    raise ValueError("binary changed during diagnosis")
-                run.update(samples_ms=samples, median_ms=statistics.median(samples), min_ms=min(samples), max_ms=max(samples),
-                           samples_ge_0_2_ms=sum(sample >= THRESHOLD_MS for sample in samples), status="success")
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
-                run.update(status="failed", error=str(error))
-            finally:
-                run["ended_at"] = now()
-                record["summary"] = summarize(record["runs"], planned)
-                save(output / "runs.json", record)
-            print(f"run={number} condition={mode} cpu={cpu} status={run['status']}", flush=True)
+        print(f"run={number} condition={mode} cpu={cpu} status={run['status']}", flush=True)
     record["ended_at"] = now()
     save(output / "runs.json", record)
     save(output / "summary.json", {"binary_sha256": binary_hash, "conditions": record["summary"]})

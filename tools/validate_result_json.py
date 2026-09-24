@@ -22,6 +22,7 @@ LANGUAGES = {"c", "python", "javascript"}
 BENCHMARKS = {"jit_object_numeric_sum", "function_call_numeric_sum"}
 EXPERIMENT_ID_PATTERN = re.compile(r"^(\d{8}_\d{6})_(jit_object_numeric_sum|function_call_numeric_sum)$")
 RUN_ID_PATTERN = re.compile(r"^(\d{8}_\d{6})_(c|python|javascript)_(jit_object_numeric_sum|function_call_numeric_sum)$")
+AFFINITY_RUN_ID_PATTERN = re.compile(r"^(\d{8}_\d{6})_c_function_call_numeric_sum_run_(\d{3,})$")
 TIMESTAMP_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 OPTIMIZATION_NAMES = ("jit", "inlining", "vectorization", "simd")
@@ -378,7 +379,7 @@ def validate_optimization_analysis(document: dict[str, Any], errors: list[str], 
     if not isinstance(notes, list) or not all(isinstance(note, str) and note.strip() for note in notes):
         errors.append(f"{path}: optimization_analysis notes is invalid")
 
-def validate_common(document: Any, path: Path) -> list[str]:
+def validate_common(document: Any, path: Path, *, allow_affinity_diagnostic_id: bool = False) -> list[str]:
     if not isinstance(document, dict): return [f"{path}: root must be an object"]
     errors: list[str] = []
     if list(document) not in (ROOT_KEYS, ROOT_KEYS_WITH_OPTIMIZATION): errors.append(f"{path}: root keys/order do not match schema 1.0")
@@ -391,7 +392,12 @@ def validate_common(document: Any, path: Path) -> list[str]:
     experiment_match = EXPERIMENT_ID_PATTERN.fullmatch(document.get("experiment_id", "") if isinstance(document.get("experiment_id"), str) else "")
     if not experiment_match or experiment_match.group(2) != benchmark: errors.append(f"{path}: invalid experiment_id")
     run_match = RUN_ID_PATTERN.fullmatch(document.get("run_id", "") if isinstance(document.get("run_id"), str) else "")
-    if not run_match or run_match.group(2) != language or run_match.group(3) != benchmark: errors.append(f"{path}: invalid run_id")
+    affinity_match = AFFINITY_RUN_ID_PATTERN.fullmatch(document.get("run_id", "") if isinstance(document.get("run_id"), str) else "") if allow_affinity_diagnostic_id else None
+    affinity_id_valid = (affinity_match is not None and language == "c" and benchmark == "function_call_numeric_sum"
+                         and experiment_match is not None and affinity_match.group(1) == experiment_match.group(1)
+                         and int(affinity_match.group(2)) > 0)
+    if not ((run_match and run_match.group(2) == language and run_match.group(3) == benchmark) or affinity_id_valid):
+        errors.append(f"{path}: invalid run_id")
     if not TIMESTAMP_PATTERN.fullmatch(document.get("created_at", "") if isinstance(document.get("created_at"), str) else ""): errors.append(f"{path}: created_at must include a timezone")
     status = document.get("status")
     if not is_choice(status, {"success", "error"}): errors.append(f"{path}: invalid status")
@@ -475,8 +481,9 @@ def validate_object_sum(document: dict[str, Any], path: Path) -> list[str]:
     if validation.get("passed") is not True or validation.get("checksum") != validation.get("expected_checksum"): errors.append(f"{path}: checksum validation failed")
     return errors
 
-def validate(document: Any, path: Path, *, allow_diagnostic_order: bool = False) -> list[str]:
-    errors = validate_common(document, path)
+def validate(document: Any, path: Path, *, allow_diagnostic_order: bool = False,
+             allow_affinity_diagnostic_id: bool = False) -> list[str]:
+    errors = validate_common(document, path, allow_affinity_diagnostic_id=allow_affinity_diagnostic_id)
     if not isinstance(document, dict): return errors
     if document.get("benchmark") == "function_call_numeric_sum" and document.get("language") == "c":
         order = document.get("execution", {}).get("measurement_order") if isinstance(document.get("execution"), dict) else None
