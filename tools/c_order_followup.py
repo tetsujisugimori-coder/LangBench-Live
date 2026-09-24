@@ -29,7 +29,10 @@ def source(folder, name):
 def validate_followup_monitor(trace, monitor):
     if monitor.get("schema_version") != "1.0" or monitor.get("requested_interval_ms") != 20:
         raise ValueError("monitor format or interval differs from the fixed conditions")
-    return monitor_summary(trace, monitor)
+    summary = monitor_summary(trace, monitor)
+    if summary["valid_observations"] == 0:
+        raise ValueError("monitor has no valid CPU observations")
+    return summary
 
 
 def check_conditions(document, run, record):
@@ -187,7 +190,8 @@ def markdown(public):
         label = "CPU観測なし" if not r["monitored"] else ("取得成功" if r["monitor_status"] == "recorded" else "取得失敗")
         if r["status"] == "success":
             direct = r["cases"]["direct"]
-            missing = sum(s["coverage"]["coverage"] == "missing" for s in direct["timed_samples"])
+            missing = (sum(s["coverage"]["coverage"] == "missing" for s in direct["timed_samples"])
+                       if r["monitored"] else "CPU観測なし")
             median = fmt(direct["median_ms"])
             positions = slow_ranges(direct["samples_ms"])
             for sample in direct["timed_samples"]:
