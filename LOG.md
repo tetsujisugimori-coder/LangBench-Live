@@ -924,3 +924,7 @@
 
 * 新規8テストで3判定、数値の正負、CのOS版欠損理由、改変・再ハッシュ済みの不正中央値、0除算、Validator許容範囲内の保存中央値、テキストとJSONを確認した。`python -B -m unittest discover -s tests -q`: **41件成功**。既存33件も含む。隔離作業ツリーのWindows通常サンドボックスでは一時履歴への書き込みを拒否されたため、その失敗は成功に含めず、承認付き実行経路で再実行した。
 * 実測履歴はこのチェックアウトに保存されていない（`results/history/` はGit管理外）。回帰テストは `archive_results` で実際の履歴形式を生成して検証した。実機での新しいベンチマーク測定や他OSでの実行は行っていない。
+
+### PR #13 CI
+
+* [Python tests run 35936977745](https://github.com/tetsujisugimori-coder/LangBench-Live/actions/runs/35936977745) はpull requestのコミット `cf374c0` に対して成功した。UbuntuのPython 3.14.7で `python -B -m unittest discover -s tests -q` が実行され、ログの `Ran 41 tests in 2.086s` と `OK` を確認した。CIはPythonテストのみで、Windowsや実測ベンチマークの実行は含まない。
