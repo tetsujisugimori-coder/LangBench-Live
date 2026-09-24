@@ -429,12 +429,18 @@ def validate_common(document: Any, path: Path) -> list[str]:
     validate_optimization_analysis(document, errors, path)
     return errors
 
+def median_from_samples(samples: list[int | float]) -> int | float:
+    """Return the median of a validated, nonempty sample list without rounding."""
+    ordered = sorted(samples)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
 def statistics_errors(samples: Any, expected_count: Any, result: Any, case: str, path: Path) -> list[str]:
     errors: list[str] = []
     if not isinstance(result, dict): return [f"{path}: {case} result must be an object"]
     if not isinstance(samples, list) or len(samples) != expected_count or not samples or not all(is_number(x) for x in samples): return [f"{path}: {case} samples are invalid"]
-    ordered = sorted(samples); middle = len(ordered) // 2
-    expected = {"min_ms": min(samples), "max_ms": max(samples), "mean_ms": sum(samples) / len(samples), "median_ms": ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2}
+    expected = {"min_ms": min(samples), "max_ms": max(samples), "mean_ms": sum(samples) / len(samples), "median_ms": median_from_samples(samples)}
     for name, value in expected.items():
         if not is_number(result.get(name)) or not math.isclose(result[name], value, abs_tol=0.001): errors.append(f"{path}: {case}.{name} is inconsistent")
     return errors

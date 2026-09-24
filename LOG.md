@@ -909,3 +909,35 @@
 ### CIと未確認事項
 
 * コミット `a3b225e` のpull_request CIは [Python tests run 35933969426](https://github.com/tetsujisugimori-coder/LangBench-Live/actions/runs/35933969426) で成功した。Ubuntu 24.04.5、CPython 3.14.7、`python -B -m unittest discover -s tests -q` の実行ログに `Ran 33 tests` と `OK` を確認した。Ubuntu以外のOSでのPython CI、実機ベンチマークとWindows C統合はこのCIの対象外。
+
+## 2026-09-24 保存済み履歴の測定値比較表示
+
+### 設計判断と変更
+
+* `tools/show_archive_metrics.py` を読み取り専用CLIとして追加した。既存の `compare_archives.load_archive` に履歴・生バイトSHA-256・Validator・定義照合を任せ、`compare_archives.compare_archives` の判定と理由をそのまま使用する。検証を別実装しない。元の `compare_archives.py --json` の形は変更しない。
+* 3言語それぞれの `direct` と `function_call` について、保存済みの `median_ms` を同じ言語・ケース同士で対応させる。差は右−左、変化率は差÷左×100。計算中は丸めず、テキスト表示時だけ12桁の有効数字にする。JSONは丸めていないPython数値を出す。`faster` は保存中央値だけの方向を表す。
+* `comparable` は6ケースの中央値・差・変化率・方向を表示する。`caution` は同じ値に参考値の注意を付け、既存の理由コード・フィールド・説明を残す。`incomparable` は理由と単独中央値のみを表示し、差・変化率・方向のキーをJSONからも省く。検証失敗は元のコマンドと同じ終了コード2・JSONの `error` 構造にする。
+* 左中央値0の変化率は `null` と `LEFT_MEDIAN_ZERO`、負の左中央値は `LEFT_MEDIAN_NEGATIVE` とする。有限値を得られない差・変化率も `null` と `NONFINITE_RESULT` にし、JSON出力の `NaN`・`Infinity` を禁止する。既存Validatorは保存中央値をサンプル由来の中央値と相対 `1e-9`・絶対 `0.001` msの許容誤差で照合するので、完全一致は保証しないことをREADMEに記載した。
+* READMEに実行例、JSONのキーと単位、3判定の表示、計算式、CのOS版未記録による注意理由、解釈上の限界を追記した。統計的有意差、最適化の因果関係、言語間ランキング、UI、Memo-Nexus連携は実装しない。
+
+### ローカル実測
+
+* 新規8テストで3判定、数値の正負、CのOS版欠損理由、改変・再ハッシュ済みの不正中央値、0除算、Validator許容範囲内の保存中央値、テキストとJSONを確認した。`python -B -m unittest discover -s tests -q`: **41件成功**。既存33件も含む。隔離作業ツリーのWindows通常サンドボックスでは一時履歴への書き込みを拒否されたため、その失敗は成功に含めず、承認付き実行経路で再実行した。
+* 実測履歴はこのチェックアウトに保存されていない（`results/history/` はGit管理外）。回帰テストは `archive_results` で実際の履歴形式を生成して検証した。実機での新しいベンチマーク測定や他OSでの実行は行っていない。
+
+### PR #13 CI
+
+* [Python tests run 35936977745](https://github.com/tetsujisugimori-coder/LangBench-Live/actions/runs/35936977745) はpull requestのコミット `cf374c0` に対して成功した。UbuntuのPython 3.14.7で `python -B -m unittest discover -s tests -q` が実行され、ログの `Ran 41 tests in 2.086s` と `OK` を確認した。CIはPythonテストのみで、Windowsや実測ベンチマークの実行は含まない。
+
+## 2026-09-24 PR #13 サンプル由来中央値への修正
+
+### 原因と修正
+
+* 既存Validatorは `samples_ms` を昇順に並べ、偶数件の中央2値を平均して中央値を計算し、保存 `median_ms` を `math.isclose`（相対許容誤差 `1e-9`、絶対許容誤差 `0.001` ms）で受け入れる。修正前のCLIは保存 `median_ms` を表示・差・変化率・`faster` に使っていた。両履歴のサンプルが `[1.0, 2.0]` でも右の保存中央値だけ1.5005 msにした有効な履歴で、左1.5 ms、右1.5005 ms、差約+0.0005 ms、変化率約+0.033333%、`faster: "left"` と誤表示することを修正前のテストで再現した。
+* 中央値の計算を `validate_result_json.median_from_samples` にまとめ、ValidatorとCLIで共用した。CLIは検証済みサンプルから再計算した中央値だけを表示・差・変化率・方向に使う。保存 `median_ms` のValidator照合は維持し、履歴JSONは更新しない。上記の同一サンプル例では両方1.5 ms、差0 ms、変化率0%、`faster: "equal"` となる。
+* `equal` は再計算した中央値の一致のみを表し、サンプル分布全体の一致を示さない。READMEの計算根拠、JSONフィールドの意味、同一サンプル例を修正した。`comparable` / `caution` / `incomparable`、CのOS版欠損理由、0除算、破損履歴の扱いは維持した。
+
+### ローカル実測
+
+* 修正前の新しい期待値では対象テストが失敗し、実際のJSONは `(left_median_ms, right_median_ms, delta_ms, change_percent, faster) = (1.5, 1.5005, 0.0004999999999999449, 0.03333333333332966, "left")` だった。修正後は同一サンプルで `(1.5, 1.5, 0.0, 0.0, "equal")` とテキストの `同じ中央値` を確認した。異なるサンプル分布でも中央値が一致するテストを追加し、正負の差・方向を検証する既存テストも維持した。
+* `python -B -m unittest tests.test_show_archive_metrics tests.test_compare_archives -q`: **18件成功**。`python -B -m unittest discover -s tests -q`: **42件成功**。関連テストの最初の実行はWindowsの一時履歴フォルダ削除で `WinError 145` が1件発生したが、残った `history` は空で、同じ18件と全42件の再実行では再発しなかった。比較のアサーション失敗ではない。この一過性エラーは成功件数に含めていない。
