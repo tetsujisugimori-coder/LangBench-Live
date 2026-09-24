@@ -1,18 +1,18 @@
 {
   "schema_version": "1.0",
-  "analysis_id": "function-call-analysis-20260924-c-os-version",
-  "generated_at": "2026-09-24T01:49:39Z",
+  "analysis_id": "function-call-analysis-20260924-c-order-diagnostic",
+  "generated_at": "2026-09-24T02:58:50Z",
   "languages": {
     "c": {
-      "artifact_id": "function-call-analysis-20260924-c-os-version-c",
-      "analyzed_at": "2026-09-24T01:49:39Z",
+      "artifact_id": "function-call-analysis-20260924-c-order-diagnostic-c",
+      "analyzed_at": "2026-09-24T02:58:50Z",
       "applies_to": [
         "inlining",
         "vectorization",
         "simd"
       ],
       "condition": {
-        "source_sha256": "81fd308025073ad3bef69c1a36d604c08da9bb3f53b0c72f1fa9a870970dacc6",
+        "source_sha256": "27b832b49b5dee98ea9237087c66e90dace95ffcdc7c1c66ca8269a484cd7c11",
         "implementation": {
           "name": "GCC",
           "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
