@@ -9,7 +9,11 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $plan = @()
 for ($pair = 1; $pair -le 10; $pair++) {
     $pairOrder = if ($pair % 2 -eq 1) { @('A', 'B') } else { @('B', 'A') }
-    foreach ($order in $pairOrder) { $plan += [ordered]@{ pair = $pair; order = $order } }
+    $firstMonitored = ($pair % 4 -eq 1 -or $pair % 4 -eq 0 -or $pair -eq 10)
+    for ($position = 0; $position -lt 2; $position++) {
+        $plan += [ordered]@{ pair = $pair; position = $position + 1; order = $pairOrder[$position];
+            monitored = if ($position -eq 0) { $firstMonitored } else { -not $firstMonitored } }
+    }
 }
 if ($PlanOnly) { $plan | ConvertTo-Json -Depth 3; exit 0 }
 
@@ -43,17 +47,19 @@ try {
     $sourceHash = Get-CanonicalSourceHash -Path $sourcePath
     $tracked = @(& git ls-files -- 'benchmarks/function_call_numeric_sum/c/**' 'tools/source_hash.ps1' 'tools/validate_result_json.py' 'artifacts/function-call-analysis/**')
     if ($LASTEXITCODE -ne 0) { throw 'Cannot identify benchmark inputs.' }
-    $tracked += @('tools/diagnose_c_measurement_order.ps1', 'tools/summarize_c_order_diagnostic.py')
+    $tracked += @('tools/diagnose_c_measurement_order.ps1', 'tools/summarize_c_order_diagnostic.py', 'tools/sample_windows_cpu.py')
     function Get-InputHashes {
         return (@($tracked | ForEach-Object { "$_=$((Get-FileHash -LiteralPath (Join-Path $projectRoot $_) -Algorithm SHA256).Hash)" }) -join "`n")
     }
     $baseline = Get-InputHashes
-    $record = [ordered]@{ schema_version = '1.0'; benchmark = 'function_call_numeric_sum';
+    $record = [ordered]@{ schema_version = '2.0'; benchmark = 'function_call_numeric_sum';
         git_head = $head; c_source_sha256 = $sourceHash;
         compiler = 'gcc'; compiler_options = @('-O2', '-std=c11', '-Wall', '-Wextra');
         plan = $plan; runs = @() }
     $recordPath = Join-Path $output 'runs.json'
     $record | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $recordPath -Encoding utf8
+    $plan | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $output 'plan.json') -Encoding utf8
+    $plan | ConvertTo-Json -Depth 4 | Write-Host
     for ($index = 0; $index -lt $plan.Count; $index++) {
         $number = $index + 1
         if ((Get-InputHashes) -cne $baseline -or (Get-CanonicalSourceHash -Path $sourcePath) -ne $sourceHash) {
@@ -62,25 +68,45 @@ try {
         $order = $plan[$index].order
         $measurementOrder = if ($order -eq 'A') { 'direct_first' } else { 'function_call_first' }
         $resultPath = Join-Path $output ('run-{0:D2}.json' -f $number)
+        $tracePath = Join-Path $output ('run-{0:D2}-trace.json' -f $number)
+        $monitorPath = Join-Path $output ('run-{0:D2}-monitor.json' -f $number)
+        $monitorReady = Join-Path $output ('run-{0:D2}-monitor.ready' -f $number)
+        $monitorStop = Join-Path $output ('run-{0:D2}-monitor.stop' -f $number)
         $logPath = Join-Path $output ('run-{0:D2}.log' -f $number)
         $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-        $run = [ordered]@{ number = $number; pair = $plan[$index].pair; order = $order;
+        $run = [ordered]@{ number = $number; pair = $plan[$index].pair; position = $plan[$index].position;
+            order = $order; monitored = $plan[$index].monitored;
             measurement_order = if ($order -eq 'A') { @('direct', 'function_call') } else { @('function_call', 'direct') };
             started_at = (Get-Date).ToString('o'); ended_at = $null; status = 'failed';
             reason_code = $null; failure_reason = $null; exit_code = $null;
             git_head = $head; c_source_sha256 = $sourceHash;
             compiler = 'gcc'; compiler_options = @('-O2', '-std=c11', '-Wall', '-Wextra');
-            terminal_before = (Get-TerminalState); terminal_after = $null }
+            terminal_before = (Get-TerminalState); terminal_after = $null;
+            monitor_status = if ($plan[$index].monitored) { 'pending' } else { 'not_planned' } }
+        $monitorProcess = $null
         try {
+            if ($run.monitored) {
+                $python = (Get-Command python -ErrorAction Stop).Source
+                $monitorArgs = @('-B', (Join-Path $projectRoot 'tools/sample_windows_cpu.py'),
+                    '--output', $monitorPath, '--ready', $monitorReady, '--stop', $monitorStop, '--interval-ms', '20')
+                $monitorProcess = Start-Process -FilePath $python -ArgumentList $monitorArgs -PassThru -WindowStyle Hidden
+                $deadline = [datetime]::UtcNow.AddSeconds(10)
+                while (-not (Test-Path -LiteralPath $monitorReady) -and -not $monitorProcess.HasExited -and [datetime]::UtcNow -lt $deadline) {
+                    Start-Sleep -Milliseconds 10
+                }
+                if (-not (Test-Path -LiteralPath $monitorReady)) { throw 'CPU monitor did not become ready.' }
+                $run.monitor_status = 'running'
+            }
             $experimentId = "${timestamp}_function_call_numeric_sum"
             $runId = "${timestamp}_c_function_call_numeric_sum"
             & pwsh -NoProfile -File benchmarks/function_call_numeric_sum/c/run_c.ps1 `
                 -ExperimentId $experimentId -RunId $runId -MeasurementOrder $measurementOrder `
-                -DiagnosticResultPath $resultPath *> $logPath
+                -DiagnosticResultPath $resultPath -DiagnosticTracePath $tracePath *> $logPath
             $run.exit_code = $LASTEXITCODE
             if ($run.exit_code -ne 0) { throw "C runner exited $($run.exit_code)" }
             if (-not (Test-Path -LiteralPath $resultPath)) { throw 'Result JSON was not created.' }
-            & python -B tools/summarize_c_order_diagnostic.py --validate-result $resultPath *> (Join-Path $output 'validation.log')
+            if (-not (Test-Path -LiteralPath $tracePath)) { throw 'C diagnostic trace was not created.' }
+            & python -B tools/summarize_c_order_diagnostic.py --validate-result $resultPath --validate-trace $tracePath *> (Join-Path $output 'validation.log')
             if ($LASTEXITCODE -ne 0) { throw 'Diagnostic validation failed.' }
             $document = Get-Content -LiteralPath $resultPath -Raw -Encoding UTF8 | ConvertFrom-Json
             if ((@($document.execution.measurement_order) -join ',') -ne (@($run.measurement_order) -join ',')) {
@@ -101,11 +127,21 @@ try {
             $run.reason_code = 'RUN_FAILED'
             $run.failure_reason = $_.Exception.Message
         } finally {
+            if ($null -ne $monitorProcess) {
+                [System.IO.File]::WriteAllText($monitorStop, 'stop')
+                if (-not $monitorProcess.WaitForExit(10000)) {
+                    $run.monitor_status = 'timeout'
+                    $monitorProcess.Kill()
+                } elseif ($monitorProcess.ExitCode -eq 0 -and (Test-Path -LiteralPath $monitorPath)) {
+                    $run.monitor_status = 'recorded'
+                } else { $run.monitor_status = 'failed' }
+                $monitorProcess.Dispose()
+            }
             $run.ended_at = (Get-Date).ToString('o')
             $run.terminal_after = Get-TerminalState
             $record.runs += $run
             $record | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $recordPath -Encoding utf8
-            Write-Host "run=$number order=$order status=$($run.status)"
+            Write-Host "run=$number order=$order monitored=$($run.monitored) status=$($run.status) monitor=$($run.monitor_status)"
         }
         if ((Get-InputHashes) -cne $baseline) { throw "Benchmark inputs changed after run $number." }
     }

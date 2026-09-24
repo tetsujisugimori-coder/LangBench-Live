@@ -17,9 +17,14 @@
 #define PATH_SIZE 4096
 
 static LARGE_INTEGER timer_frequency;
+typedef struct { int64_t start, end; } SampleTrace;
+typedef struct { SampleTrace samples[MEASUREMENT_ITERATIONS]; int64_t case_start, case_end; } CaseTrace;
 
 static double round_ms(double value) { return (double)((int64_t)(value * 1000.0 + 0.5)) / 1000.0; }
 static double now_ms(void) { LARGE_INTEGER counter; QueryPerformanceCounter(&counter); return (double)counter.QuadPart * 1000.0 / timer_frequency.QuadPart; }
+static double traced_now_ms(int64_t *tick) { LARGE_INTEGER counter; QueryPerformanceCounter(&counter); if (tick) *tick = counter.QuadPart; return (double)counter.QuadPart * 1000.0 / timer_frequency.QuadPart; }
+static int64_t qpc_tick(void) { LARGE_INTEGER counter; QueryPerformanceCounter(&counter); return counter.QuadPart; }
+static uint64_t filetime_tick(void) { FILETIME value; ULARGE_INTEGER combined; GetSystemTimePreciseAsFileTime(&value); combined.LowPart = value.dwLowDateTime; combined.HighPart = value.dwHighDateTime; return combined.QuadPart; }
 
 static void write_json_string(FILE *out, const char *value) {
     const unsigned char *cursor = (const unsigned char *)value;
@@ -121,16 +126,51 @@ static int64_t function_call_sum(const int32_t *values) {
     int64_t total = 0; size_t index; for (index = 0; index < ITEM_COUNT; index++) total = add(total, values[index]); return total;
 }
 
-static int measure(const int32_t *values, int64_t (*case_sum)(const int32_t *), double *warmup_ms, double samples[MEASUREMENT_ITERATIONS], int64_t *checksum) {
-    int iteration; double start;
+static int measure(const int32_t *values, int64_t (*case_sum)(const int32_t *), double *warmup_ms, double samples[MEASUREMENT_ITERATIONS], int64_t *checksum, CaseTrace *trace) {
+    int iteration; double start; int64_t start_tick, end_tick;
+    if (trace) trace->case_start = qpc_tick();
     start = now_ms();
     for (iteration = 0; iteration < WARMUP_ITERATIONS; iteration++) if (case_sum(values) != EXPECTED_CHECKSUM) return 0;
     *warmup_ms = round_ms(now_ms() - start);
-    for (iteration = 0; iteration < MEASUREMENT_ITERATIONS; iteration++) {
-        start = now_ms(); *checksum = case_sum(values); samples[iteration] = round_ms(now_ms() - start);
-        if (*checksum != EXPECTED_CHECKSUM) return 0;
+    if (trace) {
+        for (iteration = 0; iteration < MEASUREMENT_ITERATIONS; iteration++) {
+            start = traced_now_ms(&start_tick); *checksum = case_sum(values);
+            double end = traced_now_ms(&end_tick); samples[iteration] = round_ms(end - start);
+            trace->samples[iteration].start = start_tick; trace->samples[iteration].end = end_tick;
+            if (*checksum != EXPECTED_CHECKSUM) return 0;
+        }
+    } else {
+        for (iteration = 0; iteration < MEASUREMENT_ITERATIONS; iteration++) {
+            start = now_ms(); *checksum = case_sum(values); samples[iteration] = round_ms(now_ms() - start);
+            if (*checksum != EXPECTED_CHECKSUM) return 0;
+        }
     }
+    if (trace) trace->case_end = qpc_tick();
     return 1;
+}
+
+static int write_trace(const char *path, const CaseTrace *direct, const CaseTrace *call, int call_first,
+                       uint64_t anchor_filetime, int64_t anchor_before, int64_t anchor_after,
+                       const double *direct_samples, const double *call_samples) {
+    const CaseTrace *cases[] = {direct, call}; const double *samples[] = {direct_samples, call_samples};
+    const char *names[] = {"direct", "function_call"}; int which, index;
+    FILE *out = fopen(path, "wb"); if (!out) return 0;
+    fprintf(out, "{\"schema_version\":\"1.0\",\"clock\":\"windows_qpc\",\"frequency_hz\":%" PRId64
+        ",\"anchor\":{\"filetime_100ns\":%" PRIu64 ",\"qpc_before\":%" PRId64 ",\"qpc_after\":%" PRId64
+        "},\"measurement_order\":[\"%s\",\"%s\"],\"cases\":{",
+        timer_frequency.QuadPart, anchor_filetime, anchor_before, anchor_after,
+        call_first ? "function_call" : "direct", call_first ? "direct" : "function_call");
+    for (which = 0; which < 2; which++) {
+        fprintf(out, "%s\"%s\":{\"start_qpc\":%" PRId64 ",\"end_qpc\":%" PRId64 ",\"samples\":[",
+            which ? "," : "", names[which], cases[which]->case_start, cases[which]->case_end);
+        for (index = 0; index < MEASUREMENT_ITERATIONS; index++)
+            fprintf(out, "%s{\"number\":%d,\"start_qpc\":%" PRId64 ",\"end_qpc\":%" PRId64 ",\"sample_ms\":%.3f}",
+                index ? "," : "", index + 1, cases[which]->samples[index].start,
+                cases[which]->samples[index].end, samples[which][index]);
+        fputs("]}", out);
+    }
+    fputs("}}\n", out);
+    int failed = ferror(out); if (fclose(out) != 0) failed = 1; return !failed;
 }
 
 static double sample_total(const double samples[MEASUREMENT_ITERATIONS]) {
@@ -160,7 +200,8 @@ int main(int argc, char *argv[]) {
     double compile_ms, setup_start, setup_ms, direct_warmup, call_warmup, direct_samples[MEASUREMENT_ITERATIONS], call_samples[MEASUREMENT_ITERATIONS], measurement_ms;
     int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", os_version[64], output_path[PATH_SIZE];
     SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index;
-    char order_arg[32] = "", result_arg[PATH_SIZE] = "";
+    char order_arg[32] = "", result_arg[PATH_SIZE] = "", trace_arg[PATH_SIZE] = "";
+    CaseTrace direct_trace, call_trace; uint64_t anchor_filetime = 0; int64_t anchor_before = 0, anchor_after = 0;
     int call_first;
     if (argc < 6 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0] || !argv[5][0]) {
         fprintf(stderr, "status=error\nmessage=expected build and optimization analysis arguments\n"); return 1;
@@ -174,8 +215,11 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "status=error\nmessage=reverse order requires diagnostic result path\n"); return 1;
     }
     if (!call_first) optional_arg(argc, argv, "--result-path=", result_arg, sizeof(result_arg));
+    optional_arg(argc, argv, "--diagnostic-trace=", trace_arg, sizeof(trace_arg));
+    if (trace_arg[0] && !result_arg[0]) { fprintf(stderr, "status=error\nmessage=diagnostic trace requires result path\n"); return 1; }
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) { fprintf(stderr, "status=error\nmessage=high-resolution timer is unavailable\n"); return 1; }
     if (!get_os_version(os_version, sizeof(os_version))) { fprintf(stderr, "status=error\nmessage=failed to get OS version via RtlGetVersion\n"); return 1; }
+    if (trace_arg[0]) { anchor_before = qpc_tick(); anchor_filetime = filetime_tick(); anchor_after = qpc_tick(); }
     if (!optional_arg(argc, argv, "--experiment-id=", experiment_id, sizeof(experiment_id))) {
         const char *value = getenv("LANGBENCH_EXPERIMENT_ID"); if (value) strncpy(experiment_id, value, sizeof(experiment_id) - 1);
     }
@@ -189,8 +233,8 @@ int main(int argc, char *argv[]) {
     if (!values) { fprintf(stderr, "status=error\nmessage=failed to allocate array\n"); return 1; }
     for (index = 0; index < ITEM_COUNT; index++) values[index] = (int32_t)(index + 1);
     setup_ms = round_ms(now_ms() - setup_start);
-    if ((call_first && (!measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum) || !measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum))) ||
-        (!call_first && (!measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum) || !measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum)))) {
+    if ((call_first && (!measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum, trace_arg[0] ? &call_trace : NULL) || !measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum, trace_arg[0] ? &direct_trace : NULL))) ||
+        (!call_first && (!measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum, trace_arg[0] ? &direct_trace : NULL) || !measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum, trace_arg[0] ? &call_trace : NULL)))) {
         free(values); fprintf(stderr, "status=error\nmessage=checksum mismatch\n"); return 1;
     }
     measurement_ms = round_ms(sample_total(direct_samples) + sample_total(call_samples));
@@ -229,6 +273,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     free(values);
+    if (trace_arg[0] && !write_trace(trace_arg, &direct_trace, &call_trace, call_first,
+            anchor_filetime, anchor_before, anchor_after, direct_samples, call_samples)) {
+        fprintf(stderr, "status=error\nmessage=failed to write diagnostic trace\n"); return 1;
+    }
     puts("status=success");
     return 0;
 }
