@@ -129,18 +129,18 @@ python tools/show_archive_metrics.py $left $right
 python tools/show_archive_metrics.py --json $left $right
 ```
 
-差は **右の中央値 − 左の中央値**（ms）、変化率は **(右の中央値 − 左の中央値) ÷ 左の中央値 × 100**（%）です。時間が短い方が速いので、通常の正の中央値では正の差・変化率は右が遅いこと、負なら右が速いことを表します。各ケースの計算は保存された未丸めの `median_ms` を使い、テキストの丸めは表示時だけに行います。`--json` は計算結果の数値を表示用に丸めません。
+差は **右の中央値 − 左の中央値**（ms）、変化率は **(右の中央値 − 左の中央値) ÷ 左の中央値 × 100**（%）です。時間が短い方が速いので、通常の正の中央値では正の差・変化率は右が遅いこと、負なら右が速いことを表します。各履歴の検証済み `samples_ms` から既存Validatorと同じ規則（昇順に並べ、偶数件なら中央2値の平均）で中央値を再計算し、その値を表示・差・変化率・速度の方向に共通して使います。保存済み `median_ms` はValidatorで照合しますが、このCLIの計算には使いません。テキストの丸めは表示時だけに行い、`--json` は計算結果を表示用に丸めません。履歴JSONは書き換えません。
 
 * `comparable`: 6ケースの両履歴の中央値、差、変化率、中央値に基づく速度の方向を表示します。
 * `caution`: 同じ数値を**参考値**として表示し、判定理由の `code`、`field`、説明を必ず併記します。実測履歴ではCの `environment.os_version` が未記録のため、`INFORMATION_MISSING` が出ることがあります。
 * `incomparable`: 条件が異なる理由と各履歴の単独の中央値だけを表示します。差・変化率・速度の優劣はテキストに出さず、JSONにもそれらのキーを入れません。
 * 履歴の改変・欠落・Validator失敗: 数値は出さず終了コード2の検証エラーにします。`--json` では既存コマンドと同様に `{"error":{"code":"...","message":"..."}}` のみを返し、`verdict` や `measurements` を返しません。正常な3判定の終了コードは0です。
 
-JSONレポートの `schema_version` は `"1.0"` です。`left` / `right` はそれぞれ指定した `path`、保存単位の `archive_id`、実験単位の `experiment_id`、保存時刻 `archived_at` を持ちます。`verdict` と `reasons` は既存の `compare_archives.py` と同じ値・理由構造です。`measurements` は6件の配列で、`language` と `case` が組を識別します。`left_median_ms` / `right_median_ms` は各履歴の保存済み中央値（ms）です。比較可能・注意付きの場合だけ、`delta_ms`（右−左、ms）、`change_percent`（左基準、%）、`faster`（`left` / `right` / `equal`、中央値だけに基づく方向）を含みます。左中央値が0なら `change_percent: null` と `change_percent_unavailable_reason: "LEFT_MEDIAN_ZERO"` を返します。負の左中央値も時間の比率として解釈せず `LEFT_MEDIAN_NEGATIVE`、有限な計算結果にならない場合は対象の値を `null` とし `NONFINITE_RESULT` を付けます。`Infinity` や `NaN` は出力しません。
+JSONレポートの `schema_version` は `"1.0"` です。`left` / `right` はそれぞれ指定した `path`、保存単位の `archive_id`、実験単位の `experiment_id`、保存時刻 `archived_at` を持ちます。`verdict` と `reasons` は既存の `compare_archives.py` と同じ値・理由構造です。`measurements` は6件の配列で、`language` と `case` が組を識別します。`left_median_ms` / `right_median_ms` は各履歴の検証済み `samples_ms` から再計算した中央値（ms）です。比較可能・注意付きの場合だけ、`delta_ms`（右−左、ms）、`change_percent`（左基準、%）、`faster`（`left` / `right` / `equal`、再計算した中央値だけに基づく方向）を含みます。`equal` は両中央値が一致する意味で、サンプル分布全体の一致を意味しません。左中央値が0なら `change_percent: null` と `change_percent_unavailable_reason: "LEFT_MEDIAN_ZERO"` を返します。負の左中央値も時間の比率として解釈せず `LEFT_MEDIAN_NEGATIVE`、有限な計算結果にならない場合は対象の値を `null` とし `NONFINITE_RESULT` を付けます。`Infinity` や `NaN` は出力しません。
 
-例: 左1.5 ms、右3 msなら `delta_ms: 1.5`、`change_percent: 100.0`、`faster: "left"` です。注意付きの場合もこれらの値には必ず `verdict: "caution"` と理由が付きます。`incomparable` の各要素には `language`、`case`、両中央値のみが入ります。既存の `compare_archives.py --json` の形式は変更していません。
+例: サンプル由来の中央値が左1.5 ms、右3 msなら `delta_ms: 1.5`、`change_percent: 100.0`、`faster: "left"` です。両方のサンプルが `[1.0, 2.0]` で、右の保存 `median_ms` だけが1.5005 msでも、表示は両方1.5 ms、差0 ms、変化率0%、`faster: "equal"` です。注意付きの場合もこれらの値には必ず `verdict: "caution"` と理由が付きます。`incomparable` の各要素には `language`、`case`、両中央値のみが入ります。既存の `compare_archives.py --json` の形式は変更していません。
 
-保存結果の `median_ms` は既存Validatorが `samples_ms` から中央値を再計算し、`math.isclose` の相対許容誤差 `1e-9` と絶対許容誤差 `0.001` ms で照合した値です。したがって厳密な同一値までは保証しません。このCLIは保存・検証済みの中央値の記述的な差を示すだけです。50サンプルは1回の実行内の反復であり、50回の独立した実験、統計的有意差、最適化の因果関係、異なる言語間の総合順位を示しません。未記録の負荷・電源状態なども判定できません。
+保存結果の `median_ms` は既存Validatorが `samples_ms` から中央値を再計算し、`math.isclose` の相対許容誤差 `1e-9` と絶対許容誤差 `0.001` ms で照合した値です。保存値とサンプル由来の中央値の厳密な一致は保証されません。このCLIは検証済みサンプルから求めた中央値の記述的な差を示すだけです。50サンプルは1回の実行内の反復であり、50回の独立した実験、統計的有意差、最適化の因果関係、異なる言語間の総合順位を示しません。未記録の負荷・電源状態なども判定できません。
 
 `run_all.ps1` 同士の同時実行はロックで防ぎます。各言語のスクリプトを単独で同時起動した場合は、従来の固定名ファイルを共有するため履歴保存の対象外です。`results.direct` と `results.function_call` はそれぞれのサンプルと統計値を持ち、`validation` は両ケースと期待値の合計（checksum）が一致したことを示します。
 

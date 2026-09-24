@@ -198,17 +198,39 @@ class ShowArchiveMetricsTests(unittest.TestCase):
         self.assertEqual((-0.75, -50.0, "right"),
                          (row["delta_ms"], row["change_percent"], row["faster"]))
 
-    def test_uses_saved_median_within_validator_tolerance_without_early_rounding(self) -> None:
+    def test_saved_median_tolerance_does_not_create_false_speed_difference(self) -> None:
         left = self.make_archive("20260801_130000")
         right = self.make_archive("20260802_130000")
         self.rewrite(right, "python.json", lambda d: d["results"]["direct"].update(median_ms=1.5005))
+        left_samples = json.loads((left / "python.json").read_text(encoding="utf-8"))["results"]["direct"]["samples_ms"]
+        right_before = (right / "python.json").read_bytes()
+        right_samples = json.loads(right_before)["results"]["direct"]["samples_ms"]
+        self.assertEqual(left_samples, right_samples)
+        completed = self.run_cli(left, right)
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertEqual(right_before, (right / "python.json").read_bytes())
+        report = json.loads(completed.stdout)
+        row = next(row for row in report["measurements"] if row["language"] == "python" and row["case"] == "direct")
+        self.assertEqual((1.5, 1.5, 0.0, 0.0, "equal"),
+                         tuple(row[key] for key in ("left_median_ms", "right_median_ms",
+                                                    "delta_ms", "change_percent", "faster")))
+        text = self.run_cli(left, right, json_mode=False)
+        self.assertEqual(0, text.returncode, text.stderr)
+        self.assertIn("python/direct: 左 1.5 ms, 右 1.5 ms, 差 +0 ms, 変化率 +0%, 同じ中央値", text.stdout)
+        self.assertNotIn("python/direct: 左 1.5 ms, 右 1.5005 ms", text.stdout)
+
+    def test_equal_means_matching_medians_even_when_samples_differ(self) -> None:
+        left = self.make_archive("20260801_130000")
+        right = self.make_archive("20260802_130000")
+        self.rewrite(right, "python.json", lambda d: d["results"]["direct"].update(
+            samples_ms=[0.5, 2.5], min_ms=0.5, max_ms=2.5, mean_ms=1.5, median_ms=1.5))
         completed = self.run_cli(left, right)
         self.assertEqual(0, completed.returncode, completed.stderr)
         report = json.loads(completed.stdout)
         row = next(row for row in report["measurements"] if row["language"] == "python" and row["case"] == "direct")
-        self.assertEqual(1.5005, row["right_median_ms"])
-        self.assertAlmostEqual(0.0005, row["delta_ms"])
-        self.assertAlmostEqual((1.5005 - 1.5) / 1.5 * 100, row["change_percent"])
+        self.assertEqual((1.5, 1.5, 0.0, 0.0, "equal"),
+                         tuple(row[key] for key in ("left_median_ms", "right_median_ms",
+                                                    "delta_ms", "change_percent", "faster")))
 
 
 if __name__ == "__main__":

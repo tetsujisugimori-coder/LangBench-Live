@@ -8,8 +8,10 @@ from pathlib import Path
 
 if __package__:
     from .compare_archives import ArchiveError, LANGUAGES, compare_archives, load_archive
+    from .validate_result_json import median_from_samples
 else:
     from compare_archives import ArchiveError, LANGUAGES, compare_archives, load_archive
+    from validate_result_json import median_from_samples
 
 CASES = ("direct", "function_call")
 VERDICT_LABELS = {"comparable": "比較可能", "caution": "注意付き", "incomparable": "比較不可"}
@@ -27,8 +29,8 @@ def build_report(left_path: Path, right_path: Path, left: dict, right: dict) -> 
     measurements = []
     for language in LANGUAGES:
         for case in CASES:
-            left_ms = left["results"][language]["results"][case]["median_ms"]
-            right_ms = right["results"][language]["results"][case]["median_ms"]
+            left_ms = median_from_samples(left["results"][language]["results"][case]["samples_ms"])
+            right_ms = median_from_samples(right["results"][language]["results"][case]["samples_ms"])
             row = {"language": language, "case": case,
                    "left_median_ms": left_ms, "right_median_ms": right_ms}
             if verdict != "incomparable":
