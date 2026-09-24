@@ -142,6 +142,30 @@ JSONレポートの `schema_version` は `"1.0"` です。`left` / `right` は�
 
 保存結果の `median_ms` は既存Validatorが `samples_ms` から中央値を再計算し、`math.isclose` の相対許容誤差 `1e-9` と絶対許容誤差 `0.001` ms で照合した値です。保存値とサンプル由来の中央値の厳密な一致は保証されません。このCLIは検証済みサンプルから求めた中央値の記述的な差を示すだけです。50サンプルは1回の実行内の反復であり、50回の独立した実験、統計的有意差、最適化の因果関係、異なる言語間の総合順位を示しません。未記録の負荷・電源状態なども判定できません。
 
+### 独立した複数回の履歴で中央値の揺れを確認する
+
+Windowsで同じチェックアウト、同じソースと設定のまま `run_all.ps1` を順番に5回実行します。各回の出力にある `archive_path` を1件ずつ控えてください。スクリプトは各回の最新結果も出力しますが、下記の閲覧CLIは履歴と最新結果を変更しません。
+
+```powershell
+1..5 | ForEach-Object {
+    pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1
+    # 各回に表示された archive_path を控える
+}
+$archives = @(
+    "results/history/<1回目のexperiment_id>/<1回目のarchive_id>",
+    "results/history/<2回目のexperiment_id>/<2回目のarchive_id>",
+    "results/history/<3回目のexperiment_id>/<3回目のarchive_id>",
+    "results/history/<4回目のexperiment_id>/<4回目のarchive_id>",
+    "results/history/<5回目のexperiment_id>/<5回目のarchive_id>"
+)
+python tools/show_archive_variability.py @archives
+python tools/show_archive_variability.py --json @archives
+```
+
+`tools/show_archive_variability.py` は異なる履歴フォルダを2件以上受け付けます。各履歴の `archive_id`、`experiment_id`、`archived_at` とC・JavaScript・Pythonの `direct` / `function_call` の計6中央値を表示し、全組を既存の2履歴判定で調べます。5履歴なら10組です。全組が `comparable` のときだけ実行間の最小中央値・最大中央値・差（最大−最小、ms）を通常の比較値として示します。`caution` を含み `incomparable` がなければ、それらを**参考値**として示し、各組の原因コードと対象フィールドを添えます。CのOS版 `environment.os_version` が未記録なら、同じマシンの5回でも `INFORMATION_MISSING` の `caution` になり得ます。`incomparable` を含む場合は6ケースそれぞれの各履歴の中央値だけを示し、集団の最小・最大・差は出しません。不正・改変履歴、同一フォルダの重複指定は検証エラーです。別の場所にコピーされた履歴でも、検証後の `archive_id` が重複すれば同じ測定として `DUPLICATE_ARCHIVE` エラーにし、集計値は出しません。
+
+JSONは `unit: "ms"`、全体の `verdict`、`runs`（入力順の身元情報と6中央値）、`pairwise.counts`、`pairwise.pairs`（0始まりの入力位置、判定、理由）を分けます。集団の数値を出せるときだけ `aggregate` を含み、その `status` は `comparable` または `reference`、`cases` に6ケースの `min_median_ms`、`max_median_ms`、`range_ms` を入れます。差が有限値にならない場合は `range_ms: null` と理由コードを返し、NaNやInfinityは出しません。中央値は各回の50個の `samples_ms` から既存Validatorと同じ関数で計算します。5回の範囲は記述的な揺れであり、統計的有意差、最適化の効果、言語全体の優劣を判定しません。
+
 `run_all.ps1` 同士の同時実行はロックで防ぎます。各言語のスクリプトを単独で同時起動した場合は、従来の固定名ファイルを共有するため履歴保存の対象外です。`results.direct` と `results.function_call` はそれぞれのサンプルと統計値を持ち、`validation` は両ケースと期待値の合計（checksum）が一致したことを示します。
 
 `jit_object_numeric_sum` の結果は、既存のファイル命名規則に従って次へ保存されます。

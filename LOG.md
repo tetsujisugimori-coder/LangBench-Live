@@ -941,3 +941,59 @@
 
 * 修正前の新しい期待値では対象テストが失敗し、実際のJSONは `(left_median_ms, right_median_ms, delta_ms, change_percent, faster) = (1.5, 1.5005, 0.0004999999999999449, 0.03333333333332966, "left")` だった。修正後は同一サンプルで `(1.5, 1.5, 0.0, 0.0, "equal")` とテキストの `同じ中央値` を確認した。異なるサンプル分布でも中央値が一致するテストを追加し、正負の差・方向を検証する既存テストも維持した。
 * `python -B -m unittest tests.test_show_archive_metrics tests.test_compare_archives -q`: **18件成功**。`python -B -m unittest discover -s tests -q`: **42件成功**。関連テストの最初の実行はWindowsの一時履歴フォルダ削除で `WinError 145` が1件発生したが、残った `history` は空で、同じ18件と全42件の再実行では再発しなかった。比較のアサーション失敗ではない。この一過性エラーは成功件数に含めていない。
+
+## 2026-09-24 独立5実行の履歴中央値の揺れ
+
+### 設計判断
+
+* `tools/show_archive_variability.py` は異なる履歴フォルダ2件以上を入力順に読み、既存の `load_archive` にSHA-256・Validator・実験定義の照合を、`compare_archives` に全組の条件判定を任せる。各実行の6中央値はPR #13で共用化した `median_from_samples` から求める。履歴の同一フォルダ重複指定は独立した2実行ではないため `DUPLICATE_ARCHIVE` とする。
+* 全組 `comparable` の場合は6ケースの最小・最大・差を表示する。`caution` があれば同じ数値を `reference` とし、各組の原因コードと対象フィールドを残す。1組でも `incomparable` があれば集団の集計値をJSONからも省く。JSONは単位、全体判定、各履歴、全組判定、表示可能な集計値を分け、非有限の差は `null` と理由を返す。テキストはWindowsの既定出力文字コードでも表示できる区切り文字を使う。既存2履歴CLIの仕様は変更しない。
+* 1履歴内の50サンプルから得た中央値を1実行の代表値とし、独立5実行の中央値の範囲を記述する。統計的有意差、最適化の効果、言語全体の順位は判定しない。
+
+### 実行コマンドと結果
+
+* PR #13のマージ済みmain `e807bf9` とGitHub側mainの同一SHAを確認し、新ブランチ `codex/repeated-archive-variability` を作成した。作業ツリーの無関係な未追跡ファイルは保持した。
+* `python -B -m unittest tests.test_show_archive_variability tests.test_show_archive_metrics tests.test_compare_archives -q`: **33件成功**。Windowsの既定文字コードを模したcp932出力テスト追加後、`python -B -m unittest discover -s tests -q`: **58件成功**。最初の通常サンドボックス実行は一時履歴フォルダへの書き込み拒否で失敗し、権限を付けた再実行で成功した。新規7テストは同条件、注意、比較不可、改変、入力順、重複、Windows文字コードを検査する。
+* 元の最新結果を変えずに実測するため、コミット `00fec88` から `C:\Users\tetsu\Documents\Codex\langbench-variability-measure` に隔離worktreeを作った。3言語の測定ソースはすべて作業ツリーでLF。そこで `1..5 | ForEach-Object { pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1 }` を逐次実行し、5回とも `validated=3`、`status=success`、履歴保存を確認した。履歴パスは次のとおり。
+  1. `results/history/20260924_094547_function_call_numeric_sum/8b862ce58b6d4a799b785b5a8be5ec2f`
+  2. `results/history/20260924_094553_function_call_numeric_sum/8e133dec9dca4214b6f68807c1dac57f`
+  3. `results/history/20260924_094559_function_call_numeric_sum/5866fe81f4764e69ac19e74675b06524`
+  4. `results/history/20260924_094605_function_call_numeric_sum/670191b0f9dc475b873df6920c6fd286`
+  5. `results/history/20260924_094611_function_call_numeric_sum/0099f426273a48b59256b23e47830b25`
+* 上記5パスを `python tools/show_archive_variability.py @archives` と `python tools/show_archive_variability.py --json @archives` で読み、10組は `comparable=0`、`caution=10`、`incomparable=0`。各組の理由は `INFORMATION_MISSING`、`environment.os_version`、言語 `c` の1件だった。以下はすべて**参考値**で、単位はms。各セルは5実行の中央値の最小・最大・差（最大−最小）。
+
+| 言語 / ケース | 実行1 | 実行2 | 実行3 | 実行4 | 実行5 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| C / direct | 0.114 | 0.113 | 0.105 | 0.115 | 0.104 |
+| C / function_call | 0.414 | 0.418 | 0.410 | 0.418 | 0.418 |
+| JavaScript / direct | 0.4985 | 0.4865 | 0.4615 | 0.4965 | 0.4935 |
+| JavaScript / function_call | 0.522 | 0.512 | 0.444 | 0.4475 | 0.497 |
+| Python / direct | 18.545 | 19.315 | 19.8115 | 18.9285 | 18.9845 |
+| Python / function_call | 32.188 | 32.845 | 32.2415 | 32.130 | 32.615 |
+
+| 言語 / ケース | 最小 | 最大 | 差 |
+| --- | ---: | ---: | ---: |
+| C / direct | 0.104 | 0.115 | 0.011 |
+| C / function_call | 0.410 | 0.418 | 0.008 |
+| JavaScript / direct | 0.4615 | 0.4985 | 0.037 |
+| JavaScript / function_call | 0.444 | 0.522 | 0.078 |
+| Python / direct | 18.545 | 19.8115 | 1.2665 |
+| Python / function_call | 32.130 | 32.845 | 0.715 |
+
+### 制限
+
+* この実測はこのWindows環境の5回だけで、CのOS版は保存結果に記録されていない。負荷・電源状態など未記録の要因も同一とは確認できない。6ケースの範囲は記述的な値であり、統計的有意差や因果関係、他環境や言語全体への一般化を示さない。
+* 実測した履歴と集計JSONは隔離worktreeにありGit管理外。回帰テストの生成履歴を実機測定として数えていない。CIはPythonテストのみで、Windows統合ベンチマークは対象外。
+
+## 2026-09-24 PR #15 コピー履歴の重複検出
+
+### 判断と修正
+
+* 同じ履歴を別の親ディレクトリにコピーすると、正規化済み入力パスは異なる。修正前の `show_archive_variability.py` はその2パスを独立した実行と数え、1組 `comparable` と6ケースの集計を返した。生成履歴をコピーした回帰テストで、この誤集計を修正前に再現した。
+* 同一パスの `DUPLICATE_ARCHIVE` 判定を残し、各履歴を既存 `load_archive` で検証した後に `archive.json` の `archive_id` の重複を調べる。重複なら同じ `DUPLICATE_ARCHIVE`、終了コード2とし、テキストでは集計を出さず、JSONでは `error` だけを出す。異なる `archive_id` の正常な履歴の集計は維持する。履歴・最新結果への書き込みは行わない。
+* 既存の2履歴CLI、`compare_archives` の比較判定、`median_from_samples` の中央値計算を確認し、いずれも変更不要と判断した。前節の5回実測で記録された5つの `archive_id` はそれぞれ異なるため、以前の観測値を修正する必要はない。今回ベンチマークの再実行や、その5履歴の新たな実測検証はしていない。
+
+### 検証
+
+* `python -B -m unittest tests.test_show_archive_variability tests.test_show_archive_metrics tests.test_compare_archives -q`: **35件成功**。新しいテストはコピー元とコピー先が別パスでも同じ `archive_id` ならJSONとテキストの両方で検証エラーになることを確認した。コピー先を改変した場合は重複判定より先に `SHA256_MISMATCH` になる。既存の正常集計テストには異なる `archive_id` の確認を追加した。
+* `python -B -m unittest discover -s tests -q`: **59件成功**。
