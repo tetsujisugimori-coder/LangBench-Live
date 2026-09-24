@@ -4,6 +4,7 @@ param(
     [string]$AnalysisManifestPath,
     [ValidateSet('direct_first', 'function_call_first')][string]$MeasurementOrder = 'direct_first',
     [string]$DiagnosticResultPath,
+    [string]$DiagnosticTracePath,
     [switch]$ResolveAnalysisOnly
 )
 
@@ -114,7 +115,9 @@ $analysisPath = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-function
 $resultsDir = Join-Path $projectRoot "results"
 $resultPath = if ($DiagnosticResultPath) { [System.IO.Path]::GetFullPath($DiagnosticResultPath) } else { Join-Path $resultsDir "function_call_numeric_sum_c_result.json" }
 if ($MeasurementOrder -eq 'function_call_first' -and -not $DiagnosticResultPath) { throw 'Reverse order requires -DiagnosticResultPath.' }
+if ($DiagnosticTracePath -and -not $DiagnosticResultPath) { throw 'Diagnostic trace requires -DiagnosticResultPath.' }
 if ($DiagnosticResultPath -and (Test-Path -LiteralPath $resultPath)) { throw "Diagnostic result already exists: $resultPath" }
+if ($DiagnosticTracePath -and (Test-Path -LiteralPath $DiagnosticTracePath)) { throw "Diagnostic trace already exists: $DiagnosticTracePath" }
 [System.IO.Directory]::CreateDirectory($resultsDir) | Out-Null
 
 $gccCommand = Get-Command gcc -ErrorAction SilentlyContinue
@@ -239,6 +242,7 @@ try {
     }
     $benchmarkArgs += "--measurement-order=$MeasurementOrder"
     if ($DiagnosticResultPath) { $benchmarkArgs += "--result-path=$resultPath" }
+    if ($DiagnosticTracePath) { $benchmarkArgs += "--diagnostic-trace=$([System.IO.Path]::GetFullPath($DiagnosticTracePath))" }
     $benchmarkOutput = & $exePath @benchmarkArgs
     $benchmarkExitCode = $LASTEXITCODE
 } finally {

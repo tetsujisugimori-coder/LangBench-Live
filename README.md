@@ -1,5 +1,25 @@
 # LangBench Live
 
+## Cの時刻・CPU監視診断（2026-09-24）
+
+PR #21の測定順診断を拡張し、診断時だけCの各ケース・各50サンプルの開始／終了QPCカウンタ値を専用`run-NN-trace.json`へ保存します。通常の結果JSON、3言語履歴、比較判定は変更しません。監視なしの回にも同じC時刻記録を行います。
+
+```powershell
+pwsh -NoProfile -File tools/diagnose_c_measurement_order.ps1 -PlanOnly
+pwsh -NoProfile -File tools/diagnose_c_measurement_order.ps1 -OutputDirectory results/diagnostics/<一意な名前>
+python -B tools/summarize_c_order_diagnostic.py results/diagnostics/<一意な名前> --public-output artifacts/c-order-monitor/public-data.json --table-output artifacts/c-order-monitor/summary.md
+```
+
+ランナーは実行前に20回の計画を表示し、`plan.json`と`runs.json`へ保存します。各組はA（direct→function_call）とB（function_call→direct）を1回ずつ含み、AB/BA各5組です。各組の一方だけを監視し、A/Bそれぞれ監視あり5回・なし5回、実行位置では監視あり前半6回・後半4回です。計画は結果に応じて変えません。入力1〜1,000,000、各5回のウォームアップ、各50サンプル、checksum 500000500000、`gcc -O2 -std=c11 -Wall -Wextra`は維持します。
+
+監視ありでは別プロセスが約20 msごとにWindowsの`GetSystemTimes`からシステム全体のCPU使用率を取得し、各観測区間のQPC開始・終了、取得処理の所要時間、取得失敗を`run-NN-monitor.json`に保存します。電源状態とCPUクロックは信頼できる軽量な取得経路を採用していないため記録しません。Cと監視は同じWindows QPCの生カウンタ値と周波数を使い、周波数一致を検証してから区間の重なりを計算します。Cの`FILETIME`とQPCの前後アンカーからUTC表示を概算します。UTC表示同士で重なりを判定しません。アンカーの読取幅は公開データに記録しますが、時計自体の誤差を保証するものではありません。
+
+ローカル元ファイルは`results/diagnostics/<名前>/`に残します。公開用の[JSON](artifacts/c-order-monitor/public-data.json)には結果・時刻・監視元ファイルのSHA-256とファイル名、全サンプルと監視観測値を入れ、cwd、コンパイルコマンド、ローカルパスを除外します。[集計表](artifacts/c-order-monitor/summary.md)は公開JSONの元サンプルから中央値と0.2 ms以上の件数を再計算し、CPU観測の欠測も表示します。既存の[PR #21公開JSON](artifacts/c-order-diagnostic/public-data.json)と表も従来どおり読めます。
+
+Windows実機で12:48:25〜12:49:21 JSTに最終ソースSHA-256 `c2698ab13afb0275055cf9412797bfe0c99f49d9fe3d10a0d3589941db3a1eda`の20回を逐次実行し、20/20成功しました。監視あり10回でCPU値は1143/1202観測（95.1%）有効でした。実際の採取間隔の回別中央値は20.62〜20.77 ms、最大25.81 ms、取得処理時間の回別中央値は0.148〜0.297 ms、最大4.598 msです。これは取得処理自体の時間であり、監視プロセス全体の干渉量ではありません。C/directの0.2 ms以上はA・監視なしの2回に計18/250件、他のA・監視あり、B・監視あり／なしでは0件でした。遅い18件の測定中CPU観測はありません。監視ありの各C/directケースには有効観測が1〜2区間重なりましたが、20 ms程度のCPU平均値から0.1〜0.3 msの個別サンプル時点の負荷は特定できません。
+
+50サンプルは各実行内の反復で、独立した50実験ではありません。20 msより短い負荷変動は見逃し得ます。CPU値の欠測は低負荷を意味しません。監視あり／なしの差や時刻上の重なりだけから、遅延の原因や統計的有意差は判断できません。次は遅い区間が監視ありの回にも現れ、十分に重なる観測が得られるかを別の事前固定系列で確認するかを判断します。
+
 ## Cの測定順診断（2026-09-24）
 
 通常の `benchmarks/function_call_numeric_sum/run_all.ps1` は従来どおり **A: direct → function_call** で実行し、3言語の共通履歴に保存します。C単独の診断では **B: function_call → direct** を明示的に選べます。両順序で同じC関数、1〜1,000,000の入力、ウォームアップ各5回、各50サンプル、checksum 500000500000、`gcc -O2 -std=c11 -Wall -Wextra` を使います。
