@@ -27,6 +27,18 @@ def fixed_plan():
     return plan
 
 
+def followup_plan():
+    """Twenty precommitted AB/BA pairs, balanced within both order and position."""
+    plan = []
+    for pair in range(1, 21):
+        orders = ("A", "B") if pair % 2 else ("B", "A")
+        monitored_order = "A" if pair % 4 in (1, 2) else "B"
+        for position, order in enumerate(orders, 1):
+            plan.append({"pair": pair, "position": position, "order": order,
+                         "monitored": order == monitored_order})
+    return plan
+
+
 def utc_from_qpc(tick, trace):
     anchor = trace["anchor"]
     middle = (anchor["qpc_before"] + anchor["qpc_after"]) / 2
@@ -68,22 +80,34 @@ def validate_trace(trace, document):
 def monitor_summary(trace, monitor):
     if monitor is None:
         return {"status": "missing", "observations": 0, "valid_observations": 0}
-    if monitor.get("clock") != "windows_qpc" or monitor.get("frequency_hz") != trace["frequency_hz"]:
+    if monitor.get("clock") != "windows_qpc" or (trace is not None and monitor.get("frequency_hz") != trace["frequency_hz"]):
         raise ValueError("monitor and C clocks cannot be compared")
+    frequency = monitor.get("frequency_hz")
+    if not isinstance(frequency, int) or frequency <= 0:
+        raise ValueError("invalid monitor frequency")
     interval = monitor["requested_interval_ms"]
     if not isinstance(interval, int) or interval < 1:
         raise ValueError("invalid monitor interval")
     observations = monitor["observations"]
+    if not isinstance(observations, list) or not observations:
+        raise ValueError("monitor has no observations")
+    if (monitor.get("started_qpc", observations[0]["start_qpc"]) > observations[0]["start_qpc"]
+            or monitor.get("ended_qpc", observations[-1]["end_qpc"]) < observations[-1]["end_qpc"]):
+        raise ValueError("invalid monitor extent")
+    previous_end = None
     for observation in observations:
         if not (observation["start_qpc"] <= observation["probe_start_qpc"] <= observation["end_qpc"]
                 and observation["probe_duration_qpc"] == observation["end_qpc"] - observation["probe_start_qpc"]):
             raise ValueError("invalid monitor observation interval")
+        if previous_end is not None and observation["start_qpc"] < previous_end:
+            raise ValueError("monitor observations overlap out of order")
+        previous_end = observation["end_qpc"]
         busy = observation["cpu_busy_percent"]
         if busy is not None and not 0 <= busy <= 100:
             raise ValueError("invalid CPU busy percent")
     valid = [item for item in observations if item["cpu_busy_percent"] is not None]
-    duration_ms = [item["probe_duration_qpc"] * 1000 / trace["frequency_hz"] for item in observations]
-    actual_intervals_ms = [(right["probe_start_qpc"] - left["probe_start_qpc"]) * 1000 / trace["frequency_hz"]
+    duration_ms = [item["probe_duration_qpc"] * 1000 / frequency for item in observations]
+    actual_intervals_ms = [(right["probe_start_qpc"] - left["probe_start_qpc"]) * 1000 / frequency
                            for left, right in zip(observations, observations[1:])]
     return {"status": "recorded", "requested_interval_ms": interval,
             "observations": len(observations), "valid_observations": len(valid),
@@ -105,7 +129,9 @@ def coverage(start, end, monitor, frequency):
     valid = [item for item in overlapping if item["cpu_busy_percent"] is not None]
     return {"overlapping_observations": len(overlapping), "valid_cpu_observations": len(valid),
             "nearby_observations": len(nearby), "coverage": "observed" if valid else "missing",
-            "overlapping_cpu_busy_percent": [item["cpu_busy_percent"] for item in valid]}
+            "overlapping_cpu_busy_percent": [item["cpu_busy_percent"] for item in valid],
+            "overlapping_observation_numbers": [i for i, item in enumerate(monitor["observations_data"], 1) if item in overlapping],
+            "valid_observation_numbers": [i for i, item in enumerate(monitor["observations_data"], 1) if item in valid]}
 
 
 def statistics(samples):
