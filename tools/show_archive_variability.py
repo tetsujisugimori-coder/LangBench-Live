@@ -91,7 +91,11 @@ def main() -> int:
         resolved = [path.resolve() for path in args.archives]
         if len(set(resolved)) != len(resolved):
             raise ArchiveError("DUPLICATE_ARCHIVE", "each input must be a distinct archive directory")
-        report = build_report(args.archives, [load_archive(path) for path in args.archives])
+        archives = [load_archive(path) for path in args.archives]
+        archive_ids = [archive["index"]["archive_id"] for archive in archives]
+        if len(set(archive_ids)) != len(archive_ids):
+            raise ArchiveError("DUPLICATE_ARCHIVE", "each input must have a distinct archive_id")
+        report = build_report(args.archives, archives)
     except (ArchiveError, OSError) as error:
         code = error.code if isinstance(error, ArchiveError) else "IO_ERROR"
         if args.json:

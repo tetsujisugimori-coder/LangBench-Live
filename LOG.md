@@ -984,3 +984,16 @@
 
 * この実測はこのWindows環境の5回だけで、CのOS版は保存結果に記録されていない。負荷・電源状態など未記録の要因も同一とは確認できない。6ケースの範囲は記述的な値であり、統計的有意差や因果関係、他環境や言語全体への一般化を示さない。
 * 実測した履歴と集計JSONは隔離worktreeにありGit管理外。回帰テストの生成履歴を実機測定として数えていない。CIはPythonテストのみで、Windows統合ベンチマークは対象外。
+
+## 2026-09-24 PR #15 コピー履歴の重複検出
+
+### 判断と修正
+
+* 同じ履歴を別の親ディレクトリにコピーすると、正規化済み入力パスは異なる。修正前の `show_archive_variability.py` はその2パスを独立した実行と数え、1組 `comparable` と6ケースの集計を返した。生成履歴をコピーした回帰テストで、この誤集計を修正前に再現した。
+* 同一パスの `DUPLICATE_ARCHIVE` 判定を残し、各履歴を既存 `load_archive` で検証した後に `archive.json` の `archive_id` の重複を調べる。重複なら同じ `DUPLICATE_ARCHIVE`、終了コード2とし、テキストでは集計を出さず、JSONでは `error` だけを出す。異なる `archive_id` の正常な履歴の集計は維持する。履歴・最新結果への書き込みは行わない。
+* 既存の2履歴CLI、`compare_archives` の比較判定、`median_from_samples` の中央値計算を確認し、いずれも変更不要と判断した。前節の5回実測で記録された5つの `archive_id` はそれぞれ異なるため、以前の観測値を修正する必要はない。今回ベンチマークの再実行や、その5履歴の新たな実測検証はしていない。
+
+### 検証
+
+* `python -B -m unittest tests.test_show_archive_variability tests.test_show_archive_metrics tests.test_compare_archives -q`: **35件成功**。新しいテストはコピー元とコピー先が別パスでも同じ `archive_id` ならJSONとテキストの両方で検証エラーになることを確認した。コピー先を改変した場合は重複判定より先に `SHA256_MISMATCH` になる。既存の正常集計テストには異なる `archive_id` の確認を追加した。
+* `python -B -m unittest discover -s tests -q`: **59件成功**。

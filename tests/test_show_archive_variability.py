@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -50,6 +51,7 @@ class ShowArchiveVariabilityTests(unittest.TestCase):
         report = json.loads(completed.stdout)
         self.assertEqual("ms", report["unit"])
         self.assertEqual("comparable", report["verdict"])
+        self.assertEqual(len(paths), len({run["archive_id"] for run in report["runs"]}))
         self.assertEqual({"comparable": 3, "caution": 0, "incomparable": 0}, report["pairwise"]["counts"])
         self.assertEqual([(0, 1), (0, 2), (1, 2)],
                          [(p["left_index"], p["right_index"]) for p in report["pairwise"]["pairs"]])
@@ -123,6 +125,27 @@ class ShowArchiveVariabilityTests(unittest.TestCase):
         completed = self.run_cli(path, path)
         self.assertEqual(2, completed.returncode)
         self.assertEqual("DUPLICATE_ARCHIVE", json.loads(completed.stdout)["error"]["code"])
+
+    def test_copied_archive_id_is_not_an_independent_run(self) -> None:
+        original = self.make_archive("20260801_130000")
+        copied = self.root / "copied" / original.parent.name / original.name
+        copied.parent.mkdir(parents=True)
+        shutil.copytree(original, copied)
+        self.assertNotEqual(original.resolve(), copied.resolve())
+
+        completed = self.run_cli(original, copied)
+        self.assertEqual(2, completed.returncode, completed.stdout + completed.stderr)
+        self.assertEqual("DUPLICATE_ARCHIVE", json.loads(completed.stdout)["error"]["code"])
+        self.assertEqual({"error"}, set(json.loads(completed.stdout)))
+        text = self.run_cli(original, copied, json_mode=False)
+        self.assertEqual(2, text.returncode)
+        self.assertEqual("", text.stdout)
+        self.assertIn("検証エラー [DUPLICATE_ARCHIVE]", text.stderr)
+
+        (copied / "python.json").write_bytes(b"{}")
+        invalid_copy = self.run_cli(original, copied)
+        self.assertEqual(2, invalid_copy.returncode)
+        self.assertEqual("SHA256_MISMATCH", json.loads(invalid_copy.stdout)["error"]["code"])
 
     def test_text_output_supports_windows_default_encoding(self) -> None:
         paths = self.three_archives()[:2]
