@@ -1,5 +1,26 @@
 # LangBench Live
 
+## Cの測定順診断（2026-09-24）
+
+通常の `benchmarks/function_call_numeric_sum/run_all.ps1` は従来どおり **A: direct → function_call** で実行し、3言語の共通履歴に保存します。C単独の診断では **B: function_call → direct** を明示的に選べます。両順序で同じC関数、1〜1,000,000の入力、ウォームアップ各5回、各50サンプル、checksum 500000500000、`gcc -O2 -std=c11 -Wall -Wextra` を使います。
+
+```powershell
+pwsh -NoProfile -File tools/diagnose_c_measurement_order.ps1 -PlanOnly
+pwsh -NoProfile -File tools/diagnose_c_measurement_order.ps1 -OutputDirectory results/diagnostics/c-order-<任意の一意な名前>
+```
+
+診断スクリプトは各組にAとBを1回ずつ入れ、ABを5組、BAを5組、合計20回を事前に固定して逐次実行します。通常ランナーと同じロックを保持し、C結果は回ごとの専用ファイルへ保存します。失敗回は `runs.json` に理由とともに残し、成功数に含めません。端末状態は開始前後に取得できた項目だけを記録します。測定中の負荷は観測していません。逆順結果は通常Validatorが拒否するため、既存の3言語履歴・比較器へ入りません。
+
+`results/diagnostics/<名前>/runs.json` と `run-01.json`〜`run-20.json` はローカルの保存元です。公開用の [`artifacts/c-order-diagnostic/public-data.json`](artifacts/c-order-diagnostic/public-data.json) は元JSONを編集せずに生成した別ファイルで、各回の実順序、全50サンプル、開始・終了時刻、checksum、コンパイラ・オプションと保存元のファイル名・SHA-256を含みます。個人のローカルパスや `compile_command` は含めません。対応する[全20回の表](artifacts/c-order-diagnostic/summary.md)は公開用JSONのサンプルから再計算できます。公開用データを再生成する場合は次を実行します。
+
+```powershell
+python -B tools/summarize_c_order_diagnostic.py results/diagnostics/c-order-20260924-final --public-output artifacts/c-order-diagnostic/public-data.json --table-output artifacts/c-order-diagnostic/summary.md
+```
+
+最終診断はWindows実機で2026-09-24 12:04〜12:05 JSTに20回すべて成功しました。C/directの回ごとの中央値はAが **0.104〜0.2445 ms**、Bが **0.0965〜0.113 ms**。Aの16回目は中央値0.2445 ms、前半25件0.298 ms・後半25件0.204 msで、38/50件が0.2 ms以上でした。Bの10回には0.2 ms以上のdirectサンプルがありませんでした。0.2 msは記述用の区切りで、判定基準ではありません。実装確認を強める前の20回も隠さず[別の公開用JSON](artifacts/c-order-diagnostic/pilot-public-data.json)と[表](artifacts/c-order-diagnostic/pilot-summary.md)に残しました。この先行系列ではAの0.2 ms以上は計1/500件、Bは計7/500件で、最終系列とは分布が異なります。
+
+50サンプルは1回の実行内の反復で、50回の独立実験ではありません。この20回だけで測定順が遅い区間の原因だと確定したり、統計的有意差を主張したりしません。旧履歴とはCソースが異なり、測定中の端末負荷も観測していないため、旧履歴との数値差にもこの制約があります。Cの解析資料は変更後ソースから再生成し、manifestのソースハッシュと照合しています。
+
 ## 概要
 
 複数のプログラミング言語で同じベンチマーク処理を実行し、コード・ログ・実測結果を比較する学習用アプリです。

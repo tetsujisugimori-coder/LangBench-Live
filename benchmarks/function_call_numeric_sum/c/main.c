@@ -160,9 +160,20 @@ int main(int argc, char *argv[]) {
     double compile_ms, setup_start, setup_ms, direct_warmup, call_warmup, direct_samples[MEASUREMENT_ITERATIONS], call_samples[MEASUREMENT_ITERATIONS], measurement_ms;
     int32_t *values = NULL; int64_t direct_checksum = 0, call_checksum = 0; char experiment_id[256] = "", run_id[256] = "", created_at[48], cwd[PATH_SIZE], cpu[256] = "", os_version[64], output_path[PATH_SIZE];
     SYSTEM_INFO system; MEMORYSTATUSEX memory; FILE *out; size_t index;
+    char order_arg[32] = "", result_arg[PATH_SIZE] = "";
+    int call_first;
     if (argc < 6 || sscanf(argv[1], "%lf", &compile_ms) != 1 || compile_ms < 0 || !argv[2][0] || !argv[3][0] || !argv[4][0] || !argv[5][0]) {
         fprintf(stderr, "status=error\nmessage=expected build and optimization analysis arguments\n"); return 1;
     }
+    optional_arg(argc, argv, "--measurement-order=", order_arg, sizeof(order_arg));
+    call_first = strcmp(order_arg, "function_call_first") == 0;
+    if (order_arg[0] && !call_first && strcmp(order_arg, "direct_first") != 0) {
+        fprintf(stderr, "status=error\nmessage=invalid measurement order\n"); return 1;
+    }
+    if (call_first && !optional_arg(argc, argv, "--result-path=", result_arg, sizeof(result_arg))) {
+        fprintf(stderr, "status=error\nmessage=reverse order requires diagnostic result path\n"); return 1;
+    }
+    if (!call_first) optional_arg(argc, argv, "--result-path=", result_arg, sizeof(result_arg));
     if (!QueryPerformanceFrequency(&timer_frequency) || timer_frequency.QuadPart == 0) { fprintf(stderr, "status=error\nmessage=high-resolution timer is unavailable\n"); return 1; }
     if (!get_os_version(os_version, sizeof(os_version))) { fprintf(stderr, "status=error\nmessage=failed to get OS version via RtlGetVersion\n"); return 1; }
     if (!optional_arg(argc, argv, "--experiment-id=", experiment_id, sizeof(experiment_id))) {
@@ -178,15 +189,17 @@ int main(int argc, char *argv[]) {
     if (!values) { fprintf(stderr, "status=error\nmessage=failed to allocate array\n"); return 1; }
     for (index = 0; index < ITEM_COUNT; index++) values[index] = (int32_t)(index + 1);
     setup_ms = round_ms(now_ms() - setup_start);
-    if (!measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum) || !measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum)) {
+    if ((call_first && (!measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum) || !measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum))) ||
+        (!call_first && (!measure(values, direct_sum, &direct_warmup, direct_samples, &direct_checksum) || !measure(values, function_call_sum, &call_warmup, call_samples, &call_checksum)))) {
         free(values); fprintf(stderr, "status=error\nmessage=checksum mismatch\n"); return 1;
     }
     measurement_ms = round_ms(sample_total(direct_samples) + sample_total(call_samples));
     if (!GetCurrentDirectoryA(sizeof(cwd), cwd)) { free(values); fprintf(stderr, "status=error\nmessage=failed to get cwd\n"); return 1; }
-    if (strlen(cwd) + 1 + strlen(RESULT_FILE) + 1 > sizeof(output_path)) {
+    if (!result_arg[0] && strlen(cwd) + 1 + strlen(RESULT_FILE) + 1 > sizeof(output_path)) {
         free(values); fprintf(stderr, "status=error\nmessage=result path is too long\n"); return 1;
     }
-    strcpy(output_path, cwd); strcat(output_path, "\\"); strcat(output_path, RESULT_FILE);
+    if (result_arg[0]) strcpy(output_path, result_arg);
+    else { strcpy(output_path, cwd); strcat(output_path, "\\"); strcat(output_path, RESULT_FILE); }
     local_iso_timestamp(created_at, sizeof(created_at)); cpu_model(cpu, sizeof(cpu)); GetNativeSystemInfo(&system);
     memory.dwLength = sizeof(memory); if (!GlobalMemoryStatusEx(&memory)) memory.ullTotalPhys = 0;
     out = fopen(output_path, "wb"); if (!out) { free(values); fprintf(stderr, "status=error\nmessage=failed to open result: %s\n", strerror(errno)); return 1; }
@@ -194,6 +207,9 @@ int main(int argc, char *argv[]) {
     fprintf(out, ",\n  \"run_id\": "); write_json_string(out, run_id); fprintf(out, ",\n  \"language\": \"c\",\n  \"created_at\": "); write_json_string(out, created_at);
     fprintf(out, ",\n  \"status\": \"success\",\n  \"engine\": {\"runtime\": \"native\", \"runtime_version\": null},\n  \"execution\": {\"runner\": \"vscode_terminal_powershell\", \"runner_label\": \"VSCode Terminal / PowerShell\", \"cwd\": "); write_json_string(out, cwd); fprintf(out, ", \"argv\": [");
     for (int i = 0; i < argc; i++) { write_json_string(out, argv[i]); fprintf(out, "%s", i + 1 == argc ? "" : ", "); }
+    fprintf(out, "], \"measurement_order\": [");
+    write_json_string(out, call_first ? "function_call" : "direct"); fprintf(out, ", ");
+    write_json_string(out, call_first ? "direct" : "function_call");
     fprintf(out, "]},\n  \"environment\": {\"os\": \"Windows\", \"os_version\": "); write_json_string(out, os_version); fprintf(out, ", \"architecture\": "); if (architecture_name(system.wProcessorArchitecture)) write_json_string(out, architecture_name(system.wProcessorArchitecture)); else fputs("null", out);
     fprintf(out, ", \"cpu\": "); if (cpu[0]) write_json_string(out, cpu); else fputs("null", out); fprintf(out, ", \"logical_processors\": %lu, \"memory_bytes\": ", system.dwNumberOfProcessors); if (memory.ullTotalPhys) fprintf(out, "%" PRIu64, (uint64_t)memory.ullTotalPhys); else fputs("null", out);
     fprintf(out, "},\n  \"build\": {\"required\": true, \"compiler\": \"gcc\", \"compiler_version\": "); write_json_string(out, argv[2]); fprintf(out, ", \"compile_command\": "); write_json_string(out, argv[3]); fprintf(out, ", \"compile_ms\": %.3f, \"source_path\": ", compile_ms); write_json_string(out, argv[4]);

@@ -1101,3 +1101,16 @@
 新3回目の開始前空き物理メモリは2228.8 MBで、7回目は開始前1462.2 MBでもC/direct中央値0.105 ms。境界値だけから測定中の負荷は分からず、原因を特定できない。C/directがC/function_callより先に測定される順序との関連も未確定。50サンプルを独立した50実験とみなさず、10回から統計的有意差や最適化効果を主張しない。次の判断は、同条件の反復だけでは原因を分けられないため、測定順または端末状態を制御する別計画が必要か検討すること。今回の実験設定・測定ループ・schema・比較規則は変更しない。
 
 診断の全50サンプルと前後半値はローカルの `results/diagnostics/pr17-five-samples.json`、`results/diagnostics/ten-20260924/all-samples.json` に記録した（Git管理外）。新10回の開始・終了の完全なISO時刻、成否・理由、履歴パス、前後端末状態は `results/diagnostics/ten-20260924/runs.json` にある。レビュー側で履歴ファイルが利用できない場合は、上記CLIを手元の履歴に対して再実行する必要がある。
+
+## 2026-09-24 Cの測定順A/B診断
+
+* 着手前にローカルmain `5f4cd12` と `origin/main` の一致、README、LOG、C本体、`run_c.ps1`、`remeasure_function_call.ps1`、Validator、履歴保存・比較器、解析manifestを確認した。`git fetch origin main` はWindows資格情報不足（`SEC_E_NO_CREDENTIALS`）で失敗したが、後でGitHub APIのmain先端も`5f4cd12`と照合した。元worktreeのGit管理外の実測関連ファイルは触れず、`codex/c-order-diagnostic-20260924` の別worktreeで作業した。
+* Cの測定関数、ループ、入力、ウォームアップ各5回、各50サンプル、checksum判定と `gcc -O2 -std=c11 -Wall -Wextra` は維持した。診断で明示したときだけB（function_call→direct）へ切り替える。通常の`run_all.ps1`とC単独実行はA（direct→function_call）。実順序をC結果の`execution.measurement_order`に記録した。
+* 診断結果は回ごとの専用JSONへ出し、通常の共通履歴には保存しない。通常ValidatorはBを拒否し、診断用ValidatorだけがBを受け付ける。既存の比較器は測定順を比較条件に含めないため、Bを通常履歴へ混ぜないことを優先した。
+* 診断スクリプトはAB・BAを交互に各5組、20回を事前固定し、通常ランナーと同じロックを保持して逐次実行する。各回の開始・終了、成否・理由、Git HEAD、正規化CソースSHA-256、コンパイラ・オプション、取得できた端末状態をローカル`runs.json`に保存する。各C結果には両checksum、実順序、入力順の各50サンプルとコンパイラ版を保存する。失敗回は成功数に入れない。
+* 最終Cソースから`tools/generate_function_call_analysis.ps1 -AnalysisId function-call-analysis-20260924-c-order-diagnostic`でGCC解析資料とmanifestを再生成した。Cソースハッシュは`27b832b49b5dee98ea9237087c66e90dace95ffcdc7c1c66ca8269a484cd7c11`。Python/JavaScriptソースは変更していないため、それらの保存済み解析資料とmanifestエントリは維持した。新C結果のprovenanceは`matched`、manifest構造検証も成功した。
+* 公開用の`artifacts/c-order-diagnostic/public-data.json`と`summary.md`はローカルの`results/diagnostics/c-order-20260924-final/run-01.json`〜`run-20.json`から別出力として生成した。各公開runの`source_result.file`と`sha256`が保存元のファイル名と生バイトハッシュを示す。公開JSONには個人のローカルパス、cwd、compile_commandを入れない。表は全サンプルから中央値、前後半25件中央値、0.2 ms以上の件数を再計算した。0.2 msは記述用で判定基準ではない。
+* Windows実機の最終系列は2026-09-24 12:04:44〜12:05:37 JSTに20/20成功。AとBは各10回。C/directの回ごとの中央値はAで0.104〜0.2445 ms、Bで0.0965〜0.113 ms。Aの16回目は0.2445 ms、前半25件0.298 ms、後半25件0.204 ms、38/50件が0.2 ms以上。Bのdirectは10回とも0.2 ms以上0件。全20回の個別値は公開表に記録した。
+* 検証を強める前の先行20回（11:59:24〜12:00:13 JST）も20/20成功し、`pilot-public-data.json`と`pilot-summary.md`に全順序・全サンプルを別公開した。先行系列のC/direct 0.2 ms以上はAで合計1/500件、Bで合計7/500件であり、最終系列と様子が異なる。選択的に最終系列だけを成果として扱わない。
+* Python全体テスト78件成功（通常サンドボックスでは`tempfile`が作るディレクトリのACLでアクセス拒否が発生し、許可された実行経路で再実行）。C解析テスト16件、C順序テスト2件、C OS版テスト5件、JavaScript解析テスト22件、manifest検証が成功。通常`run_all.ps1`はA、`validated=3`、履歴保存まで成功した。通常サンドボックスでの最初の統合実行は同じ一時ディレクトリ拒否で履歴保存のみ失敗し、成功扱いにしていない。
+* 50サンプルを50回の独立実験として扱わない。最終20回ではAに遅い区間が見え、Bには同じ形の区間は見えなかったが、先行20回ではその傾向は明瞭でない。測定順を原因と確定せず、統計的有意差も主張しない。PR #19以前の旧履歴とはCソースが異なり、端末状態は開始前後のみで測定中の負荷を観測していない。

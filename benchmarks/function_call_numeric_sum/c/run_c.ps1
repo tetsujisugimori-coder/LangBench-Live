@@ -2,6 +2,8 @@ param(
     [string]$ExperimentId,
     [string]$RunId,
     [string]$AnalysisManifestPath,
+    [ValidateSet('direct_first', 'function_call_first')][string]$MeasurementOrder = 'direct_first',
+    [string]$DiagnosticResultPath,
     [switch]$ResolveAnalysisOnly
 )
 
@@ -110,7 +112,9 @@ $manifestPath = if ([string]::IsNullOrWhiteSpace($AnalysisManifestPath)) { Join-
 $exePath = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-function-call-{0}.exe" -f [guid]::NewGuid().ToString("N"))
 $analysisPath = Join-Path ([System.IO.Path]::GetTempPath()) ("langbench-function-call-analysis-{0}.json" -f [guid]::NewGuid().ToString("N"))
 $resultsDir = Join-Path $projectRoot "results"
-$resultPath = Join-Path $resultsDir "function_call_numeric_sum_c_result.json"
+$resultPath = if ($DiagnosticResultPath) { [System.IO.Path]::GetFullPath($DiagnosticResultPath) } else { Join-Path $resultsDir "function_call_numeric_sum_c_result.json" }
+if ($MeasurementOrder -eq 'function_call_first' -and -not $DiagnosticResultPath) { throw 'Reverse order requires -DiagnosticResultPath.' }
+if ($DiagnosticResultPath -and (Test-Path -LiteralPath $resultPath)) { throw "Diagnostic result already exists: $resultPath" }
 [System.IO.Directory]::CreateDirectory($resultsDir) | Out-Null
 
 $gccCommand = Get-Command gcc -ErrorAction SilentlyContinue
@@ -233,6 +237,8 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($RunId)) {
         $benchmarkArgs += "--run-id=$RunId"
     }
+    $benchmarkArgs += "--measurement-order=$MeasurementOrder"
+    if ($DiagnosticResultPath) { $benchmarkArgs += "--result-path=$resultPath" }
     $benchmarkOutput = & $exePath @benchmarkArgs
     $benchmarkExitCode = $LASTEXITCODE
 } finally {

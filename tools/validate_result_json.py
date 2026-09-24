@@ -475,9 +475,15 @@ def validate_object_sum(document: dict[str, Any], path: Path) -> list[str]:
     if validation.get("passed") is not True or validation.get("checksum") != validation.get("expected_checksum"): errors.append(f"{path}: checksum validation failed")
     return errors
 
-def validate(document: Any, path: Path) -> list[str]:
+def validate(document: Any, path: Path, *, allow_diagnostic_order: bool = False) -> list[str]:
     errors = validate_common(document, path)
     if not isinstance(document, dict): return errors
+    if document.get("benchmark") == "function_call_numeric_sum" and document.get("language") == "c":
+        order = document.get("execution", {}).get("measurement_order") if isinstance(document.get("execution"), dict) else None
+        if order not in (None, ["direct", "function_call"], ["function_call", "direct"]):
+            errors.append(f"{path}: C measurement order is invalid")
+        elif order == ["function_call", "direct"] and not allow_diagnostic_order:
+            errors.append(f"{path}: reverse-order diagnostic result cannot enter normal history")
     if document.get("status") == "error": return errors
     if document.get("benchmark") == "function_call_numeric_sum": errors.extend(validate_function_call(document, path))
     elif document.get("benchmark") == "jit_object_numeric_sum": errors.extend(validate_object_sum(document, path))
