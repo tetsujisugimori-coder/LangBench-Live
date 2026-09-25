@@ -10,6 +10,13 @@ python -B tools/diagnose_c_affinity.py --runs 40 --cpu-a 0 --cpu-b 1 --output re
 
 `--runs` は各条件の回数で、40なら40サイクル計120run、3サイクル9runの動作確認なら `--runs 3` を指定できます。指定CPUがプロセスの許可mask外、2番号が同一、Windows以外の場合は測定前にエラーにします。保存先が既存の場合も上書きしません。測定前に全runのexperiment ID・run番号・順序・サイクル・位置・一意な番号付きrun ID・pending状態を `plan.json` と `runs.json` に保存します。`plan.json`は実行中に変更しません。`runs.json`は完了ごとに原子的に更新し、各回の条件・CPU番号（normalはnull）・開始終了時刻・50件のdirect生サンプル・中央値・最小最大・0.2 ms以上の件数・ベンチマーク条件・バイナリSHA-256・成否を残します。番号付きrun IDは診断時だけ受理し、通常の正式結果Validatorと3言語履歴の受理規則は維持します。元の結果JSONとログも各回ごとに保存します。`summary.json`には条件別と実行位置×条件別の計画・成功・失敗run数、run中央値の中央値・平均・母標準偏差・範囲、全サンプル数、0.2 ms以上のサンプル数と該当run数を保存します。cycleごとの推移は`runs.json`のcycle・position・condition・medianから再構築できます。個別runの失敗は記録して残りを続行し、バイナリSHA・測定設定・affinity確認が不一致なら系列を停止します。静的なOS・CPU情報は記録しますが、CPU周波数・電源状態は測定しません。
 
+raw診断データはGit管理外の`results/diagnostics/<系列名>/`に保存します。第三者が読める再現用データは`artifacts/c-affinity/public-data.json`と`summary.md`に保存し、raw `plan.json`・`runs.json`・最適化解析ファイルおよび各runの元結果JSONのSHA-256を対応付けます。公開JSONには再集計に必要な50 samples、実験条件、OS/CPU、run ID、binary/source SHAとcondition・position別統計を含め、実行パスやバイナリは含めません。公開データは診断rawから次のように生成し、公開JSON単体からsummaryを再計算して整合性を確認できます。
+
+```powershell
+python -B tools/publish_c_affinity.py results/diagnostics/<系列名> --public-output artifacts/c-affinity/public-data.json --table-output artifacts/c-affinity/summary.md
+python -B tools/publish_c_affinity.py --recalculate-public artifacts/c-affinity/public-data.json --table-output artifacts/c-affinity/summary.md
+```
+
 normalのみ変動して固定CPUで安定すればスケジューリングやCPU移動を、特定CPUだけ遅ければCPU間の差を、全条件で変動すればaffinity以外の要因を追加調査する材料になります。全条件で安定なら稀な外乱を含め長期観測を検討します。いずれも原因の確定判定ではありません。50サンプルは各run内の反復であり、独立した50実験ではありません。
 
 ## C測定順の追加診断：事前固定40回（2026-09-24）

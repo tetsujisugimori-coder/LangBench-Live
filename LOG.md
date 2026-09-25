@@ -1187,3 +1187,14 @@
 
 * この系列では固定CPU 0/1のrun中央値の母標準偏差はnormalより小さい一方、0.2 ms以上のサンプル数と該当run数は両固定条件のほうが多い。中央値と平均もnormalより高い。したがってaffinity固定で遅い外れ値が減ったとは言えない。normalの位置1は位置2/3より平均と遅いサンプル数が低く、位置・経時要因も残る可能性がある。CPU 0/1差は観測されたが、論理CPUの構造差やclock・電源・背景処理の観測は行っておらず原因は未確定。次段階の候補はCPU topology（P/E-core配置）とscheduler migration、clock周波数・Windows電源管理、背景処理、interrupt/DPC。今回これらの計測は追加していない。
 * 検証：Python全94件、C測定順2件、C解析16件、C OS版5件、JavaScript解析22件、manifest検証は成功。通常サンドボックスのPythonテストはWindows一時ディレクトリACLで失敗し、許可された実機経路で同一テストを再実行して成功した。`git diff --check`も確認した。
+
+## 2026-09-25 PR #30 CPU affinity結果の公開データ化
+
+* 既存PR #30のhead `codex/c-affinity-120run-20260924` 上で作業。新しい120run測定は行わず、ローカルの既存 `results/diagnostics/c-affinity-120-20260924-pr29/` の `plan.json`、`runs.json`、120個のrun JSONから `artifacts/c-affinity/public-data.json` と `summary.md` を生成した。C本体、正式結果、history、正式Validator、既存runのsampleや測定条件は変更していない。
+* `tools/publish_c_affinity.py`はraw planが決定的なpending計画と完全一致すること、runsとのexperiment/run ID・cycle・position・conditionの一致、全成功runの正式schema・config・direct-first順・affinity引数・checksum・50サンプル一致を検証する。raw `c-benchmark.exe` と各runのSHA-256も確認し、C source SHAが現行C sourceと一致することを確認してから、個人パスを含めず公開形式へ変換する。
+* 公開JSONにはversion、benchmark、experiment ID、測定設定・順序・compiler/options、OS/CPU、binary/C-source SHA、全120runのpending計画状態・実状態・run ID・cycle・position・condition・logical CPU・run統計・全50サンプル、条件別・position×condition別summaryを含めた。raw `plan.json`・`runs.json`・最適化解析JSONと各元run JSONの相対ファイル名およびSHA-256を記録する。`.exe`やログ、cwd、絶対パスは含めない。第三者は `python -B tools/publish_c_affinity.py --recalculate-public artifacts/c-affinity/public-data.json --table-output <summary.md>` でrawディレクトリなしにsummaryを再計算・検証できる。
+* 公開データからの再集計は元のLOG/PR値と一致した。120/120 success、normal/A/B各40/40、各2000 sample。中央値の中央値は0.104/0.13475/0.11725 ms、平均は0.1161/0.1354375/0.1276375 ms、母標準偏差は0.031933759565701/0.026172549431608686/0.022882031023272388 ms。0.2 ms以上のsample数は90/159/187、該当run数は6/12/20。position × condition別の全統計も公開JSONのみから再計算して一致する。
+* 公開ファイルは[JSON](artifacts/c-affinity/public-data.json)と[summary](artifacts/c-affinity/summary.md)。rawとの照合SHA-256：plan `bb8742455926dfdaea05ee825a99bc02ca267f0eeaeb6578169af8056fffa0b9`、runs `fc36ae48c9fb33b46b7095318450b3cc93b66ed166669541ebfcf75ea4fc95d2`、binary `533274b673b6892ba2c57051b89da1d4352fb04cffdff8bad211d297568a0184`、C source `b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3`。
+* Windows統合テストのplan不変性検証は、実行後に同じファイルを連続で読む比較を削除した。experiment IDからstampを復元し、CPU A/Bと `build_plan()` から期待する完全なpending planを作り、実行後の `plan.json` と一致させる。公開JSON fixtureではsuccess/failed/pending集計とraw sampleからの値検証を行い、120run公開ファイルでは条件別・位置別のすべての統計、run ID、experiment ID、50 sample、プライバシー除外、公開JSONのみからのsummary再生成をテストする。
+* 今回の変更により前節の結果解釈は変更しない。affinityを原因とは断定せず、normalとA/Bの差およびposition/経時要因を観測事実として記録し、CPU topology、scheduler migration、clock、Windows電源管理、背景処理、interrupt/DPCは次段階候補に留める。
+* 最終検証：Python全97件（Windows affinity統合を含む）、C測定順2件、C解析16件、C OS版5件、JavaScript解析22件、manifest検証成功。公開JSON単独のsummary再計算結果はコミット対象`summary.md`と一致し、`git diff --check`も成功した。

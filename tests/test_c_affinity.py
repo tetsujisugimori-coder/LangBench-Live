@@ -121,12 +121,17 @@ class AffinityWindowsTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
             record = json.loads((output / "runs.json").read_text(encoding="utf-8"))
             saved_plan = json.loads((output / "plan.json").read_text(encoding="utf-8"))
-            plan_bytes = (output / "plan.json").read_bytes()
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            stamp = record["experiment_id"].removesuffix("_function_call_numeric_sum")
+            expected_runs = build_plan(1, cpus[0], cpus[1], stamp)
+            plan_fields = ("experiment_id", "run_number", "number", "cycle", "position", "scheduled_order",
+                           "condition", "logical_cpu", "run_id", "status")
+            expected_plan = {"experiment_id": record["experiment_id"],
+                             "runs": [{field: run[field] for field in plan_fields} for run in expected_runs]}
             self.assertEqual(len(record["runs"]), 3)
             self.assertEqual(len(saved_plan["runs"]), 3)
             self.assertTrue(all(run["status"] == "pending" for run in saved_plan["runs"]))
-            self.assertEqual(plan_bytes, (output / "plan.json").read_bytes())
+            self.assertEqual(saved_plan, expected_plan)
             self.assertEqual({run["experiment_id"] for run in saved_plan["runs"]}, {record["experiment_id"]})
             self.assertEqual([run["logical_cpu"] for run in record["runs"]], [None, cpus[0], cpus[1]])
             self.assertEqual(len({run["run_id"] for run in record["runs"]}), 3)
