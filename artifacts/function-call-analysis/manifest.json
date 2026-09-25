@@ -72,7 +72,7 @@
         "simd"
       ],
       "condition": {
-        "source_sha256": "66c7978695ac300d533a4e419c6949484c076e1fba868c3a43dd96d0392ee217",
+        "source_sha256": "e28accca835c98c92abed8083eb83c7b509b2fdd005b20c085c4d6166d65f452",
         "implementation": {
           "name": "CPython",
           "version": "3.14.7"

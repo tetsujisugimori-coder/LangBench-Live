@@ -1,5 +1,11 @@
 # LangBench Live
 
+## Windows CPU topology の観測
+
+`python tools/cpu_topology.py [--output PATH]` はWindowsのprocessor group、logical processor、物理coreと現在のプロセスaffinityを読み取り、端末に要約を表示します。`--output` を指定すると詳細JSONも保存します。通常のPythonベンチマーク結果では `environment.cpu_topology` に同じ診断情報をoptional fieldとして記録します。失敗は診断status/errorとして残り、ベンチマークを止めません。非Windowsでは `unsupported` になります。
+
+使用APIは `GetActiveProcessorGroupCount` / `GetActiveProcessorCount`、`GetLogicalProcessorInformationEx(RelationProcessorCore)`、`GetProcessAffinityMask` / `GetThreadGroupAffinity` です。取得情報は観測だけに使い、affinityやthread設定を変更しません。coreごとのWindows efficiency classは生値として記録しますが、P-core / E-coreとは分類しません。Processor groupをまたぐprocess affinityの厳密な集合表現は未対応で、affinityには現在のthread groupに対するAPI scopeを明記します。
+
 ## Windows C/direct CPU affinity 診断
 
 通常のベンチマーク設定は変更せず、専用スクリプトで normal、指定した論理CPU A、論理CPU Bを比較します。normal→A→B の固定順では時間経過と条件が交絡するため、3条件を N→A→B、A→B→N、B→N→A の順に決定的にローテーションします。診断系列ごとにCを一度だけ `gcc -O2 -std=c11 -Wall -Wextra` でコンパイルし、同じ実行バイナリ、入力1〜1,000,000、direct→function_call、各ケースのウォームアップ5回・測定50回で実行します。affinityはCプロセス自身がセットアップ前にWindows APIで設定・確認します。normalには設定引数を渡しません。CPU番号は現在のWindowsプロセッサグループ内の論理CPU番号で、プロセスに許可されたmaskから選んでください。
