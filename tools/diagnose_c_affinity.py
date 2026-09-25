@@ -21,6 +21,10 @@ OPTIONS = ["-O2", "-std=c11", "-Wall", "-Wextra"]
 THRESHOLD_MS = 0.2
 
 
+class ExperimentInvalidError(RuntimeError):
+    """Stop the series when later runs would not be comparable."""
+
+
 def now() -> str:
     return datetime.now().astimezone().isoformat(timespec="microseconds")
 
@@ -65,7 +69,8 @@ def build_plan(repeats: int, cpu_a: int, cpu_b: int, stamp: str) -> list[dict]:
         for position, (mode, cpu) in enumerate(ordered, start=1):
             number = len(runs) + 1
             runs.append({
-                "number": number, "cycle": cycle, "position": position,
+                "experiment_id": f"{stamp}_function_call_numeric_sum",
+                "number": number, "run_number": number, "cycle": cycle, "position": position,
                 "scheduled_order": scheduled_order, "condition": mode, "logical_cpu": cpu,
                 "run_id": f"{stamp}_c_function_call_numeric_sum_run_{number:03d}",
                 "started_at": None, "ended_at": None, "status": "pending",
@@ -78,24 +83,54 @@ def build_plan(repeats: int, cpu_a: int, cpu_b: int, stamp: str) -> list[dict]:
     return runs
 
 
+def aggregate(selected: list[dict]) -> dict:
+    successful = [run for run in selected if run["status"] == "success"]
+    medians = [run["median_ms"] for run in successful]
+    return {
+        "planned_runs": len(selected),
+        "run_count": len(successful), "successful_runs": len(successful),
+        "failed_runs": sum(run["status"] == "failed" for run in selected),
+        "pending_runs": sum(run["status"] == "pending" for run in selected),
+        "median_of_medians_ms": statistics.median(medians) if medians else None,
+        "min_median_ms": min(medians) if medians else None,
+        "max_median_ms": max(medians) if medians else None,
+        "mean_median_ms": statistics.mean(medians) if medians else None,
+        # The observed successful runs are the population described by this file.
+        "stddev_median_ms": statistics.pstdev(medians) if medians else None,
+        "measurement_samples": sum(len(run["samples_ms"]) for run in successful),
+        "samples_ge_0_2_ms": sum(run["samples_ge_0_2_ms"] for run in successful),
+        "runs_with_sample_ge_0_2_ms": sum(run["samples_ge_0_2_ms"] > 0 for run in successful),
+    }
+
+
 def summarize(runs: list[dict], planned: list[tuple[str, int | None]]) -> list[dict]:
-    summary = []
-    for mode, cpu in planned:
-        selected = [run for run in runs if run["status"] == "success" and run["condition"] == mode and run["logical_cpu"] == cpu]
-        medians = [run["median_ms"] for run in selected]
-        summary.append({
-            "condition": mode, "logical_cpu": cpu, "run_count": len(selected),
-            "median_of_medians_ms": statistics.median(medians) if medians else None,
-            "min_median_ms": min(medians) if medians else None,
-            "max_median_ms": max(medians) if medians else None,
-            "samples_ge_0_2_ms": sum(run["samples_ge_0_2_ms"] for run in selected),
-            "runs_with_sample_ge_0_2_ms": sum(run["samples_ge_0_2_ms"] > 0 for run in selected),
-        })
-    return summary
+    return [{"condition": mode, "logical_cpu": cpu,
+             **aggregate([run for run in runs if run["condition"] == mode and run["logical_cpu"] == cpu])}
+            for mode, cpu in planned]
+
+
+def summarize_positions(runs: list[dict], planned: list[tuple[str, int | None]]) -> list[dict]:
+    return [{"position": position, "conditions": [
+        {"condition": mode, "logical_cpu": cpu,
+         **aggregate([run for run in runs if run["position"] == position and
+                      run["condition"] == mode and run["logical_cpu"] == cpu])}
+        for mode, cpu in planned]}
+        for position in (1, 2, 3)]
 
 
 def save(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def verify_binary(binary: Path, expected_hash: str) -> None:
+    try:
+        actual_hash = sha256(binary)
+    except OSError as error:
+        raise ExperimentInvalidError(f"cannot verify benchmark binary: {error}") from error
+    if actual_hash != expected_hash:
+        raise ExperimentInvalidError(f"binary SHA-256 changed: expected {expected_hash}, got {actual_hash}")
 
 
 def run_checked(arguments: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -131,7 +166,7 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int) -> dict:
         "environment": {"os": platform.platform(), "logical_processors": os.cpu_count(), "cpu_model": platform.processor() or None},
         "started_at": now(), "ended_at": None, "runs": runs, "summary": [],
     }
-    plan_fields = ("number", "cycle", "position", "scheduled_order", "condition", "logical_cpu", "run_id", "status")
+    plan_fields = ("experiment_id", "run_number", "number", "cycle", "position", "scheduled_order", "condition", "logical_cpu", "run_id", "status")
     save(output / "plan.json", {"experiment_id": experiment_id,
                                "runs": [{name: run[name] for name in plan_fields} for run in runs]})
     save(output / "runs.json", record)
@@ -144,8 +179,6 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int) -> dict:
     compile_ms = round((datetime.now().timestamp() - start_compile) * 1000, 3)
     binary_hash = sha256(binary)
     record.update(binary_sha256=binary_hash, compiler=compiler_version, compile_ms=compile_ms)
-    for run in runs:
-        run["binary_sha256"] = binary_hash
     save(output / "runs.json", record)
     # Execute the immutable precommitted order, leaving future runs pending if interrupted.
     for run in runs:
@@ -158,19 +191,36 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int) -> dict:
             arguments.append(f"--diagnostic-affinity={cpu}")
         run["started_at"] = now()
         save(output / "runs.json", record)
+        fatal_error = None
         try:
+            verify_binary(binary, binary_hash)
+            run["binary_sha256"] = binary_hash
             process = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True)
             (output / f"run-{number:03d}.log").write_text(process.stdout + process.stderr, encoding="utf-8")
+            verify_binary(binary, binary_hash)
             if process.returncode:
+                if cpu is not None and any(marker in process.stderr for marker in
+                        ("GetProcessAffinityMask", "SetProcessAffinityMask", "affinity verification failed",
+                         "outside the process allowed affinity mask", "invalid logical CPU number")):
+                    raise ExperimentInvalidError(f"affinity verification failed: {process.stderr.strip()}")
                 raise RuntimeError(f"benchmark exited {process.returncode}: {process.stderr.strip()}")
             document = json.loads(result_path.read_text(encoding="utf-8"))
+            if isinstance(document, dict) and isinstance(document.get("config"), dict) and any(
+                    document["config"].get(key) != value for key, value in run["benchmark_config"].items()):
+                raise ExperimentInvalidError("benchmark config differs from fixed conditions")
+            if isinstance(document, dict) and isinstance(document.get("execution"), dict):
+                argv = document["execution"].get("argv")
+                if isinstance(argv, list):
+                    affinity_args = [arg for arg in argv if isinstance(arg, str) and arg.startswith("--diagnostic-affinity=")]
+                    if affinity_args != ([] if cpu is None else [f"--diagnostic-affinity={cpu}"]):
+                        raise ExperimentInvalidError("affinity argument differs from the plan")
+                if document["execution"].get("measurement_order") != ["direct", "function_call"]:
+                    raise ExperimentInvalidError("measurement order differs from fixed conditions")
             errors = validate(document, result_path, allow_affinity_diagnostic_id=True)
             if errors:
                 raise ValueError("; ".join(errors))
             if document["run_id"] != run["run_id"] or document["experiment_id"] != experiment_id:
                 raise ValueError("result IDs differ from the precommitted plan")
-            if document["config"]["item_count"] != 1000000 or document["config"]["warmup_iterations"] != 5 or document["config"]["measurement_iterations"] != 50:
-                raise ValueError("benchmark config differs from fixed conditions")
             samples = document["results"]["direct"]["samples_ms"]
             if len(samples) != 50 or document["validation"]["direct_checksum"] != 500000500000:
                 raise ValueError("direct samples or checksum differ from fixed conditions")
@@ -180,20 +230,24 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int) -> dict:
                     "os": environment["os"], "os_version": environment["os_version"],
                     "logical_processors": environment["logical_processors"], "cpu_model": environment["cpu"],
                 }
-            if sha256(binary) != binary_hash:
-                raise ValueError("binary changed during diagnosis")
             run.update(samples_ms=samples, median_ms=statistics.median(samples), min_ms=min(samples), max_ms=max(samples),
                        samples_ge_0_2_ms=sum(sample >= THRESHOLD_MS for sample in samples), status="success")
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
             run.update(status="failed", error=str(error))
+            if isinstance(error, ExperimentInvalidError):
+                fatal_error = error
         finally:
             run["ended_at"] = now()
             record["summary"] = summarize(record["runs"], planned)
             save(output / "runs.json", record)
         print(f"run={number} condition={mode} cpu={cpu} status={run['status']}", flush=True)
+        if fatal_error is not None:
+            raise fatal_error
     record["ended_at"] = now()
     save(output / "runs.json", record)
-    save(output / "summary.json", {"binary_sha256": binary_hash, "conditions": record["summary"]})
+    save(output / "summary.json", {"experiment_id": experiment_id, "binary_sha256": binary_hash,
+                                   "planned_runs": len(runs), "conditions": record["summary"],
+                                   "positions": summarize_positions(runs, planned)})
     for row in record["summary"]:
         print(f"{row['condition']} cpu={row['logical_cpu']} runs={row['run_count']} median_of_medians_ms={row['median_of_medians_ms']} "
               f"median_range_ms={row['min_median_ms']}..{row['max_median_ms']} slow_samples={row['samples_ge_0_2_ms']} "

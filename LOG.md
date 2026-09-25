@@ -1158,3 +1158,43 @@
 * 系列共通の`experiment_id`には既存形式を維持し、各`run_id`に`_run_001`等の番号を付けて同一秒内の重複を防ぐ。診断専用の明示的Validatorオプションでのみ番号付きIDを受理し、通常の正式Validatorと3言語履歴の受理規則は変更しない。各元結果のIDが事前planと一致することも確認する。
 * Windows短縮診断`--runs 3 --cpu-a 0 --cpu-b 1`はN,A,B / A,B,N / B,N,Aの9/9回成功。9個のrun IDは一意、各回50サンプル、全runのバイナリSHA-256は`d994f4794cae6fe562f1a1474d6905a9dceda5a75b2c2e9c741cbf7a81631ffe`で一致。normalのC引数にaffinity指定はなく、CPU 0/1にはそれぞれ正しい指定がある。`plan.json`の9行はすべてpendingのまま保持され、`runs.json`は9行すべてsuccess。通常の固定名C結果と通常履歴の実行前後SHA-256・ファイル一覧に変更はない。
 * 追加した純粋関数テストは9runの厳密な順序、各条件の位置均等性、40サイクルの位置差、一意ID、pending計画を確認。Windows統合テストは元結果と履歴が変わらないこと、診断専用IDとC引数、同一バイナリを確認。Python全93件、C順序2件、C解析16件、C OS版5件、manifest検証が成功。9runの数値からaffinity効果は判断せず、40×3の本測定は実施していない。
+
+## 2026-09-24 C/direct CPU affinity 40サイクル本測定
+
+* PR #28がマージされたmain `64877f4`から隔離worktreeで作業した。元mainのGit管理外のJIT結果・バイナリ・cache・dataは変更しない。C測定本体、入力1,000,000件、warmup 5回、direct先行・各ケース50測定、`gcc -O2 -std=c11 -Wall -Wextra`、正式結果・履歴・正式Validatorを維持した。
+* `plan.json`の120件すべてに共通experiment IDとrun番号を含め、全行pendingの静的計画として測定・コンパイル前に保存する。`runs.json`は原子的なファイル置換で逐次更新する。各runの前後でCバイナリSHA-256を照合し、不一致、測定config・測定順・affinity引数の不一致、C側affinity確認失敗は系列を停止する。通常の単一run失敗はfailedと理由を残して次へ進む。保存失敗は系列を停止し、途中の計画・成功済みrunを残す。
+* `summary.json`に条件別と実行位置1/2/3×条件別の計画・成功・失敗・pending数、run中央値の中央値・平均・母標準偏差・最小最大、measurementサンプル数、0.2 ms以上のサンプル数・該当run数を追加した。標準偏差は成功したrun中央値の母標準偏差で、50サンプルを独立runとして扱わない。cycle方向は`runs.json`のcycle・position・condition・medianから復元する。
+* Windows実機はWindows 10.0.26200、Intel Core i7-14650HX、24 logical processors、normalはaffinity引数なし、CPU A=0・CPU B=1。順序は N→A→B、A→B→N、B→N→A を周期的に繰り返す。先に`python -B tools/diagnose_c_affinity.py --runs 3 --cpu-a 0 --cpu-b 1 --output results/diagnostics/c-affinity-3-20260924-pr29`を20:11:01〜20:11:04 JSTに実行し9/9成功。9 run IDは一意、全runに各50件、同一バイナリSHA-256 `a8dd3851ead1d34fcef13cb1628038c861ee412df3b284ffad919737948529a9`。planの9行はpendingのまま、runsの9行はsuccess。normalのC引数にaffinity指定はなく、A/Bは0/1を指定。normal/A/Bのrun中央値の中央値は0.104/0.105/0.111 ms、0.2 ms以上は1/0/0件。
+* 続いて同一コードから`python -B tools/diagnose_c_affinity.py --runs 40 --cpu-a 0 --cpu-b 1 --output results/diagnostics/c-affinity-120-20260924-pr29`を20:11:36〜20:11:49 JSTに実行し120/120成功。各条件40回、全runで同一バイナリSHA-256 `533274b673b6892ba2c57051b89da1d4352fb04cffdff8bad211d297568a0184`、同一config、各50サンプル。120 run ID一意、全行の計画・結果のID、cycle、position、conditionは一致。位置分布はnormalが14/13/13、Aが13/14/13、Bが13/13/14。`plan.json`は全行pendingのまま。元結果120件とrunsの統計、summaryの条件・位置統計を元サンプルから独立に再計算し一致した。元データは無視対象の診断専用ディレクトリに保存し、正式結果や3言語履歴へコピーしていない。
+
+| 条件 | 成功/計画 | run中央値の中央値 | 平均 | 母標準偏差 | 最小〜最大 | 0.2 ms以上のsamples | 該当run |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| normal | 40/40 | 0.104 | 0.116100 | 0.031934 | 0.096〜0.2545 | 90/2000 | 6 |
+| CPU A (0) | 40/40 | 0.13475 | 0.135438 | 0.026173 | 0.101〜0.203 | 159/2000 | 12 |
+| CPU B (1) | 40/40 | 0.11725 | 0.127638 | 0.022882 | 0.101〜0.182 | 187/2000 | 20 |
+
+| 実行位置 | 条件 | 成功run | run中央値の中央値 | 平均 | 母標準偏差 | 0.2 ms以上のsamples |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | normal | 14 | 0.1035 | 0.106393 | 0.006960 | 4 |
+| 1 | CPU A (0) | 13 | 0.139 | 0.136077 | 0.029176 | 45 |
+| 1 | CPU B (1) | 13 | 0.116 | 0.125846 | 0.019826 | 63 |
+| 2 | normal | 13 | 0.104 | 0.119423 | 0.035144 | 36 |
+| 2 | CPU A (0) | 14 | 0.13875 | 0.142607 | 0.022300 | 69 |
+| 2 | CPU B (1) | 13 | 0.1215 | 0.128192 | 0.024717 | 53 |
+| 3 | normal | 13 | 0.1055 | 0.123231 | 0.041075 | 50 |
+| 3 | CPU A (0) | 13 | 0.1195 | 0.127077 | 0.024397 | 45 |
+| 3 | CPU B (1) | 14 | 0.11725 | 0.128786 | 0.023645 | 71 |
+
+* この系列では固定CPU 0/1のrun中央値の母標準偏差はnormalより小さい一方、0.2 ms以上のサンプル数と該当run数は両固定条件のほうが多い。中央値と平均もnormalより高い。したがってaffinity固定で遅い外れ値が減ったとは言えない。normalの位置1は位置2/3より平均と遅いサンプル数が低く、位置・経時要因も残る可能性がある。CPU 0/1差は観測されたが、論理CPUの構造差やclock・電源・背景処理の観測は行っておらず原因は未確定。次段階の候補はCPU topology（P/E-core配置）とscheduler migration、clock周波数・Windows電源管理、背景処理、interrupt/DPC。今回これらの計測は追加していない。
+* 検証：Python全94件、C測定順2件、C解析16件、C OS版5件、JavaScript解析22件、manifest検証は成功。通常サンドボックスのPythonテストはWindows一時ディレクトリACLで失敗し、許可された実機経路で同一テストを再実行して成功した。`git diff --check`も確認した。
+
+## 2026-09-25 PR #30 CPU affinity結果の公開データ化
+
+* 既存PR #30のhead `codex/c-affinity-120run-20260924` 上で作業。新しい120run測定は行わず、ローカルの既存 `results/diagnostics/c-affinity-120-20260924-pr29/` の `plan.json`、`runs.json`、120個のrun JSONから `artifacts/c-affinity/public-data.json` と `summary.md` を生成した。C本体、正式結果、history、正式Validator、既存runのsampleや測定条件は変更していない。
+* `tools/publish_c_affinity.py`はraw planが決定的なpending計画と完全一致すること、runsとのexperiment/run ID・cycle・position・conditionの一致、全成功runの正式schema・config・direct-first順・affinity引数・checksum・50サンプル一致を検証する。raw `c-benchmark.exe` と各runのSHA-256も確認し、C source SHAが現行C sourceと一致することを確認してから、個人パスを含めず公開形式へ変換する。
+* 公開JSONにはversion、benchmark、experiment ID、測定設定・順序・compiler/options、OS/CPU、binary/C-source SHA、全120runのpending計画状態・実状態・run ID・cycle・position・condition・logical CPU・run統計・全50サンプル、条件別・position×condition別summaryを含めた。raw `plan.json`・`runs.json`・最適化解析JSONと各元run JSONの相対ファイル名およびSHA-256を記録する。`.exe`やログ、cwd、絶対パスは含めない。第三者は `python -B tools/publish_c_affinity.py --recalculate-public artifacts/c-affinity/public-data.json --table-output <summary.md>` でrawディレクトリなしにsummaryを再計算・検証できる。
+* 公開データからの再集計は元のLOG/PR値と一致した。120/120 success、normal/A/B各40/40、各2000 sample。中央値の中央値は0.104/0.13475/0.11725 ms、平均は0.1161/0.1354375/0.1276375 ms、母標準偏差は0.031933759565701/0.026172549431608686/0.022882031023272388 ms。0.2 ms以上のsample数は90/159/187、該当run数は6/12/20。position × condition別の全統計も公開JSONのみから再計算して一致する。
+* 公開ファイルは[JSON](artifacts/c-affinity/public-data.json)と[summary](artifacts/c-affinity/summary.md)。rawとの照合SHA-256：plan `bb8742455926dfdaea05ee825a99bc02ca267f0eeaeb6578169af8056fffa0b9`、runs `fc36ae48c9fb33b46b7095318450b3cc93b66ed166669541ebfcf75ea4fc95d2`、binary `533274b673b6892ba2c57051b89da1d4352fb04cffdff8bad211d297568a0184`、C source `b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3`。
+* Windows統合テストのplan不変性検証は、実行後に同じファイルを連続で読む比較を削除した。experiment IDからstampを復元し、CPU A/Bと `build_plan()` から期待する完全なpending planを作り、実行後の `plan.json` と一致させる。公開JSON fixtureではsuccess/failed/pending集計とraw sampleからの値検証を行い、120run公開ファイルでは条件別・位置別のすべての統計、run ID、experiment ID、50 sample、プライバシー除外、公開JSONのみからのsummary再生成をテストする。
+* 今回の変更により前節の結果解釈は変更しない。affinityを原因とは断定せず、normalとA/Bの差およびposition/経時要因を観測事実として記録し、CPU topology、scheduler migration、clock、Windows電源管理、背景処理、interrupt/DPCは次段階候補に留める。
+* 最終検証：Python全97件（Windows affinity統合を含む）、C測定順2件、C解析16件、C OS版5件、JavaScript解析22件、manifest検証成功。公開JSON単独のsummary再計算結果はコミット対象`summary.md`と一致し、`git diff --check`も成功した。

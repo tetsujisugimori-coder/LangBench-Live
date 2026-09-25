@@ -9,7 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from diagnose_c_affinity import allowed_cpu_mask, build_plan, check_cpus, conditions, summarize
+from diagnose_c_affinity import (ExperimentInvalidError, allowed_cpu_mask, build_plan,
+                                 check_cpus, conditions, summarize, summarize_positions, verify_binary)
 
 
 def history_snapshot(path: Path) -> dict[str, str] | None:
@@ -44,6 +45,12 @@ class AffinityPureTests(unittest.TestCase):
         plan = build_plan(40, 2, 5, "20260924_190000")
         self.assertEqual(len(plan), 120)
         self.assertEqual(len({run["run_id"] for run in plan}), 120)
+        self.assertEqual({run["experiment_id"] for run in plan}, {"20260924_190000_function_call_numeric_sum"})
+        self.assertEqual([run["run_number"] for run in plan], list(range(1, 121)))
+        self.assertEqual([run["scheduled_order"] for run in plan[:9:3]],
+                         [["normal", "cpu:2", "cpu:5"], ["cpu:2", "cpu:5", "normal"],
+                          ["cpu:5", "normal", "cpu:2"]])
+        self.assertTrue(all(run["status"] == "pending" for run in plan))
         for condition in conditions(2, 5):
             counts = [sum((run["condition"], run["logical_cpu"]) == condition and run["position"] == position
                           for run in plan) for position in (1, 2, 3)]
@@ -61,16 +68,40 @@ class AffinityPureTests(unittest.TestCase):
 
     def test_summary_uses_run_medians_and_counts_samples(self):
         runs = [
-            {"status": "success", "condition": "normal", "logical_cpu": None, "median_ms": 0.1, "samples_ge_0_2_ms": 0},
-            {"status": "success", "condition": "normal", "logical_cpu": None, "median_ms": 0.3, "samples_ge_0_2_ms": 3},
-            {"status": "failed", "condition": "normal", "logical_cpu": None, "median_ms": None, "samples_ge_0_2_ms": None},
-            {"status": "success", "condition": "affinity", "logical_cpu": 2, "median_ms": 0.2, "samples_ge_0_2_ms": 1},
+            {"status": "success", "condition": "normal", "logical_cpu": None, "position": 1,
+             "median_ms": 0.1, "samples_ms": [0.1] * 50, "samples_ge_0_2_ms": 0},
+            {"status": "success", "condition": "normal", "logical_cpu": None, "position": 2,
+             "median_ms": 0.3, "samples_ms": [0.3] * 50, "samples_ge_0_2_ms": 50},
+            {"status": "failed", "condition": "normal", "logical_cpu": None, "position": 3,
+             "median_ms": None, "samples_ms": None, "samples_ge_0_2_ms": None},
+            {"status": "success", "condition": "affinity", "logical_cpu": 2, "position": 1,
+             "median_ms": 0.2, "samples_ms": [0.2] * 50, "samples_ge_0_2_ms": 50},
         ]
         normal, cpu_a, cpu_b = summarize(runs, conditions(2, 5))
         self.assertEqual((normal["run_count"], normal["median_of_medians_ms"], normal["min_median_ms"], normal["max_median_ms"]), (2, 0.2, 0.1, 0.3))
-        self.assertEqual((normal["samples_ge_0_2_ms"], normal["runs_with_sample_ge_0_2_ms"]), (3, 1))
-        self.assertEqual((cpu_a["run_count"], cpu_a["samples_ge_0_2_ms"]), (1, 1))
+        self.assertEqual((normal["samples_ge_0_2_ms"], normal["runs_with_sample_ge_0_2_ms"]), (50, 1))
+        self.assertEqual((normal["planned_runs"], normal["successful_runs"], normal["failed_runs"],
+                          normal["measurement_samples"]), (3, 2, 1, 100))
+        self.assertAlmostEqual(normal["mean_median_ms"], 0.2)
+        self.assertAlmostEqual(normal["stddev_median_ms"], 0.1)
+        self.assertEqual((cpu_a["run_count"], cpu_a["samples_ge_0_2_ms"]), (1, 50))
         self.assertEqual((cpu_b["run_count"], cpu_b["median_of_medians_ms"]), (0, None))
+        positions = summarize_positions(runs, conditions(2, 5))
+        self.assertEqual([row["position"] for row in positions], [1, 2, 3])
+        self.assertEqual((positions[0]["conditions"][0]["successful_runs"],
+                          positions[0]["conditions"][0]["median_of_medians_ms"]), (1, 0.1))
+        self.assertEqual((positions[1]["conditions"][0]["samples_ge_0_2_ms"],
+                          positions[2]["conditions"][0]["failed_runs"]), (50, 1))
+
+    def test_changed_binary_is_fatal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            binary = Path(temporary) / "benchmark.exe"
+            binary.write_bytes(b"original")
+            expected = hashlib.sha256(binary.read_bytes()).hexdigest()
+            verify_binary(binary, expected)
+            binary.write_bytes(b"changed")
+            with self.assertRaisesRegex(ExperimentInvalidError, "binary SHA-256 changed"):
+                verify_binary(binary, expected)
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows affinity integration")
@@ -90,12 +121,25 @@ class AffinityWindowsTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
             record = json.loads((output / "runs.json").read_text(encoding="utf-8"))
             saved_plan = json.loads((output / "plan.json").read_text(encoding="utf-8"))
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            stamp = record["experiment_id"].removesuffix("_function_call_numeric_sum")
+            expected_runs = build_plan(1, cpus[0], cpus[1], stamp)
+            plan_fields = ("experiment_id", "run_number", "number", "cycle", "position", "scheduled_order",
+                           "condition", "logical_cpu", "run_id", "status")
+            expected_plan = {"experiment_id": record["experiment_id"],
+                             "runs": [{field: run[field] for field in plan_fields} for run in expected_runs]}
             self.assertEqual(len(record["runs"]), 3)
             self.assertEqual(len(saved_plan["runs"]), 3)
             self.assertTrue(all(run["status"] == "pending" for run in saved_plan["runs"]))
+            self.assertEqual(saved_plan, expected_plan)
+            self.assertEqual({run["experiment_id"] for run in saved_plan["runs"]}, {record["experiment_id"]})
             self.assertEqual([run["logical_cpu"] for run in record["runs"]], [None, cpus[0], cpus[1]])
             self.assertEqual(len({run["run_id"] for run in record["runs"]}), 3)
             self.assertEqual([row["run_count"] for row in record["summary"]], [1, 1, 1])
+            self.assertEqual(summary["planned_runs"], 3)
+            self.assertEqual([row["successful_runs"] for row in summary["conditions"]], [1, 1, 1])
+            self.assertEqual([[row["successful_runs"] for row in position["conditions"]]
+                              for position in summary["positions"]], [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
             binary_hash = hashlib.sha256((output / "c-benchmark.exe").read_bytes()).hexdigest()
             self.assertEqual(record["binary_sha256"], binary_hash)
             for run in record["runs"]:
@@ -105,6 +149,7 @@ class AffinityWindowsTests(unittest.TestCase):
                 document = json.loads((output / run["result_file"]).read_text(encoding="utf-8"))
                 self.assertEqual(run["samples_ms"], document["results"]["direct"]["samples_ms"])
                 self.assertEqual(run["run_id"], document["run_id"])
+                self.assertEqual(run["experiment_id"], record["experiment_id"])
                 affinity_args = [arg for arg in document["execution"]["argv"] if arg.startswith("--diagnostic-affinity=")]
                 self.assertEqual(affinity_args, [] if run["logical_cpu"] is None else [f"--diagnostic-affinity={run['logical_cpu']}"])
             normal = json.loads((output / record["runs"][0]["result_file"]).read_text(encoding="utf-8"))
