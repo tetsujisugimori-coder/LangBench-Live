@@ -1,5 +1,17 @@
 # LOG
 
+## 2026-09-25 Ubuntu / Windows Python CI
+
+### 今回変更した概要
+
+* 既存のPythonテストworkflowを `ubuntu-latest` / `windows-latest` のOS matrixに変更し、両OSでPython 3.14の同一テストスイートを実行するようにした
+* Windows固有のCPU affinity integration testをWindows CIで実行し、Ubuntuでは従来どおりskipする構成を維持した
+
+### 確認した動作
+
+* PRとmainへのpushで、両OSのPythonテストjobが起動する
+* CPU topology診断、追加ベンチマーク、測定データ取得はこの変更に含めていない
+
 ## 2026-07-02 LangBench Live v0.1 初期作成
 
 ### 今回変更した概要
