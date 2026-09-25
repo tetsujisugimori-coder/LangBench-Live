@@ -122,6 +122,34 @@ def collect_topology() -> dict:
         return result
 
 
+def safe_collect_topology() -> dict:
+    """Return topology diagnostics without allowing them to fail a benchmark."""
+    try:
+        return collect_topology()
+    except Exception as error:
+        try:
+            logical_cpu_count = os.cpu_count()
+        except Exception as cpu_count_error:
+            logical_cpu_count = None
+            error_message = (
+                f"{type(error).__name__}: {error}; "
+                f"os.cpu_count failed: {type(cpu_count_error).__name__}: {cpu_count_error}"
+            )
+        else:
+            error_message = f"{type(error).__name__}: {error}"
+        return {
+            "status": "unavailable",
+            "source": "Windows processor topology APIs",
+            "error": error_message,
+            "logical_cpu_count": logical_cpu_count,
+            "physical_core_count": None,
+            "processor_group_count": None,
+            "processor_groups": [],
+            "process_affinity": None,
+            "cores": [],
+        }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, help="also write the diagnostic JSON to this path")

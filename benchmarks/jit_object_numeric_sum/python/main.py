@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from tools.cpu_topology import collect_topology
+from tools.cpu_topology import safe_collect_topology
 
 PROJECT = "LangBench Live"
 SCHEMA_VERSION = "1.0"
@@ -127,7 +127,7 @@ def build_metadata(project_root: Path, status: str, experiment_id: str, run_id: 
             "architecture": platform.machine() or None,
             "cpu": platform.processor() or None,
             "logical_processors": os.cpu_count(),
-            "cpu_topology": collect_topology(),
+            "cpu_topology": safe_collect_topology(),
             "memory_bytes": None,
         },
         "build": None,

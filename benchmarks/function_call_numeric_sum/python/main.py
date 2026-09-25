@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from tools.cpu_topology import collect_topology
+from tools.cpu_topology import safe_collect_topology
 
 PROJECT = "LangBench Live"
 SCHEMA_VERSION = "1.0"
@@ -63,13 +63,7 @@ def measure(case, values):
         if checksum != EXPECTED_CHECKSUM: raise RuntimeError("checksum mismatch")
     return warmup_ms, rounded(sum(samples)), checksum, stats(samples)
 def metadata(status, eid, rid):
-    try:
-        topology = collect_topology()
-    except Exception as error:
-        topology = {"status": "unavailable", "source": "Windows processor topology APIs",
-                    "error": f"{type(error).__name__}: {error}", "logical_cpu_count": os.cpu_count(),
-                    "physical_core_count": None, "processor_group_count": None,
-                    "processor_groups": [], "process_affinity": None, "cores": []}
+    topology = safe_collect_topology()
     return {"type":"langbench_result", "schema_version":SCHEMA_VERSION, "project":PROJECT, "benchmark":BENCHMARK, "experiment_id":eid, "run_id":rid, "language":LANGUAGE, "created_at":datetime.now().astimezone().isoformat(timespec="milliseconds"), "status":status, "engine":{"runtime":"python", "runtime_version":platform.python_version(), "compiler":None, "compiler_version":None, "python_implementation":platform.python_implementation()}, "execution":{"runner":"vscode_terminal_powershell", "runner_label":"VSCode Terminal / PowerShell", "cwd":str(Path.cwd()), "argv":[sys.executable, *sys.argv]}, "environment":{"os":platform.system() or None, "os_version":platform.version() or None, "architecture":platform.machine() or None, "cpu":platform.processor() or None, "logical_processors":os.cpu_count(), "cpu_topology":topology, "memory_bytes":None}, "build":None}
 def condition_mismatches(analysis, current):
     mismatches = []

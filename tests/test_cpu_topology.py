@@ -1,8 +1,11 @@
 import json
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
+from benchmarks.function_call_numeric_sum.python import main as function_call_main
+from benchmarks.jit_object_numeric_sum.python import main as jit_object_main
 from tools import cpu_topology
 
 
@@ -24,6 +27,40 @@ class CpuTopologyTests(unittest.TestCase):
         self.assertEqual("unavailable", result["status"])
         self.assertIn("diagnostic denied", result["error"])
         self.assertIsNone(result["process_affinity"])
+
+    def test_safe_collector_returns_success_result_unchanged(self):
+        topology = {"status": "available", "logical_cpu_count": 1}
+        with patch.object(cpu_topology, "collect_topology", return_value=topology):
+            self.assertIs(topology, cpu_topology.safe_collect_topology())
+
+    def test_safe_collector_records_unexpected_exception(self):
+        with patch.object(cpu_topology, "collect_topology", side_effect=RuntimeError("unexpected topology failure")), patch.object(
+            cpu_topology.os, "cpu_count", return_value=7
+        ):
+            result = cpu_topology.safe_collect_topology()
+        self.assertEqual("unavailable", result["status"])
+        self.assertEqual("RuntimeError: unexpected topology failure", result["error"])
+        self.assertEqual(7, result["logical_cpu_count"])
+        self.assertIsNone(result["physical_core_count"])
+        self.assertIsNone(result["processor_group_count"])
+        self.assertEqual([], result["processor_groups"])
+        self.assertIsNone(result["process_affinity"])
+        self.assertEqual([], result["cores"])
+
+    def test_benchmark_metadata_survives_unexpected_topology_exception(self):
+        with patch.object(cpu_topology, "collect_topology", side_effect=RuntimeError("diagnostic only")):
+            function_call_result = function_call_main.metadata(
+                "success", "20260926_010000_function_call_numeric_sum",
+                "20260926_010001_python_function_call_numeric_sum",
+            )
+            jit_object_result = jit_object_main.build_metadata(
+                Path.cwd(), "success", "20260926_010000_jit_object_numeric_sum",
+                "20260926_010001_python_jit_object_numeric_sum",
+            )
+        for result in (function_call_result, jit_object_result):
+            self.assertEqual("success", result["status"])
+            self.assertEqual("unavailable", result["environment"]["cpu_topology"]["status"])
+            self.assertIn("diagnostic only", result["environment"]["cpu_topology"]["error"])
 
     @unittest.skipUnless(os.name == "nt", "Windows topology API integration")
     def test_windows_topology_has_consistent_group_and_core_identifiers(self):
