@@ -1,5 +1,34 @@
 # LOG
 
+## 2026-09-26 CPU topology解析・説明
+
+### 今回変更した概要
+
+* `tools/cpu_topology.py` にWindows APIやprint処理に依存しない `build_logical_cpu_index()` / `analyze_topology()` を追加し、`group_id + processor_number` でlogical CPUを識別するようにした。
+* topology summary、physical coreごとのlogical thread数、EfficiencyClass raw value別のcore/CPU数、指定CPUのcore/sibling情報、CPUペア比較を追加した。CLIは `--analyze-cpu N` と `--analyze-cpu GROUP:N` を受け付け、JSONには元の収集結果を保持して `analysis` を追加する。
+* `tests/test_cpu_topology.py` に人工topologyを使うSMT、single-thread core、class集計、processor group、process affinity欠損、unavailable/unsupported、不正入力のテストを追加した。
+* READMEにCLI使用方法と解析上の制約を追記した。benchmark本体、affinity、thread数、測定条件、結果schema、測定値は変更していない。新しいbenchmark測定も行っていない。
+
+### Windows実機での観測
+
+`python -B tools/cpu_topology.py --analyze-cpu 0 --analyze-cpu 1` の結果:
+
+* topology summary: 24 logical CPUs、16 physical cores、1 processor group、process affinity 24 logical CPUs。
+* core thread分布: 1 logical threadのcoreが8個、2 logical threadsのcoreが8個。
+* EfficiencyClass raw value 0: 8 physical cores / 8 logical CPUs。raw value 1: 8 physical cores / 16 logical CPUs。
+* CPU 0: physical core 0、同じcoreのlogical processorsはCPU 0/1、EfficiencyClass raw value 1。
+* CPU 1: physical core 0、同じcoreのlogical processorsはCPU 0/1、EfficiencyClass raw value 1。
+* CPU 0とCPU 1は同じphysical coreで、同じEfficiencyClass raw valueだった。
+
+これらはこの実機で取得した静的topology観測値であり、benchmark実行中の配置や性能差の原因を示すものではない。
+
+### 既知の制約
+
+* EfficiencyClassはWindows APIのraw valueだけを扱う。P-core / E-core分類やその他の意味付けはしていない。
+* 静的topologyはbenchmark実行中のscheduler migration、clock変動、温度、interrupt/DPCを観測しない。
+* processor groupをまたぐ実行制御やprocess affinity設定は行わない。
+* 今回はbranch上のローカル検証であり、pushしていないためWindows CI / Ubuntu CIの結果は未確認。
+
 ## 2026-09-26 Windows CPU topology 観測診断
 
 ### 今回変更した概要
