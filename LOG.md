@@ -1,5 +1,13 @@
 # LOG
 
+## 2026-09-26 Windows CPU topology 観測診断
+
+### 今回変更した概要
+
+* `tools/cpu_topology.py` にWindows processor group、logical processor、物理core対応、efficiency class生値、process affinityの読み取り専用診断と人間向け表示/JSON保存CLIを追加した。
+* 2種類のPython benchmark resultにoptionalな `environment.cpu_topology` を追加した。診断不能・非Windowsでもstatus/errorを保存し、ベンチマークを継続する。
+* affinityの変更、CPU固定、thread数変更、benchmarkロジック変更は行っていない。P-core / E-core判定は未対応。
+
 ## 2026-09-25 Ubuntu / Windows Python CI
 
 ### 今回変更した概要
