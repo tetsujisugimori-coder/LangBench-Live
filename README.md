@@ -2,9 +2,9 @@
 
 ## Windows CPU topology の観測
 
-`python tools/cpu_topology.py [--output PATH]` はWindowsのprocessor group、logical processor、物理coreと現在のプロセスaffinityを読み取り、端末に要約を表示します。`--output` を指定すると詳細JSONも保存します。通常のPythonベンチマーク結果では `environment.cpu_topology` に同じ診断情報をoptional fieldとして記録します。失敗は診断status/errorとして残り、ベンチマークを止めません。非Windowsでは `unsupported` になります。
+`python -B tools/cpu_topology.py [--output PATH]` はWindowsのprocessor group、logical processor、物理coreと現在のプロセスaffinityを読み取り、端末に要約を表示します。`--analyze-cpu 0 --analyze-cpu 1` を追加すると指定logical CPUのcore、sibling、EfficiencyClass raw valueとペア比較を表示します。複数groupでは `--analyze-cpu 1:0` のように `GROUP:PROCESSOR_NUMBER` で指定します。`--output` を指定すると元の収集結果に `analysis` を追加したJSONも保存します。通常のPythonベンチマーク結果では `environment.cpu_topology` に収集情報をoptional fieldとして記録します。失敗は診断status/errorとして残り、ベンチマークを止めません。非Windowsでは `unsupported` になります。
 
-使用APIは `GetActiveProcessorGroupCount` / `GetActiveProcessorCount`、`GetLogicalProcessorInformationEx(RelationProcessorCore)`、`GetProcessAffinityMask` / `GetThreadGroupAffinity` です。取得情報は観測だけに使い、affinityやthread設定を変更しません。coreごとのWindows efficiency classは生値として記録しますが、P-core / E-coreとは分類しません。Processor groupをまたぐprocess affinityの厳密な集合表現は未対応で、affinityには現在のthread groupに対するAPI scopeを明記します。
+使用APIは `GetActiveProcessorGroupCount` / `GetActiveProcessorCount`、`GetLogicalProcessorInformationEx(RelationProcessorCore)`、`GetProcessAffinityMask` / `GetThreadGroupAffinity` です。取得情報は観測だけに使い、affinityやthread設定を変更しません。解析は収集済み辞書を入力にする純粋関数で、Windows APIなしのfixture testが可能です。coreごとのWindows `EfficiencyClass` はraw値として扱い、P-core / E-coreとは分類しません。値からCPUの種類や性能を推測しないでください。静的topologyはbenchmark中のscheduler migrationやclock変動を示しません。processor groupをまたぐ実行制御は行いません。affinity診断が使う裸のCPU番号はgroup 0のprocessor numberに対応します。process affinityの取得結果も現在のthread groupを対象とするAPI scopeで、groupをまたぐ許可CPU集合は表現していません。
 
 ## Windows C/direct CPU affinity 診断
 
