@@ -1247,3 +1247,10 @@
 * Windows統合テストのplan不変性検証は、実行後に同じファイルを連続で読む比較を削除した。experiment IDからstampを復元し、CPU A/Bと `build_plan()` から期待する完全なpending planを作り、実行後の `plan.json` と一致させる。公開JSON fixtureではsuccess/failed/pending集計とraw sampleからの値検証を行い、120run公開ファイルでは条件別・位置別のすべての統計、run ID、experiment ID、50 sample、プライバシー除外、公開JSONのみからのsummary再生成をテストする。
 * 今回の変更により前節の結果解釈は変更しない。affinityを原因とは断定せず、normalとA/Bの差およびposition/経時要因を観測事実として記録し、CPU topology、scheduler migration、clock、Windows電源管理、背景処理、interrupt/DPCは次段階候補に留める。
 * 最終検証：Python全97件（Windows affinity統合を含む）、C測定順2件、C解析16件、C OS版5件、JavaScript解析22件、manifest検証成功。公開JSON単独のsummary再計算結果はコミット対象`summary.md`と一致し、`git diff --check`も成功した。
+# 2026-09-26 CPU topology comparison candidates
+
+* `tools/cpu_topology.py`に、収集済みtopologyから3分類の代表logical CPUペアを純粋・決定的に選ぶ `select_comparison_candidates()` を追加。結果は解析JSONの `comparison_candidates` に含め、CLIにも候補または利用不可理由を表示する。各ペアはgroup-qualified logical CPU、physical core ID、EfficiencyClass raw値、条件フラグ、短い選定理由を保持する。
+* 選定順は同一groupを優先し、group ID、physical core ID、processor numberの順。core IDのidentityはgroup内で解釈する。同一classの比較では異なるphysical coreを選ぶ。候補不足は `candidate: null` と `unavailable_reason` で示し、診断を停止しない。Windows `EfficiencyClass` はraw値のみとし、CPU種別や性能へ変換していない。
+* Windows実機で収集したtopologyは24 logical CPUs、16 physical cores、1 processor group。raw class 0は8 core/8 logical CPU、class 1は8 core/16 logical CPU。選出ペアは `same_core_siblings`: CPU 0 vs CPU 1 (core 0, class 1)、`same_efficiency_class_different_core`: CPU 0 vs CPU 2 (cores 0/1, class 1)、`different_efficiency_class`: CPU 0 vs CPU 16 (cores 0/8, class 1/0)。既存解析と照合し、それぞれ同一group、core/sibling関係、class条件を確認した。CPU 0/1がSMT siblingsであることはtopology上の観測であり、過去のaffinity結果の原因とは結び付けない。
+* fixtureテストで候補3分類、順序に依存しない選定、SMTなし、class欠損/単一class、複数group identity、不正topologyの既存validationを確認。新しいbenchmark測定は行っていない。次段階ではこの候補を使って比較測定を計画できる。
+* 検証：`python -B -m unittest tests.test_cpu_topology` は16件成功。Windows実機CLIのJSONと表示を確認し、選ばれた各ペアを `analyze_topology()` で再照合した。`python -B -m unittest discover -s tests` は113件中110件がWindows一時ディレクトリACLのPermissionErrorで失敗し、3件は成功。今回変更外の既存テスト用一時ディレクトリに対する実行環境の権限問題であり、該当部分はCI相当検証未完了。`git diff --check`は成功。新規測定なし。

@@ -100,6 +100,63 @@ def build_logical_cpu_index(topology: dict) -> dict:
     return {"logical_cpus": index, "processor_group_ids": sorted(group_ids)}
 
 
+def select_comparison_candidates(topology: dict) -> dict:
+    """Select deterministic diagnostic CPU pairs from collected topology only."""
+    cpu_index = build_logical_cpu_index(topology)["logical_cpus"]
+    ordered = sorted(cpu_index, key=lambda key: (key[0], cpu_index[key]["core_id"], key[1]))
+
+    def describe(first_key, second_key, reason):
+        first, second = cpu_index[first_key], cpu_index[second_key]
+        same_group = first_key[0] == second_key[0]
+        same_core = same_group and first["core_id"] == second["core_id"]
+        first_class, second_class = first["efficiency_class"], second["efficiency_class"]
+        return {
+            "first_logical_cpu": {"group_id": first_key[0], "processor_number": first_key[1]},
+            "second_logical_cpu": {"group_id": second_key[0], "processor_number": second_key[1]},
+            "first_physical_core_id": first["core_id"],
+            "second_physical_core_id": second["core_id"],
+            "first_efficiency_class": first_class,
+            "second_efficiency_class": second_class,
+            "same_processor_group": same_group,
+            "same_physical_core": same_core,
+            "same_efficiency_class": None if first_class is None or second_class is None else first_class == second_class,
+            "selection_reason": reason,
+        }
+
+    def choose(predicate, reason, unavailable_reason):
+        pairs = [(first, second) for i, first in enumerate(ordered) for second in ordered[i + 1:]
+                 if predicate(first, second)]
+        pairs.sort(key=lambda pair: (
+            pair[0][0] != pair[1][0], pair[0][0], cpu_index[pair[0]]["core_id"], pair[0][1],
+            pair[1][0], cpu_index[pair[1]]["core_id"], pair[1][1],
+        ))
+        if pairs:
+            return {"candidate": describe(*pairs[0], reason), "unavailable_reason": None}
+        return {"candidate": None, "unavailable_reason": unavailable_reason}
+
+    return {
+        "same_core_siblings": choose(
+            lambda a, b: a[0] == b[0] and cpu_index[a]["core_id"] == cpu_index[b]["core_id"],
+            "same physical core with different logical processor numbers",
+            "no physical core has multiple logical processors in the same processor group",
+        ),
+        "same_efficiency_class_different_core": choose(
+            lambda a, b: cpu_index[a]["efficiency_class"] is not None
+            and cpu_index[a]["efficiency_class"] == cpu_index[b]["efficiency_class"]
+            and (a[0] != b[0] or cpu_index[a]["core_id"] != cpu_index[b]["core_id"]),
+            "same raw efficiency_class on different physical cores",
+            "no pair of different physical cores has the same known efficiency_class",
+        ),
+        "different_efficiency_class": choose(
+            lambda a, b: cpu_index[a]["efficiency_class"] is not None
+            and cpu_index[b]["efficiency_class"] is not None
+            and cpu_index[a]["efficiency_class"] != cpu_index[b]["efficiency_class"],
+            "different raw efficiency_class values",
+            "fewer than two known efficiency_class values are present",
+        ),
+    }
+
+
 def analyze_topology(topology: dict, logical_cpus=None) -> dict:
     """Return topology summary, selected CPU details, and pair comparisons."""
     indexed = build_logical_cpu_index(topology)
@@ -181,7 +238,8 @@ def analyze_topology(topology: dict, logical_cpus=None) -> dict:
                 else first["efficiency_class"] == second["efficiency_class"]
             ),
         })
-    return {"topology_summary": summary, "logical_cpu_analysis": analyses, "comparisons": comparisons}
+    return {"topology_summary": summary, "logical_cpu_analysis": analyses, "comparisons": comparisons,
+            "comparison_candidates": select_comparison_candidates(topology)}
 
 
 def unavailable(error: str, status: str | None = None) -> dict:
@@ -393,6 +451,20 @@ def main() -> int:
         print(f"  same physical core: {'yes' if comparison['same_physical_core'] else 'no'}")
         same_class = comparison["same_efficiency_class"]
         print(f"  same efficiency class: {'unknown' if same_class is None else ('yes' if same_class else 'no')}")
+    if analysis is not None:
+        print("\nCPU comparison candidates")
+        for name in ("same_core_siblings", "same_efficiency_class_different_core", "different_efficiency_class"):
+            candidate = analysis["comparison_candidates"][name]
+            print(f"{name}:")
+            if candidate["candidate"] is None:
+                print(f"  unavailable: {candidate['unavailable_reason']}")
+                continue
+            candidate = candidate["candidate"]
+            first, second = candidate["first_logical_cpu"], candidate["second_logical_cpu"]
+            print(f"  {_cpu_label(first)} vs {_cpu_label(second)}")
+            print(f"  physical cores: {candidate['first_physical_core_id']} vs {candidate['second_physical_core_id']}")
+            print(f"  efficiency_class: {candidate['first_efficiency_class']} vs {candidate['second_efficiency_class']}")
+            print(f"  reason: {candidate['selection_reason']}")
     for group in result["processor_groups"]:
         print(f"\nGroup {group['group_id']}\nLogical processors: {group['logical_cpu_count']}")
     if result.get("error"):
