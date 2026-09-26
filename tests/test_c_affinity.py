@@ -1,16 +1,23 @@
 import hashlib
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from diagnose_c_affinity import (ExperimentInvalidError, allowed_cpu_mask, build_plan,
-                                 check_cpus, conditions, summarize, summarize_positions, verify_binary)
+                                 build_comparison_plan, candidate_group_unavailable_reason,
+                                 check_cpus, conditions, current_processor_group_id,
+                                 main, resolve_comparison_candidate, topology_group_unavailable_reason,
+                                 summarize, summarize_positions, verify_binary)
+from cpu_topology import analyze_topology, collect_topology
 
 
 def history_snapshot(path: Path) -> dict[str, str] | None:
@@ -21,6 +28,71 @@ def history_snapshot(path: Path) -> dict[str, str] | None:
 
 
 class AffinityPureTests(unittest.TestCase):
+    @staticmethod
+    def topology_fixture():
+        return {"status": "available", "cores": [
+            {"core_id": 0, "efficiency_class": 1, "logical_processors": [
+                {"group_id": 0, "processor_number": 0}, {"group_id": 0, "processor_number": 1}]},
+            {"core_id": 1, "efficiency_class": 1, "logical_processors": [
+                {"group_id": 0, "processor_number": 2}, {"group_id": 0, "processor_number": 3}]},
+            {"core_id": 8, "efficiency_class": 0, "logical_processors": [
+                {"group_id": 0, "processor_number": 16}]},
+        ]}
+
+    def test_candidate_types_resolve_topology_pairs_and_reasons(self):
+        topology = self.topology_fixture()
+        expected = {
+            "same_core_siblings": ((0, 0), (0, 1)),
+            "same_efficiency_class_different_core": ((0, 0), (0, 2)),
+            "different_efficiency_class": ((0, 0), (0, 16)),
+        }
+        for candidate_type, pair in expected.items():
+            with self.subTest(candidate_type=candidate_type):
+                candidate = resolve_comparison_candidate(topology, candidate_type)
+                self.assertTrue(candidate["available"])
+                self.assertEqual(pair, ((candidate["cpu_a"]["group_id"], candidate["cpu_a"]["processor_number"]),
+                                        (candidate["cpu_b"]["group_id"], candidate["cpu_b"]["processor_number"])))
+                self.assertTrue(candidate["selection_reason"])
+
+    def test_unavailable_candidate_is_a_non_exception_result(self):
+        topology = {"status": "available", "cores": [
+            {"core_id": 0, "efficiency_class": 2, "logical_processors": [{"group_id": 0, "processor_number": 0}]},
+            {"core_id": 1, "efficiency_class": 2, "logical_processors": [{"group_id": 0, "processor_number": 1}]},
+        ]}
+        result = resolve_comparison_candidate(topology, "same_core_siblings")
+        self.assertFalse(result["available"])
+        self.assertIn("multiple logical processors", result["unavailable_reason"])
+
+    def test_pair_plan_is_alternating_and_preserves_group_and_fixed_config(self):
+        comparison = resolve_comparison_candidate(self.topology_fixture(), "different_efficiency_class")
+        plan = build_comparison_plan(2, comparison, "20260927_090000")
+        self.assertEqual(["A", "B", "A", "B"], [run["comparison_cpu"] for run in plan])
+        self.assertEqual(["0", "16", "0", "16"], [run["affinity_argument"] for run in plan])
+        self.assertTrue(all(run["processor_group_id"] == 0 for run in plan))
+        self.assertTrue(all(run["benchmark_config"] == plan[0]["benchmark_config"] for run in plan))
+        self.assertEqual([1, 2, 3, 4], [run["number"] for run in plan])
+
+    def test_cross_group_candidates_are_explicitly_unavailable(self):
+        comparison = resolve_comparison_candidate(self.topology_fixture(), "different_efficiency_class")
+        comparison["cpu_b"]["group_id"] = 1
+        self.assertIn("different processor groups", candidate_group_unavailable_reason(comparison, 0))
+        comparison["cpu_b"]["group_id"] = 0
+        self.assertIn("not the active process group", candidate_group_unavailable_reason(comparison, 1))
+
+    def test_multi_group_topology_is_explicitly_unsupported_by_existing_affinity_runner(self):
+        topology = self.topology_fixture()
+        topology["processor_group_count"] = 2
+        self.assertIn("supports one processor group only", topology_group_unavailable_reason(topology))
+
+    def test_candidate_cli_reports_non_windows_as_unavailable_without_running(self):
+        stderr = io.StringIO()
+        with patch("sys.platform", "linux"), patch("sys.argv", ["diagnose_c_affinity.py", "--candidate-type",
+                                                                    "same_core_siblings"]), redirect_stderr(stderr):
+            status = main()
+        self.assertEqual(2, status)
+        self.assertIn("Comparison unavailable", stderr.getvalue())
+        self.assertIn("requires Windows", stderr.getvalue())
+
     def test_three_cycle_rotation_and_precommitted_unique_ids(self):
         plan = build_plan(3, 2, 5, "20260924_190000")
         expected = [
@@ -160,6 +232,83 @@ class AffinityWindowsTests(unittest.TestCase):
             self.assertNotEqual(invalid.returncode, 0)
             self.assertIn("invalid logical CPU number", invalid.stderr)
             self.assertFalse(invalid_path.exists())
+        after = hashlib.sha256(normal_path.read_bytes()).hexdigest() if normal_path.exists() else None
+        self.assertEqual(before, after)
+        self.assertEqual(history_before, history_snapshot(history_path))
+
+    def test_candidate_pair_mode_measures_only_selected_pair_and_saves_group_metadata(self):
+        topology = collect_topology()
+        self.assertEqual("available", topology["status"], topology.get("error"))
+        active_group = current_processor_group_id()
+        allowed = allowed_cpu_mask()
+        candidate_type = None
+        for name, entry in analyze_topology(topology)["comparison_candidates"].items():
+            pair = entry["candidate"]
+            if pair is None:
+                continue
+            comparison = resolve_comparison_candidate(topology, name)
+            if candidate_group_unavailable_reason(comparison, active_group):
+                continue
+            cpu_a, cpu_b = comparison["cpu_a"]["processor_number"], comparison["cpu_b"]["processor_number"]
+            if allowed & (1 << cpu_a) and allowed & (1 << cpu_b):
+                candidate_type = name
+                break
+        if candidate_type is None:
+            self.skipTest("no available topology candidate fits the current processor group and affinity mask")
+
+        normal_path = ROOT / "results/function_call_numeric_sum_c_result.json"
+        history_path = ROOT / "results/history"
+        before = hashlib.sha256(normal_path.read_bytes()).hexdigest() if normal_path.exists() else None
+        history_before = history_snapshot(history_path)
+        with tempfile.TemporaryDirectory(prefix="langbench-candidate-affinity-", ignore_cleanup_errors=True) as temporary:
+            output = Path(temporary) / "comparison"
+            command = [sys.executable, "-B", str(ROOT / "tools/diagnose_c_affinity.py"),
+                       "--candidate-type", candidate_type, "--runs", "2", "--output", str(output)]
+            process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+            record = json.loads((output / "runs.json").read_text(encoding="utf-8"))
+            plan = json.loads((output / "plan.json").read_text(encoding="utf-8"))
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            comparison = record["comparison"]
+            self.assertEqual(candidate_type, comparison["candidate_type"])
+            self.assertEqual(active_group, comparison["active_processor_group_id"])
+            self.assertEqual(comparison, plan["comparison"])
+            self.assertTrue(comparison["topology_sha256"])
+            settings = record["measurement_settings"]
+            self.assertEqual(settings, json.loads((output / "plan.json").read_text(encoding="utf-8"))["measurement_settings"])
+            self.assertEqual("function_call_numeric_sum", settings["benchmark_identifier"])
+            self.assertEqual(2, settings["runs_per_cpu"])
+            self.assertTrue(settings["affinity_is_the_only_configured_run_difference"])
+            self.assertEqual(4, len(record["runs"]))
+            self.assertEqual(["A", "B", "A", "B"], [run["comparison_cpu"] for run in record["runs"]])
+            self.assertEqual(2, len(summary["conditions"]))
+            self.assertEqual([1, 2], [item["position"] for item in summary["positions"]])
+            self.assertEqual(["success"] * 4, [run["status"] for run in record["runs"]])
+            binary_hash = hashlib.sha256((output / "c-benchmark.exe").read_bytes()).hexdigest()
+            self.assertEqual(binary_hash, record["binary_sha256"])
+            self.assertEqual([2, 2], [item["successful_runs"] for item in summary["conditions"]])
+            normalized_argv = []
+            documents = []
+            for run in record["runs"]:
+                cpu = comparison[f"cpu_{run['comparison_cpu'].lower()}"]
+                self.assertEqual(cpu["group_id"], run["processor_group_id"])
+                self.assertEqual(cpu["processor_number"], run["logical_cpu"])
+                self.assertEqual(str(cpu["processor_number"]), run["affinity_argument"])
+                self.assertEqual(run["benchmark_config"], record["runs"][0]["benchmark_config"])
+                self.assertEqual(binary_hash, run["binary_sha256"])
+                document = json.loads((output / run["result_file"]).read_text(encoding="utf-8"))
+                documents.append(document)
+                self.assertEqual(run["benchmark_config"]["measurement_iterations"],
+                                 len(document["results"]["direct"]["samples_ms"]))
+                affinity_args = [arg for arg in document["execution"]["argv"]
+                                 if arg.startswith("--diagnostic-affinity=")]
+                self.assertEqual([f"--diagnostic-affinity={cpu['processor_number']}"], affinity_args)
+                normalized_argv.append([arg for arg in document["execution"]["argv"] if not arg.startswith((
+                    "--experiment-id=", "--run-id=", "--result-path=", "--diagnostic-affinity="))])
+            self.assertTrue(all(argv == normalized_argv[0] for argv in normalized_argv[1:]))
+            self.assertTrue(all(document["execution"]["measurement_order"] == ["direct", "function_call"]
+                                for document in documents))
+            self.assertTrue(all(document["config"] == documents[0]["config"] for document in documents[1:]))
         after = hashlib.sha256(normal_path.read_bytes()).hexdigest() if normal_path.exists() else None
         self.assertEqual(before, after)
         self.assertEqual(history_before, history_snapshot(history_path))
