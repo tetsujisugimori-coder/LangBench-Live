@@ -41,6 +41,21 @@ python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --run
 
 この診断は測定データを保存するもので、CPU性能の優劣や統計的有意差は判定しません。測定順は固定交互順であり、時間経過などの影響を完全には除去しません。
 
+### 保存済みCPU pair測定の分析
+
+`tools/analyze_cpu_pair.py` は、PR #40が保存する `runs.json` またはその実験ディレクトリを読み取り、検証付きの記述統計JSONを生成します。
+
+```powershell
+python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクトリ>
+python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクトリ>/runs.json --output analysis.json
+```
+
+既定では入力と同じディレクトリに `cpu-pair-analysis.json` を作ります。入力の `runs.json`、`plan.json`、個別run結果は変更しません。JSONにはschema version、experiment ID、入力パス、分析時刻、妥当性とvalidation errors/warnings、candidate typeと選定理由、CPU A/Bのprocessor group・logical processor・physical core・EfficiencyClass raw value、topology hash、測定設定、CPUごとのrun-median記述統計、cycle単位のB−A差/B÷A比/A基準百分率差、全complete pairの集約値を含めます。標準偏差はsuccessful run中央値の標本標準偏差で、successful runが2件未満なら `null` です。0 msのA値ではratioと百分率差を `null` にします。
+
+分析前にCPU識別、benchmark/case、測定設定・run config、compiler options、binary SHA-256、topology SHA-256、scheduled order、cycle構成とrun statusを検証します。壊れたJSONやruns配列がない入力は非0で終了し、読めるがpending/failed/incomplete runや比較条件の不一致がある入力ではJSONレポートを残して `analysis_valid: false` と非0終了を返します。
+
+この出力は記述統計と実験妥当性の確認用であり、CPUの優劣、勝者、推奨、統計的有意差を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。各cycleは常にCPU A→CPU Bの固定順であるため、CPU identity effectとorder/time effectを分離できません。boostやthermal状態、cache、background loadも差に影響し得ます。この制約を明示した保存済みデータの分析を、次の実験設計改善に活用します。次段階ではA→B/B→Aを均衡させる計画を検討します。
+
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 
 マージ済みPR #24を起点とし、通常の3言語履歴・通常結果JSON・C測定本体は変更せず、専用の[`tools/diagnose_c_measurement_order_followup.ps1`](tools/diagnose_c_measurement_order_followup.ps1)で別系列を実行します。実行前に40回の`plan.json`と全40回の未確定行を含む`runs.json`を保存します。20組の各ペアにA（direct→function_call）とB（function_call→direct）を1回ずつ置き、AB/BAは各10組です。各組の一方だけを監視し、A/B×監視あり/なしは各10回、各条件のペア内先・後は各5回です。結果を見て計画を変更しません。
