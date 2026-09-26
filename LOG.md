@@ -1,5 +1,13 @@
 # LOG
 
+## 2026-09-27 CPU pair保存データの分析
+
+* PR #40の `runs.json` を読み取り専用で扱う `tools/analyze_cpu_pair.py` とfixture unit testを追加。成功runの `median_ms` からCPU別の件数・中央値・最小/最大・範囲・平均・標本標準偏差を計算し、1 run未満では標準偏差をnullにする。cycle別にB−A、B/A、A基準百分率差を出し、完全な成功pairのみ集約する。Aが0の場合ratioと百分率差はnull。
+* comparison/candidate/CPU識別、raw EfficiencyClass、topology SHA、測定設定、benchmark/case、run config/compiler options、binary SHA、experiment ID、scheduled A→Bとposition、cycle対応、statusを検証する。読めないJSONはCLI終了コード2、読めるが実験が不完全・不整合ならJSONを出して `analysis_valid: false` と終了コード1。winner、CPU推奨、有意差やcore種別推定は行わない。JSONにA→B固定順とCPU identity/order-time交絡を機械可読で残す。
+* READMEに目的、CLI、出力項目、candidate type、記述統計の解釈範囲、固定順の限界と次段階（A→B/B→Aの均衡計画）を追記。測定経路・正式result schema・120run履歴・benchmark本体には変更なし。
+* 検証: `python -B -m unittest tests.test_cpu_pair_analysis -q` 5件成功、`python -B -m unittest tests.test_c_affinity tests.test_cpu_topology -q` 30件成功、`python -B -m unittest discover -s tests -q` 125件成功、`git diff --check` 成功。サンドボックス経路ではWindows一時ディレクトリACLで阻まれたため、同一テストを許可された通常実行経路で完了した。
+* PR #40の短縮smoke保存データは `measurement_settings` を含まないため、必須比較条件を保証できず分析invalidとなることを確認した。新CLIは欠落した必須metadataを推測補完せずinvalidとして扱う。これは既存smoke保存データの制約であり、正式なruns形式の修正や再測定は今回の範囲外。
+
 ## 2026-09-26 CPU topology解析・説明
 
 ### 今回変更した概要
