@@ -76,6 +76,52 @@ class CpuTopologyTests(unittest.TestCase):
         self.assertFalse(comparisons[-1]["same_processor_group"])
         self.assertFalse(comparisons[-1]["same_physical_core"])
 
+    def test_comparison_candidates_cover_categories_and_are_order_independent(self):
+        topology = self.analysis_fixture()
+        first = cpu_topology.select_comparison_candidates(topology)
+        reversed_topology = dict(topology, cores=list(reversed(topology["cores"])))
+        second = cpu_topology.select_comparison_candidates(reversed_topology)
+        self.assertEqual(first, second)
+        sibling = first["same_core_siblings"]["candidate"]
+        self.assertEqual({"group_id": 0, "processor_number": 0}, sibling["first_logical_cpu"])
+        self.assertEqual({"group_id": 0, "processor_number": 1}, sibling["second_logical_cpu"])
+        self.assertTrue(sibling["same_physical_core"])
+        same_class = first["same_efficiency_class_different_core"]["candidate"]
+        self.assertEqual(8, same_class["first_efficiency_class"])
+        self.assertFalse(same_class["same_physical_core"])
+        different = first["different_efficiency_class"]["candidate"]
+        self.assertFalse(different["same_efficiency_class"])
+        self.assertTrue(different["same_processor_group"])
+
+    def test_candidates_unavailable_without_smt_or_class_diversity(self):
+        topology = {"status": "available", "cores": [
+            {"core_id": 4, "efficiency_class": 3, "logical_processors": [{"group_id": 0, "processor_number": 0}]},
+            {"core_id": 5, "efficiency_class": 3, "logical_processors": [{"group_id": 0, "processor_number": 1}]},
+        ]}
+        result = cpu_topology.analyze_topology(topology)
+        self.assertIsNone(result["comparison_candidates"]["same_core_siblings"]["candidate"])
+        self.assertIsNone(result["comparison_candidates"]["different_efficiency_class"]["candidate"])
+        self.assertIsNotNone(result["comparison_candidates"]["same_efficiency_class_different_core"]["candidate"])
+
+    def test_missing_efficiency_class_keeps_topology_analysis_available(self):
+        topology = {"status": "available", "cores": [
+            {"core_id": 0, "logical_processors": [{"group_id": 0, "processor_number": 0}]},
+            {"core_id": 1, "logical_processors": [{"group_id": 0, "processor_number": 1}]},
+        ]}
+        candidates = cpu_topology.analyze_topology(topology)["comparison_candidates"]
+        self.assertIsNone(candidates["same_efficiency_class_different_core"]["candidate"])
+        self.assertIsNone(candidates["different_efficiency_class"]["candidate"])
+
+    def test_candidate_cpu_identity_preserves_processor_group(self):
+        topology = {"status": "available", "cores": [
+            {"core_id": 0, "efficiency_class": 0, "logical_processors": [{"group_id": 1, "processor_number": 0}]},
+            {"core_id": 0, "efficiency_class": 1, "logical_processors": [{"group_id": 2, "processor_number": 0}]},
+        ]}
+        pair = cpu_topology.select_comparison_candidates(topology)["different_efficiency_class"]["candidate"]
+        self.assertEqual(1, pair["first_logical_cpu"]["group_id"])
+        self.assertEqual(2, pair["second_logical_cpu"]["group_id"])
+        self.assertFalse(pair["same_processor_group"])
+
     def test_cpu_identity_includes_processor_group(self):
         result = cpu_topology.analyze_topology(
             self.analysis_fixture(), [{"group_id": 0, "processor_number": 0},
