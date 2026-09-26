@@ -27,6 +27,20 @@ python -B tools/publish_c_affinity.py --recalculate-public artifacts/c-affinity/
 
 normalのみ変動して固定CPUで安定すればスケジューリングやCPU移動を、特定CPUだけ遅ければCPU間の差を、全条件で変動すればaffinity以外の要因を追加調査する材料になります。全条件で安定なら稀な外乱を含め長期観測を検討します。いずれも原因の確定判定ではありません。50サンプルは各run内の反復であり、独立した50実験ではありません。
 
+## CPU topology候補ペアのaffinity比較
+
+PR #38の `comparison_candidates` から候補を選び、CPU A/Bだけを固定条件のC/direct測定で交互に実行できます。例では各CPUを2回ずつ A→B→A→B の順に測定します。既定run数は各CPU 2回です。
+
+```powershell
+python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --runs 2 --output results/diagnostics/cpu-pair-same-core-<一意な名前>
+```
+
+`--candidate-type` は `same_core_siblings`、`same_efficiency_class_different_core`、`different_efficiency_class` から指定します。毎回Windowsからtopologyを取得して候補を選ぶためCPU番号は固定しません。既存設定に合わせて同じCソース・同じGCCビルド・同じバイナリを使い、入力1,000,000件、warmup 5回、direct/function_call各50測定、direct先行で実行します。各runの正式形式JSONと `plan.json` / `runs.json` / `summary.json` を新規診断フォルダーに保存します。正式result schemaや通常結果・履歴は変更しません。
+
+比較metadataには候補型・選定理由、CPU A/Bそれぞれのprocessor group・processor number・physical core・EfficiencyClass raw value、topology SHA-256、run順と設定を保存します。現在の `SetProcessAffinityMask` 実装を安全に使うため、topologyが複数processor groupの環境や異なるgroupの候補は測定前に利用不可として報告します。単一groupを確認後に既存C runnerへprocessor numberを渡します。Windows以外でも測定しません。EfficiencyClassはraw valueのまま扱います。
+
+この診断は測定データを保存するもので、CPU性能の優劣や統計的有意差は判定しません。測定順は固定交互順であり、時間経過などの影響を完全には除去しません。
+
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 
 マージ済みPR #24を起点とし、通常の3言語履歴・通常結果JSON・C測定本体は変更せず、専用の[`tools/diagnose_c_measurement_order_followup.ps1`](tools/diagnose_c_measurement_order_followup.ps1)で別系列を実行します。実行前に40回の`plan.json`と全40回の未確定行を含む`runs.json`を保存します。20組の各ペアにA（direct→function_call）とB（function_call→direct）を1回ずつ置き、AB/BAは各10組です。各組の一方だけを監視し、A/B×監視あり/なしは各10回、各条件のペア内先・後は各5回です。結果を見て計画を変更しません。
