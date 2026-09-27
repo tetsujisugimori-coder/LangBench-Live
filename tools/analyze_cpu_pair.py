@@ -10,9 +10,13 @@ from pathlib import Path
 
 
 SCHEMA_VERSION = "1.0"
-LIMITATIONS = [
+LEGACY_LIMITATIONS = [
     "CPU A is always measured before CPU B within each cycle.",
     "CPU identity effects cannot be separated from order/time effects in this experiment design.",
+    "Boost state, thermal state, cache state, and background load may contribute to observed differences.",
+]
+BALANCED_LIMITATIONS = [
+    "Balanced A-then-B and B-then-A rounds reduce systematic order bias but do not correct order/time effects.",
     "Boost state, thermal state, cache state, and background load may contribute to observed differences.",
 ]
 REQUIRED_CPU_FIELDS = ("group_id", "processor_number", "physical_core_id", "efficiency_class")
@@ -114,8 +118,8 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         for key in ("benchmark_identifier", "case", "item_count", "warmup_iterations", "measurement_iterations", "measurement_order", "compiler_options", "pair_run_order"):
             if key not in settings:
                 errors.append(f"measurement_settings.{key} is missing")
-        if settings.get("pair_run_order") != "CPU A then CPU B, repeated":
-            errors.append("measurement order metadata does not declare the expected fixed A-then-B order")
+        if settings.get("pair_run_order") not in ("CPU A then CPU B, repeated", "balanced ABBA rounds"):
+            errors.append("measurement order metadata is unsupported")
         if settings.get("measurement_order") != ["direct", "function_call"]:
             errors.append("measurement_settings.measurement_order must be ['direct', 'function_call']")
         if settings.get("language") != "C":
@@ -123,6 +127,7 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         if settings.get("affinity_is_the_only_configured_run_difference") is not True:
             errors.append("measurement_settings.affinity_is_the_only_configured_run_difference must be true")
 
+    balanced = settings.get("pair_run_order") == "balanced ABBA rounds"
     runs = document["runs"]
     if not runs:
         errors.append("runs array is empty")
@@ -134,6 +139,7 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
     configs = []
     benchmark_ids, cases, compiler_options = set(), set(), set()
     orders = set()
+    round_orders = {}
     run_keys = set()
     for index, run in enumerate(runs):
         if not isinstance(run, dict):
@@ -151,9 +157,21 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
             errors.append(f"cycle {cycle} contains duplicate CPU {label} runs")
         run_keys.add(key)
         by_cycle.setdefault(cycle, {})[label] = run
-        expected_position = 1 if label == "A" else 2
+        expected_order = (("A_then_B", "B_then_A", "B_then_A", "A_then_B")[(cycle - 1) % 4]
+                          if balanced else "A_then_B")
+        expected_position = (1 if label == "A" else 2) if expected_order == "A_then_B" else (1 if label == "B" else 2)
         if run.get("position") != expected_position:
-            errors.append(f"cycle {cycle} CPU {label} run position does not match the planned A-then-B order")
+            errors.append(f"cycle {cycle} CPU {label} run position does not match the planned order")
+        if balanced:
+            if run.get("execution_order") != expected_order:
+                errors.append(f"cycle {cycle} execution_order does not match the balanced plan")
+            if not isinstance(run.get("started_at"), str) or not run["started_at"]:
+                errors.append(f"cycle {cycle} CPU {label} started_at is missing")
+            if run.get("run_number") != index + 1:
+                errors.append(f"run at index {index} does not match planned execution sequence")
+        elif run.get("execution_order", "A_then_B") != "A_then_B":
+            errors.append(f"cycle {cycle} execution_order disagrees with legacy plan")
+        round_orders[cycle] = expected_order
         if run.get("experiment_id") != experiment_id:
             errors.append(f"run {run.get('run_id', index)} experiment ID disagrees with runs.json")
         if run.get("status") == "failed":
@@ -208,13 +226,18 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         errors.append("top-level benchmark case disagrees with measurement settings")
     if len(compiler_options) > 1 or (compiler_options and json.dumps(settings.get("compiler_options", []), sort_keys=True) not in compiler_options):
         errors.append("compiler options are missing or inconsistent across runs/settings")
-    if len(orders) > 1 or (orders and any(order != ("cpu_a", "cpu_b") for order in orders)):
-        errors.append("scheduled comparison order is missing, inconsistent, or not CPU A then CPU B")
+    valid_orders = {("cpu_a", "cpu_b"), ("cpu_b", "cpu_a")} if balanced else {("cpu_a", "cpu_b")}
+    if orders and any(order not in valid_orders for order in orders):
+        errors.append("scheduled comparison order is missing or unsupported")
     if len(runs) % 2:
         warnings.append("run count is odd; at least one comparison cycle is incomplete")
     for cycle, sides in sorted(by_cycle.items()):
         if set(sides) != {"A", "B"}:
             errors.append(f"cycle {cycle} is missing CPU {'B' if 'A' in sides else 'A'} run")
+            continue
+        expected_scheduled = ["cpu_a", "cpu_b"] if round_orders[cycle] == "A_then_B" else ["cpu_b", "cpu_a"]
+        if any(side.get("scheduled_order") != expected_scheduled for side in sides.values()):
+            errors.append(f"cycle {cycle} scheduled_order disagrees with execution_order")
     if statuses["failed"]:
         errors.append(f"{statuses['failed']} failed run(s) are present")
     if statuses["pending"]:
@@ -237,7 +260,8 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
             ratio = None
         if pct is not None and not math.isfinite(pct):
             pct = None
-        pairs.append({"cycle": cycle, "cpu_a_median_ms": a, "cpu_b_median_ms": b,
+        pairs.append({"cycle": cycle, "execution_order": round_orders[cycle],
+                      "cpu_a_median_ms": a, "cpu_b_median_ms": b,
                       "b_minus_a_ms": diff, "b_over_a_ratio": ratio,
                       "b_minus_a_percent_of_a": pct})
         differences.append(diff)
@@ -271,6 +295,8 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
                        "same_physical_core": same_core, "same_efficiency_class": same_efficiency,
                        "topology_sha256": comparison.get("topology_sha256")},
         "measurement_settings": settings,
+        "round_order_counts": {order: sum(value == order for value in round_orders.values())
+                               for order in ("A_then_B", "B_then_A")},
         "run_status_counts": {"successful": sum(len(v) for v in cpu_stats.values()), **statuses},
         "cpu_a_statistics": {**_stats([v for _, v in cpu_stats["A"]]),
                               "run_observations": [{"cycle": cycle, "run_id": by_cycle[cycle]["A"].get("run_id"), "median_ms": value}
@@ -285,7 +311,7 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
             "minimum_b_minus_a_ms": min(differences) if differences else None,
             "maximum_b_minus_a_ms": max(differences) if differences else None,
             "median_b_over_a_ratio": statistics.median(ratios) if ratios else None},
-        "interpretation_limitations": list(LIMITATIONS),
+        "interpretation_limitations": list(BALANCED_LIMITATIONS if balanced else LEGACY_LIMITATIONS),
     }
 
 
@@ -297,6 +323,8 @@ def render_summary(result: dict) -> str:
         lines.append(f"CPU {label.upper()}: " + (f"group {cpu['group_id']} / processor {cpu['processor_number']}" if cpu else "unavailable"))
     lines += [f"Successful runs: A {a['successful_run_count']}, B {b['successful_run_count']}",
               f"Complete pairs: {result['aggregate_pair_statistics']['complete_pair_count']}"]
+    counts = result["round_order_counts"]
+    lines.append(f"Round orders: A->B {counts['A_then_B']}, B->A {counts['B_then_A']}")
     for pair in result["cycle_pairs"]:
         lines.append(f"cycle {pair['cycle']}: B-A {pair['b_minus_a_ms']} ms; B/A {pair['b_over_a_ratio']}")
     lines.append(f"Analysis valid: {'yes' if result['analysis_valid'] else 'no'}")

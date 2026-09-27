@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from diagnose_c_affinity import (ExperimentInvalidError, allowed_cpu_mask, build_plan,
+from diagnose_c_affinity import (ExperimentInvalidError, allowed_cpu_mask, balanced_comparison_orders, build_plan,
                                  build_comparison_plan, candidate_group_unavailable_reason,
                                  check_cpus, conditions, current_processor_group_id,
                                  main, resolve_comparison_candidate, topology_group_unavailable_reason,
@@ -63,14 +63,32 @@ class AffinityPureTests(unittest.TestCase):
         self.assertFalse(result["available"])
         self.assertIn("multiple logical processors", result["unavailable_reason"])
 
-    def test_pair_plan_is_alternating_and_preserves_group_and_fixed_config(self):
+    def test_pair_plan_balances_order_and_preserves_identity_group_and_config(self):
         comparison = resolve_comparison_candidate(self.topology_fixture(), "different_efficiency_class")
-        plan = build_comparison_plan(2, comparison, "20260927_090000")
-        self.assertEqual(["A", "B", "A", "B"], [run["comparison_cpu"] for run in plan])
-        self.assertEqual(["0", "16", "0", "16"], [run["affinity_argument"] for run in plan])
+        plan = build_comparison_plan(4, comparison, "20260927_090000")
+        self.assertEqual(["A", "B", "B", "A", "B", "A", "A", "B"],
+                         [run["comparison_cpu"] for run in plan])
+        self.assertEqual(["0", "16", "16", "0", "16", "0", "0", "16"],
+                         [run["affinity_argument"] for run in plan])
+        self.assertEqual(["A_then_B", "B_then_A", "B_then_A", "A_then_B"],
+                         [plan[index]["execution_order"] for index in range(0, 8, 2)])
+        self.assertEqual([["cpu_b", "cpu_a"]] * 2, [run["scheduled_order"] for run in plan[2:4]])
+        self.assertEqual([(2, 1, "B"), (2, 2, "A")],
+                         [(run["cycle"], run["position"], run["comparison_cpu"]) for run in plan[2:4]])
         self.assertTrue(all(run["processor_group_id"] == 0 for run in plan))
         self.assertTrue(all(run["benchmark_config"] == plan[0]["benchmark_config"] for run in plan))
-        self.assertEqual([1, 2, 3, 4], [run["number"] for run in plan])
+        self.assertEqual(list(range(1, 9)), [run["number"] for run in plan])
+
+    def test_balanced_order_even_odd_and_invalid_round_counts(self):
+        for rounds in (10, 9):
+            with self.subTest(rounds=rounds):
+                orders = balanced_comparison_orders(rounds)
+                self.assertLessEqual(abs(orders.count("A_then_B") - orders.count("B_then_A")), rounds % 2)
+                self.assertEqual(orders, balanced_comparison_orders(rounds))
+        self.assertEqual([5, 5], [balanced_comparison_orders(10).count(order)
+                                  for order in ("A_then_B", "B_then_A")])
+        with self.assertRaises(ValueError):
+            balanced_comparison_orders(0)
 
     def test_cross_group_candidates_are_explicitly_unavailable(self):
         comparison = resolve_comparison_candidate(self.topology_fixture(), "different_efficiency_class")
@@ -280,7 +298,11 @@ class AffinityWindowsTests(unittest.TestCase):
             self.assertEqual(2, settings["runs_per_cpu"])
             self.assertTrue(settings["affinity_is_the_only_configured_run_difference"])
             self.assertEqual(4, len(record["runs"]))
-            self.assertEqual(["A", "B", "A", "B"], [run["comparison_cpu"] for run in record["runs"]])
+            self.assertEqual(["A", "B", "B", "A"], [run["comparison_cpu"] for run in record["runs"]])
+            self.assertEqual(["A_then_B", "B_then_A"], [run["execution_order"] for run in record["runs"][::2]])
+            self.assertEqual([(2, 1, "B"), (2, 2, "A")],
+                             [(run["cycle"], run["position"], run["comparison_cpu"])
+                              for run in plan["runs"][2:]])
             self.assertEqual(2, len(summary["conditions"]))
             self.assertEqual([1, 2], [item["position"] for item in summary["positions"]])
             self.assertEqual(["success"] * 4, [run["status"] for run in record["runs"]])

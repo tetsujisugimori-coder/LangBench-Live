@@ -141,23 +141,31 @@ def topology_group_unavailable_reason(topology: dict) -> str | None:
     return None
 
 
-def build_comparison_plan(repeats: int, comparison: dict, stamp: str) -> list[dict]:
-    """Build a deterministic A/B/A/B pair-only plan with one run per CPU per cycle."""
-    if repeats < 1:
+def balanced_comparison_orders(rounds: int) -> list[str]:
+    """Precommit deterministic ABBA blocks; odd prefixes differ by at most one."""
+    if rounds < 1:
         raise ValueError("--runs must be at least 1")
+    block = ("A_then_B", "B_then_A", "B_then_A", "A_then_B")
+    return [block[index % len(block)] for index in range(rounds)]
+
+
+def build_comparison_plan(repeats: int, comparison: dict, stamp: str) -> list[dict]:
+    """Build a deterministic balanced pair-only plan with one run per CPU per round."""
     cpu_a, cpu_b = comparison["cpu_a"], comparison["cpu_b"]
     if (cpu_a["group_id"], cpu_a["processor_number"]) == (cpu_b["group_id"], cpu_b["processor_number"]):
         raise ValueError("comparison candidate must contain two distinct logical CPUs")
     runs = []
-    for cycle in range(1, repeats + 1):
-        order = [("A", cpu_a), ("B", cpu_b)]
+    for cycle, execution_order in enumerate(balanced_comparison_orders(repeats), start=1):
+        order = ([("A", cpu_a), ("B", cpu_b)] if execution_order == "A_then_B"
+                 else [("B", cpu_b), ("A", cpu_a)])
         scheduled_order = [f"cpu_{label.lower()}" for label, _ in order]
         for position, (label, cpu) in enumerate(order, start=1):
             number = len(runs) + 1
             runs.append({
                 "experiment_id": f"{stamp}_function_call_numeric_sum",
                 "number": number, "run_number": number, "cycle": cycle, "position": position,
-                "scheduled_order": scheduled_order, "condition": "affinity", "comparison_cpu": label,
+                "scheduled_order": scheduled_order, "execution_order": execution_order,
+                "condition": "affinity", "comparison_cpu": label,
                 "logical_cpu": cpu["processor_number"], "processor_group_id": cpu["group_id"],
                 # The pair metadata retains group identity; C receives its legacy number-only
                 # argument only after single-group validation makes that identity unambiguous.
@@ -301,14 +309,14 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int, comparison_metad
             "measurement_iterations": 50,
             "measurement_order": ["direct", "function_call"],
             "runs_per_cpu": repeats,
-            "pair_run_order": "CPU A then CPU B, repeated",
+            "pair_run_order": "balanced ABBA rounds",
             "compiler_options": list(OPTIONS),
             "affinity_is_the_only_configured_run_difference": True,
         }
     plan_fields = ("experiment_id", "run_number", "number", "cycle", "position", "scheduled_order",
                    "condition", "logical_cpu", "run_id", "status")
     if comparison_metadata:
-        plan_fields += ("comparison_cpu", "processor_group_id", "affinity_argument", "benchmark_config")
+        plan_fields += ("comparison_cpu", "execution_order", "processor_group_id", "affinity_argument", "benchmark_config")
     plan_document = {"experiment_id": experiment_id,
                      "runs": [{name: run[name] for name in plan_fields} for run in runs]}
     if comparison_metadata:
@@ -453,7 +461,7 @@ def main() -> int:
             output = args.output or ROOT / "results/diagnostics" / (
                 f"cpu-pair-{args.candidate_type}-{datetime.now():%Y%m%d_%H%M%S}")
             print(f"Candidate {args.candidate_type}: group {active_group} CPU {cpu_a} vs CPU {cpu_b}")
-            print(f"Order: group {active_group} CPU A, CPU B, alternating for {runs} run(s) per CPU")
+            print(f"Order: balanced ABBA rounds for group {active_group} CPU A/B; {runs} run(s) per CPU")
             record = execute(output, runs, cpu_a, cpu_b, comparison)
         else:
             runs = args.runs if args.runs is not None else 40
