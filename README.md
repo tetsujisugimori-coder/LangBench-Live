@@ -573,3 +573,16 @@ PR #17 の1回目にも前半寄りの遅いサンプルが22件ありました�
 新3回目はC/directの広い区間で値が高く、43/50件が0.2 ms以上でした。一方で最小は0.111 msであり、50件すべてが遅くなったわけではありません。後続のC/function_callは中央値0.415 msでやや高いものの、C/directほどの変化ではありません。同回のJavaScript中央値は0.485 / 0.491 ms、Pythonは19.0825 / 32.5505 msで、同じ大きさの変化は見られません。全10回の他言語の中央値は `LOG.md` に示します。
 
 新3回目の開始前後は電源プランがともに「バランス」、開始前の空き物理メモリ2228.8 MB、プロセス数は前後とも428でした。空きメモリがより少なかった新7回目ではC/direct中央値は0.105 msでした。これらは測定区間外の断面で、CPU使用率・AC給電は未取得です。C/directがC/function_callより先に測られる順序も含め、実行順・端末状態と揺れの因果関係は未確定です。各50サンプルは同一実行内の反復であり独立した50実験ではありません。10回から統計的有意差や最適化効果は宣言しません。次は測定順や端末状態を別の実験計画で切り分けるか判断します。
+
+### CPU pair の独立反復と長時間測定
+
+既存の `--runs` が cycle 数です。短い確認、独立反復、長時間測定はいずれも同じCLIを使います。毎回一意な新しい `--output` ディレクトリを指定してください。既存ディレクトリは上書きされません。各実験の `experiment_id` と各測定の `run_id`、`started_at`、`cycle`、順序、位置、elapsed、CPU busyは従来の形式で保存されます。
+
+```powershell
+python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --runs 4 --output results/diagnostics/cpu-pair-check-<一意な名前>
+python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --runs 30 --output results/diagnostics/cpu-pair-repeat-<一意な名前>
+python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --runs 120 --output results/diagnostics/cpu-pair-long-<一意な名前>
+python -B tools/compare_cpu_pair_runs.py results/diagnostics/<前回> results/diagnostics/<今回> --output results/diagnostics/<新しい比較名>.json
+```
+
+比較CLIは各 `runs.json` を個別に検証・分析し、CPU pair・Cソース・測定設定（cycle数を除く）が一致する場合だけ比較JSONを作ります。elapsedは実験ごとの開始時刻から計算し、異なる実験のrunを一本の時系列へ連結しません。early/lateは各実験内の完全cycleの前半/後半です。JSONにはCPU別elapsed/busy相関、early/late、order/position効果、busy coverageと帯別集計を残します。相関・差はいずれも記述的な観測です。
