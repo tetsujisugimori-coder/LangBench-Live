@@ -174,6 +174,30 @@ class CpuPairTimeTests(unittest.TestCase):
         self.assertEqual(0, result["order_effect"]["b_first_minus_a_first_b_minus_a_ms"])
         self.assertEqual(5, result["time_analysis"]["early_late_comparison"]["by_cpu"]["A"]["late_minus_early_ms"])
 
+    def test_joint_cpu_position_elapsed_and_busy_summaries(self):
+        document, diagnostics = time_fixture({"A": [10, 12, 14, 16], "B": [20, 22, 24, 26]})
+        result = analyze(document, diagnostics=diagnostics)
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        joint = result["time_analysis"]["joint_analysis"]
+        self.assertEqual(4, joint["complete_cycle_count"])
+        self.assertEqual((2, 13), (joint["by_cpu_and_position"]["A"][1]["sample_count"],
+                                   joint["by_cpu_and_position"]["A"][1]["median_ms"]))
+        self.assertEqual(13, joint["by_cpu_and_position"]["A"][2]["median_ms"])
+        self.assertEqual((11, 15), (joint["by_elapsed_half_and_cpu"]["early"]["A"]["median_ms"],
+                                    joint["by_elapsed_half_and_cpu"]["late"]["A"]["median_ms"]))
+        self.assertGreater(joint["elapsed_correlation_by_cpu"]["A"]["pearson_r"], 0.9)
+        self.assertEqual(1, joint["busy_correlation_by_cpu"]["B"]["pearson_r"])
+        self.assertEqual(4, joint["busy_covered_cycle_count"])
+        self.assertEqual((1, 1, 2), tuple(joint["busy_bands"][name]["cycle_count"]
+                                          for name in ("low", "middle", "high")))
+        self.assertEqual(10, joint["busy_bands"]["low"]["by_cpu"]["A"]["median_ms"])
+        self.assertEqual("insufficient_data", joint["busy_bands"]["low"]["status"])
+        self.assertIn("CPU A median by position", render_summary(result))
+
+        missing = analyze(document, diagnostics={})["time_analysis"]["joint_analysis"]
+        self.assertEqual(0, missing["busy_covered_cycle_count"])
+        self.assertIsNone(missing["busy_correlation_by_cpu"]["A"]["pearson_r"])
+
     def test_missing_invalid_and_old_data_do_not_invalidate_existing_analysis(self):
         document, diagnostics = time_fixture()
         cases = []

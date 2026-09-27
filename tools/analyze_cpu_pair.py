@@ -444,6 +444,23 @@ def render_summary(result: dict) -> str:
     busy = time["cpu_busy_run_median_statistics"]
     lines.append(f"CPU busy run medians: median {busy['median_percent']}%, range "
                  f"{busy['minimum_percent']}..{busy['maximum_percent']}%")
+    joint = time["joint_analysis"]
+    for cpu in ("A", "B"):
+        positions = joint["by_cpu_and_position"][cpu]
+        halves = joint["by_elapsed_half_and_cpu"]
+        lines.append(f"CPU {cpu} median by position: first {positions[1]['median_ms']} ms "
+                     f"(n={positions[1]['sample_count']}), second {positions[2]['median_ms']} ms "
+                     f"(n={positions[2]['sample_count']}); early {halves['early'][cpu]['median_ms']} ms "
+                     f"(n={halves['early'][cpu]['sample_count']}), late {halves['late'][cpu]['median_ms']} ms "
+                     f"(n={halves['late'][cpu]['sample_count']})")
+        lines.append(f"CPU {cpu} Pearson r: elapsed {joint['elapsed_correlation_by_cpu'][cpu]['pearson_r']} "
+                     f"(n={joint['elapsed_correlation_by_cpu'][cpu]['sample_count']}), "
+                     f"busy {joint['busy_correlation_by_cpu'][cpu]['pearson_r']} "
+                     f"(n={joint['busy_correlation_by_cpu'][cpu]['sample_count']})")
+    for band, detail in joint["busy_bands"].items():
+        lines.append(f"Busy {band}: {detail['status']}, {detail['cycle_count']} paired cycles; "
+                     f"A {detail['by_cpu']['A']['median_ms']} ms, B {detail['by_cpu']['B']['median_ms']} ms")
+    lines.append(joint["interpretation"])
     lines.append(f"Analysis valid: {'yes' if result['analysis_valid'] else 'no'}")
     lines.append("Limitation:")
     lines.extend(result["interpretation_limitations"][:2])
