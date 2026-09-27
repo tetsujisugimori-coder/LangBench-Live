@@ -435,6 +435,12 @@ def render_summary(result: dict) -> str:
     lines.append(f"Time analysis: {time['status']}; elapsed {time['experiment_elapsed_seconds']} s; "
                  f"CPU busy coverage {time['runs_with_diagnostic_coverage']}/{time['successful_run_count']} runs; "
                  f"early/late {time['early_late_comparison']['status']} (observation, not cause)")
+    density = time["diagnostic_density"]
+    counts = density["sample_count_per_covered_run"]
+    overlap = density["overlap_ratio_per_covered_run"]
+    lines.append(f"CPU busy density (covered runs): samples/run median {counts['median']}, "
+                 f"range {counts['minimum']}..{counts['maximum']}; QPC overlap median {overlap['median']}, "
+                 f"range {overlap['minimum']}..{overlap['maximum']}")
     busy = time["cpu_busy_run_median_statistics"]
     lines.append(f"CPU busy run medians: median {busy['median_percent']}%, range "
                  f"{busy['minimum_percent']}..{busy['maximum_percent']}%")

@@ -39,35 +39,47 @@ def load_diagnostics(document, directory):
 
 
 def _busy_observation(run, diagnostic):
+    interval = diagnostic.get("requested_interval_ms") if isinstance(diagnostic, dict) else None
     empty = {"status": "insufficient_data", "reason": None, "sample_count": 0,
              "sample_indices": [], "sample_qpc_ranges": [], "monitor_qpc_range": None,
+             "run_qpc_range": None, "run_duration_qpc": None,
+             "overlap_duration_qpc": None, "overlap_ratio": None,
+             "requested_interval_ms": interval if isinstance(interval, int) and not isinstance(interval, bool) and interval > 0 else None,
              "median_cpu_busy_percent": None,
              "mean_cpu_busy_percent": None, "minimum_cpu_busy_percent": None,
              "maximum_cpu_busy_percent": None}
+    window = run.get("diagnostic_qpc")
+    if isinstance(window, dict):
+        start, end, frequency = (window.get(key) for key in ("start_qpc", "end_qpc", "frequency_hz"))
+        if (all(isinstance(v, int) and not isinstance(v, bool) for v in (start, end, frequency))
+                and start < end and frequency > 0):
+            empty["run_qpc_range"] = {"start_qpc": start, "end_qpc": end}
+            empty["run_duration_qpc"] = end - start
     if not run.get("cpu_diagnostic_file"):
         empty["reason"] = "diagnostic_file_missing"
         return empty
     if diagnostic is None or not isinstance(diagnostic, dict) or diagnostic.get("_load_error"):
         empty["reason"] = diagnostic.get("_load_error", "diagnostic_file_missing") if isinstance(diagnostic, dict) else "diagnostic_file_missing"
         return empty
-    window = run.get("diagnostic_qpc")
-    if not isinstance(window, dict):
+    if empty["run_qpc_range"] is None:
         empty["reason"] = "clock_mapping_unavailable"
         return empty
-    start, end, frequency = (window.get(key) for key in ("start_qpc", "end_qpc", "frequency_hz"))
     monitor_start, monitor_end = diagnostic.get("started_qpc"), diagnostic.get("ended_qpc")
-    if (diagnostic.get("clock") != "windows_qpc" or not all(isinstance(v, int) and not isinstance(v, bool) for v in (start, end, frequency))
+    if (diagnostic.get("clock") != "windows_qpc"
             or not all(isinstance(v, int) and not isinstance(v, bool) for v in (monitor_start, monitor_end))
-            or start >= end or frequency <= 0 or diagnostic.get("frequency_hz") != frequency
+            or diagnostic.get("frequency_hz") != frequency
             or not monitor_start <= start < end <= monitor_end):
         empty["reason"] = "clock_mapping_unavailable"
         return empty
     empty["monitor_qpc_range"] = {"start_qpc": monitor_start, "end_qpc": monitor_end}
+    empty["overlap_duration_qpc"] = 0
+    empty["overlap_ratio"] = 0.0
     samples = diagnostic.get("observations")
     if not isinstance(samples, list) or not samples:
         empty["reason"] = "diagnostic_samples_missing"
         return empty
     values = []
+    overlaps = []
     for index, sample in enumerate(samples):
         if not isinstance(sample, dict):
             continue
@@ -80,9 +92,19 @@ def _busy_observation(run, diagnostic):
             values.append(float(busy))
             empty["sample_indices"].append(index)
             empty["sample_qpc_ranges"].append({"start_qpc": a, "end_qpc": b})
+            overlaps.append((max(start, a), min(end, b)))
     if not values:
         empty["reason"] = "no_overlapping_valid_samples"
         return empty
+    merged = []
+    for left, right in sorted(overlaps):
+        if merged and left <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], right))
+        else:
+            merged.append((left, right))
+    overlap_duration = sum(right - left for left, right in merged)
+    empty["overlap_duration_qpc"] = min(overlap_duration, empty["run_duration_qpc"])
+    empty["overlap_ratio"] = empty["overlap_duration_qpc"] / empty["run_duration_qpc"]
     empty.update(status="available", sample_count=len(values), median_cpu_busy_percent=statistics.median(values),
                  mean_cpu_busy_percent=statistics.mean(values), minimum_cpu_busy_percent=min(values),
                  maximum_cpu_busy_percent=max(values))
@@ -167,6 +189,8 @@ def analyze_time(document, cycle_pairs, diagnostics=None):
         comparison["status"] = "available"
     covered = [row for row in observations if row["cpu_busy"]["status"] == "available"]
     run_busy_medians = [row["cpu_busy"]["median_cpu_busy_percent"] for row in covered]
+    sample_counts = [row["cpu_busy"]["sample_count"] for row in covered]
+    overlap_ratios = [row["cpu_busy"]["overlap_ratio"] for row in covered]
     timed = [row for row in observations if row["elapsed_since_experiment_start_seconds"] is not None]
     reasons = sorted({row["cpu_busy"]["reason"] for row in observations if row["cpu_busy"]["reason"]} |
                      {row["timing_reason"] for row in observations if row["timing_reason"]})
@@ -174,6 +198,14 @@ def analyze_time(document, cycle_pairs, diagnostics=None):
     return {"status": "available" if any(row in covered for row in timed) else "insufficient_data", "reasons": reasons,
             "experiment_elapsed_seconds": elapsed_total if elapsed_total is not None and elapsed_total >= 0 else None,
             "successful_run_count": len(observations), "runs_with_diagnostic_coverage": len(covered),
+            "diagnostic_density": {
+                "covered_run_count": len(covered), "successful_run_count": len(observations),
+                "sample_count_per_covered_run": {"minimum": min(sample_counts) if sample_counts else None,
+                                                 "median": statistics.median(sample_counts) if sample_counts else None,
+                                                 "maximum": max(sample_counts) if sample_counts else None},
+                "overlap_ratio_per_covered_run": {"minimum": min(overlap_ratios) if overlap_ratios else None,
+                                                  "median": statistics.median(overlap_ratios) if overlap_ratios else None,
+                                                  "maximum": max(overlap_ratios) if overlap_ratios else None}},
             "cpu_busy_run_median_statistics": {"run_count": len(run_busy_medians),
                 "median_percent": statistics.median(run_busy_medians) if run_busy_medians else None,
                 "minimum_percent": min(run_busy_medians) if run_busy_medians else None,

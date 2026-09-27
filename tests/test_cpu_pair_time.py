@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from tests.test_cpu_pair_analysis import balanced_fixture
-from tools.analyze_cpu_pair import analyze
-from tools.cpu_pair_time import load_diagnostics
+from tools.analyze_cpu_pair import analyze, render_summary
+from tools.cpu_pair_time import _busy_observation, load_diagnostics
 
 
 ORIGIN = datetime(2026, 9, 27, 0, 0, tzinfo=timezone.utc)
@@ -38,6 +38,7 @@ def time_fixture(values=None):
             document["runs"].append(run)
             busy = 10 * (cycle - 1)
             diagnostics[name] = {"clock": "windows_qpc", "frequency_hz": 1000,
+                                 "requested_interval_ms": 20,
                                  "started_qpc": qpc - 20, "ended_qpc": qpc + 530,
                                  "observations": [{"start_qpc": qpc - 10, "end_qpc": qpc, "cpu_busy_percent": 99},
                                                   {"start_qpc": qpc + 10, "end_qpc": qpc + 50, "cpu_busy_percent": busy + 10},
@@ -61,6 +62,10 @@ class CpuPairTimeTests(unittest.TestCase):
                          (first["cycle"], first["run_id"], first["comparison_cpu"], first["position"],
                           first["elapsed_since_experiment_start_seconds"], first["median_ms"]))
         self.assertEqual([1, 2], first["cpu_busy"]["sample_indices"])
+        self.assertEqual({"start_qpc": 1000, "end_qpc": 1500}, first["cpu_busy"]["run_qpc_range"])
+        self.assertEqual((500, 90, 0.18, 20),
+                         (first["cpu_busy"]["run_duration_qpc"], first["cpu_busy"]["overlap_duration_qpc"],
+                          first["cpu_busy"]["overlap_ratio"], first["cpu_busy"]["requested_interval_ms"]))
         self.assertEqual((2, 20, 20, 10, 30),
                          (first["cpu_busy"]["sample_count"], first["cpu_busy"]["median_cpu_busy_percent"],
                           first["cpu_busy"]["mean_cpu_busy_percent"], first["cpu_busy"]["minimum_cpu_busy_percent"],
@@ -72,6 +77,72 @@ class CpuPairTimeTests(unittest.TestCase):
         self.assertEqual([10, 30, 50, 70], [row["elapsed_since_experiment_start_seconds"] for row in time["cycle_trend"]])
         self.assertEqual(10, time["cycle_trend"][0]["a_b_start_gap_seconds"])
         self.assertEqual("available", time["early_late_comparison"]["status"])
+
+    def test_qpc_overlap_clips_run_boundaries_and_unions_samples(self):
+        run = {"cpu_diagnostic_file": "monitor.json",
+               "diagnostic_qpc": {"start_qpc": 100, "end_qpc": 200, "frequency_hz": 1000}}
+        monitor = {"clock": "windows_qpc", "frequency_hz": 1000, "started_qpc": 40,
+                   "ended_qpc": 260, "requested_interval_ms": 20, "observations": [
+                       {"start_qpc": 50, "end_qpc": 150, "cpu_busy_percent": 10},
+                       {"start_qpc": 175, "end_qpc": 250, "cpu_busy_percent": 20}]}
+        busy = _busy_observation(run, monitor)
+        self.assertEqual((100, 75, 0.75, [0, 1]),
+                         (busy["run_duration_qpc"], busy["overlap_duration_qpc"],
+                          busy["overlap_ratio"], busy["sample_indices"]))
+        full = deepcopy(monitor)
+        full["observations"] = [{"start_qpc": 90, "end_qpc": 210, "cpu_busy_percent": 20}]
+        busy = _busy_observation(run, full)
+        self.assertEqual((100, 1.0), (busy["overlap_duration_qpc"], busy["overlap_ratio"]))
+        overlapping = deepcopy(monitor)
+        overlapping["observations"] = [
+            {"start_qpc": 90, "end_qpc": 160, "cpu_busy_percent": 10},
+            {"start_qpc": 120, "end_qpc": 210, "cpu_busy_percent": 20},
+            {"start_qpc": 130, "end_qpc": 140, "cpu_busy_percent": None}]
+        busy = _busy_observation(run, overlapping)
+        self.assertEqual((2, 100, 1.0),
+                         (busy["sample_count"], busy["overlap_duration_qpc"], busy["overlap_ratio"]))
+        self.assertLessEqual(busy["overlap_ratio"], 1.0)
+        outside = deepcopy(monitor)
+        outside["observations"] = [{"start_qpc": 40, "end_qpc": 100, "cpu_busy_percent": 10}]
+        busy = _busy_observation(run, outside)
+        self.assertEqual(("insufficient_data", "no_overlapping_valid_samples", 0, 0.0),
+                         (busy["status"], busy["reason"], busy["overlap_duration_qpc"], busy["overlap_ratio"]))
+        missing = _busy_observation(run, None)
+        self.assertEqual("diagnostic_file_missing", missing["reason"])
+        self.assertIsNone(missing["overlap_ratio"])
+        self.assertEqual(100, missing["run_duration_qpc"])
+        wrong_frequency = deepcopy(monitor)
+        wrong_frequency["frequency_hz"] = 2000
+        self.assertEqual("clock_mapping_unavailable", _busy_observation(run, wrong_frequency)["reason"])
+        short_monitor = deepcopy(monitor)
+        short_monitor["ended_qpc"] = 199
+        self.assertEqual("clock_mapping_unavailable", _busy_observation(run, short_monitor)["reason"])
+
+    def test_density_summary_cli_and_optional_interval(self):
+        document, diagnostics = time_fixture()
+        first_name = document["runs"][0]["cpu_diagnostic_file"]
+        second_name = document["runs"][1]["cpu_diagnostic_file"]
+        diagnostics[first_name]["observations"] = diagnostics[first_name]["observations"][:2]
+        diagnostics[first_name].pop("requested_interval_ms")
+        diagnostics[second_name]["observations"].insert(3, {
+            "start_qpc": 2100, "end_qpc": 2150, "cpu_busy_percent": 30})
+        result = analyze(document, diagnostics=diagnostics)
+        density = result["time_analysis"]["diagnostic_density"]
+        self.assertEqual((8, 8), (density["covered_run_count"], density["successful_run_count"]))
+        self.assertEqual({"minimum": 1, "median": 2.0, "maximum": 3},
+                         density["sample_count_per_covered_run"])
+        self.assertEqual({"minimum": 0.08, "median": 0.18, "maximum": 0.28},
+                         density["overlap_ratio_per_covered_run"])
+        self.assertIsNone(result["time_analysis"]["run_sequence"][0]["cpu_busy"]["requested_interval_ms"])
+        self.assertIn("samples/run median 2.0, range 1..3", render_summary(result))
+        self.assertIn("QPC overlap median 0.18", render_summary(result))
+        no_coverage = analyze(document, diagnostics={})
+        density = no_coverage["time_analysis"]["diagnostic_density"]
+        self.assertTrue(no_coverage["analysis_valid"])
+        self.assertEqual(0, density["covered_run_count"])
+        self.assertIsNone(density["sample_count_per_covered_run"]["median"])
+        self.assertIsNone(density["overlap_ratio_per_covered_run"]["median"])
+        self.assertIn("samples/run median None", render_summary(no_coverage))
 
     def test_synthetic_time_and_order_patterns_are_descriptive(self):
         scenarios = [

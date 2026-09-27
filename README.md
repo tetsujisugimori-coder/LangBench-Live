@@ -64,11 +64,13 @@ python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクト�
 
 新規のCPU pair実験では、各runの `run_id`、`cycle`、CPU A/B、`execution_order`、`position`、`started_at` / `ended_at`、元の `median_ms` を従来通り `runs.json` に保存します。追加でベンチマーク子プロセスの実行直前・直後のWindows `QueryPerformanceCounter` (QPC)値と周波数を `diagnostic_qpc` に、同じrunを監視した `cpu-monitor-run-NNN.json` の名前を `cpu_diagnostic_file` に記録します。監視はrunごとに行い、システム全体の `GetSystemTimes` 差分から得た `cpu_busy_percent` を保存します。監視の失敗はベンチマークの成否を変えません。
 
-壁時計のISO 8601時刻とQPC tickは直接比較しません。`started_at` と実験全体の `started_at` の差を `elapsed_since_experiment_start_seconds` とします。runと診断サンプルの対応には同一WindowsホストのQPC区間だけを使い、監視全体のQPC範囲がrunを包含し、周波数が一致する場合に、run区間とサンプル区間が正の長さで重なるサンプルを採用します。`cpu_busy` には採用した元ファイル名、監視範囲、サンプルの0始まりindexとQPC区間、件数、中央値、平均、最小、最大を残します。部分的に重なるサンプルも1件として扱う非加重統計です。監視値は対象logical CPU単独のbusy値ではありません。
+壁時計のISO 8601時刻とQPC tickは直接比較しません。`started_at` と実験全体の `started_at` の差を `elapsed_since_experiment_start_seconds` とします。runと診断サンプルの対応には同一WindowsホストのQPC区間だけを使い、監視全体のQPC範囲がrunを包含し、周波数が一致する場合に、run区間とサンプル区間が正の長さで重なるサンプルを採用します。`cpu_busy` には採用した元ファイル名、監視範囲、サンプルの0始まりindexとQPC区間、件数、中央値、平均、最小、最大を残します。部分的に重なるサンプルも1件として扱う非加重統計です。
+
+`runs_with_diagnostic_coverage` は有効なoverlap sampleが1件以上あるrun数であり、十分な時間分解能を保証しません。runごとの `sample_count`、`run_qpc_range`、`run_duration_qpc` と、有効なbusy sampleがrun区間を覆った時間のunionを表す `overlap_duration_qpc` / `overlap_ratio` も確認してください。sample区間が重複しても時間は二重加算しません。`diagnostic_density` はcoverageのあるrunについてsample数とoverlap ratioの最小・中央値・最大を集計し、coverageのないrunは別の件数で示します。診断JSONの `requested_interval_ms` もrun観測に残します。samplerの既定intervalは現在20msです。
 
 `time_analysis.run_sequence` / `run_time_observations` は成功runを壁時計順に、`cycle_trend` と各 `cycle_pairs[].time_observation` はcycleごとのA/B中央値、B−A、開始時の経過秒、run間の開始時刻差、A/B別busy値を示します。`early_late_comparison` は完了cycleを前半・後半に分け、各側に2 cycle以上あり、前後のorder件数が同じ場合だけCPU A/B別のrun中央値の中央値を比較します。これだけで時間の影響とは判定できません。`order_effect` は順序によるB−Aの違い、`position_effect` は第1・第2位置の違い、time分析は経過時間と観測値の並びを表します。これらは互いに置き換わりません。
 
-`time_analysis.status: insufficient_data` は時刻または重なる有効busyサンプルが不足することを示し、`reasons` とrunごとの `timing_reason` / `cpu_busy.reason` に詳細を残します。旧 `runs.json` にQPC区間や診断ファイルがなくても従来のCPU pair分析は続行します。time分析の `available` は少なくとも一部の成功runに時刻とbusy観測がある状態で、全runを覆う保証ではありません。CLIのcoverage件数を確認してください。CPU busyと測定値がともに変化しても相関は原因を意味しません。温度、boost、周波数、cache、背景プロセス負荷は未観測または完全には制御されていません。次段階ではこの時間軸を見て、それらの追加診断や長時間の連続測定を検討できます。
+`time_analysis.status: insufficient_data` は時刻または重なる有効busyサンプルが不足することを示し、`reasons` とrunごとの `timing_reason` / `cpu_busy.reason` に詳細を残します。旧 `runs.json` にQPC区間や診断ファイルがなくても従来のCPU pair分析は続行します。time分析の `available` は少なくとも一部の成功runに時刻とbusy観測がある状態で、全runを覆う保証ではありません。CLIのcoverage件数とdensityを併せて確認してください。CPU busyは対象logical CPU単体ではなくsystem-wide値で、benchmark自身の実行負荷も含みます。別Python monitorプロセスも測定環境へ軽微な負荷を追加し得るため、monitor導入前後の絶対benchmark値を単純比較しないでください。CPU busyと測定値がともに変化しても相関は原因を意味しません。温度、boost、周波数、cache、背景プロセス負荷は未観測または完全には制御されていません。次段階ではこの時間軸を見て、それらの追加診断や長時間の連続測定を検討できます。
 
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 
