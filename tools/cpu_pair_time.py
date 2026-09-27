@@ -111,6 +111,67 @@ def _busy_observation(run, diagnostic):
     return empty
 
 
+def _summary(rows):
+    values = [float(row["median_ms"]) for row in rows]
+    return {"sample_count": len(values),
+            "median_ms": statistics.median(values) if values else None,
+            "mean_ms": statistics.mean(values) if values else None,
+            "minimum_ms": min(values) if values else None,
+            "maximum_ms": max(values) if values else None}
+
+
+def _correlation(rows, field):
+    pairs = [(row[field], row["median_ms"]) for row in rows if row[field] is not None]
+    xs, ys = [p[0] for p in pairs], [p[1] for p in pairs]
+    return {"sample_count": len(pairs), "pearson_r":
+            statistics.correlation(xs, ys) if len(pairs) >= 2 and len(set(xs)) > 1 and len(set(ys)) > 1 else None}
+
+
+def _joint_analysis(observations, cycle_pairs):
+    """Use complete cycles for paired strata; keep associations descriptive."""
+    cycles = {pair["cycle"] for pair in cycle_pairs}
+    rows = [dict(row, busy_percent=row["cpu_busy"]["median_cpu_busy_percent"]
+                 if row["cpu_busy"]["status"] == "available" else None)
+            for row in observations if row["cycle"] in cycles
+            and isinstance(row["median_ms"], (int, float)) and not isinstance(row["median_ms"], bool)
+            and math.isfinite(row["median_ms"])]
+    by_cpu_position = {cpu: {position: _summary([row for row in rows
+                        if row["comparison_cpu"] == cpu and row["position"] == position])
+                        for position in (1, 2)} for cpu in ("A", "B")}
+    ordered_cycles = sorted(cycles)
+    middle = len(ordered_cycles) // 2
+    halves = {"early": set(ordered_cycles[:middle]), "late": set(ordered_cycles[middle:])}
+    by_elapsed_half = {half: {cpu: _summary([row for row in rows
+                       if row["cycle"] in subset and row["comparison_cpu"] == cpu])
+                       for cpu in ("A", "B")} for half, subset in halves.items()}
+    by_cycle = {cycle: [row for row in rows if row["cycle"] == cycle] for cycle in cycles}
+    covered = sorted((statistics.mean(row["busy_percent"] for row in group), cycle)
+                     for cycle, group in by_cycle.items()
+                     if len(group) == 2 and all(row["busy_percent"] is not None for row in group))
+    # Rank whole cycles so A and B share the same busy stratum. Tied values stay
+    # visible in the boundaries; bands describe ranks, not fixed CPU thresholds.
+    busy_bands = {}
+    for name, lower, upper in (("low", 0, 1), ("middle", 1, 2), ("high", 2, 3)):
+        selected = covered[len(covered) * lower // 3:len(covered) * upper // 3]
+        subset = {cycle for _, cycle in selected}
+        busy_bands[name] = {"status": "available" if len(selected) >= 4 else "insufficient_data",
+                            "cycle_count": len(selected),
+                            "cycle_mean_busy_percent_range": [selected[0][0], selected[-1][0]] if selected else None,
+                            "by_cpu": {cpu: _summary([row for row in rows if row["cycle"] in subset
+                                                       and row["comparison_cpu"] == cpu]) for cpu in ("A", "B")}}
+    return {"complete_cycle_count": len(cycles), "by_cpu_and_position": by_cpu_position,
+            "by_elapsed_half_and_cpu": by_elapsed_half,
+            "elapsed_correlation_by_cpu": {cpu: _correlation([row for row in rows
+                                           if row["comparison_cpu"] == cpu],
+                                           "elapsed_since_experiment_start_seconds") for cpu in ("A", "B")},
+            "busy_cycle_band_method": "rank complete cycles by mean of two run busy medians; thirds",
+            "busy_covered_cycle_count": len(covered), "busy_bands": busy_bands,
+            "busy_correlation_by_cpu": {cpu: _correlation([row for row in rows
+                                        if row["comparison_cpu"] == cpu], "busy_percent")
+                                        for cpu in ("A", "B")},
+            "interpretation": "Associations are descriptive; elapsed time and system-wide busy do not establish causes."}
+
+
 def analyze_time(document, cycle_pairs, diagnostics=None):
     diagnostics = diagnostics or {}
     origin = timestamp(document.get("started_at"))
@@ -181,8 +242,9 @@ def analyze_time(document, cycle_pairs, diagnostics=None):
         comparison["reason"] = "insufficient_complete_cycles"
     elif any(comparison["by_cpu"][side][f"{half}_run_count"] < 2 for side in ("A", "B") for half in ("early", "late")):
         comparison["reason"] = "insufficient_runs_per_cpu"
-    elif comparison["order_counts"]["early"] != comparison["order_counts"]["late"]:
-        comparison["reason"] = "unequal_order_counts"
+    elif any(abs(counts["A_then_B"] - counts["B_then_A"]) > 1
+             for counts in comparison["order_counts"].values()):
+        comparison["reason"] = "order_imbalance_within_half"
     elif any(row["elapsed_since_experiment_start_seconds"] is None for row in observations if row["cycle"] in early | late):
         comparison["reason"] = "timing_data_missing"
     else:
@@ -212,4 +274,5 @@ def analyze_time(document, cycle_pairs, diagnostics=None):
                 "maximum_percent": max(run_busy_medians) if run_busy_medians else None},
             "run_time_observations": observations, "run_sequence": observations,
             "early_late_comparison": comparison, "cycle_trend": trend,
+            "joint_analysis": _joint_analysis(observations, cycle_pairs),
             "interpretation": "Descriptive observations only; time and CPU busy associations do not establish causes."}

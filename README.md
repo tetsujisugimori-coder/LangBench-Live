@@ -62,6 +62,15 @@ python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクト�
 
 ### CPU pair の時間・CPU busy 観測
 
+本測定には既存の `--runs` をcycle数として指定します。例えば30 cycleでは各CPU 30 run、計60 runになり、ABBA順序の A→B / B→A は15 cycleずつです。保存先は既存の `results/diagnostics/` 以下に一意な名前を指定し、測定後に同じディレクトリを分析します。
+
+```powershell
+python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --runs 30 --output results/diagnostics/cpu-pair-same-core-30-<一意な名前>
+python -B tools/analyze_cpu_pair.py results/diagnostics/cpu-pair-same-core-30-<一意な名前>
+```
+
+`cpu-pair-analysis.json` の `time_analysis.run_sequence` で `run_id`、`cycle`、CPU、順序、位置、開始時刻、経過秒数、run中央値、CPU busy中央値を同じrunごとに追跡できます。`joint_analysis` は完全なcycleから CPU×位置、前半/後半×CPU、CPU busy帯×CPUを集計します。busy帯は両runのbusy中央値の平均で完全cycleを並べた三分位の順位帯です。各帯4 cycle未満は `insufficient_data` と表示します。elapsedおよびbusyとのPearson相関はCPU別に表示し、一定値やデータ不足では `null` です。これらは記述的な関連であり、CPUの本質的な性能差やthermal、frequency、boost、schedulerの原因を確定しません。
+
 新規のCPU pair実験では、各runの `run_id`、`cycle`、CPU A/B、`execution_order`、`position`、`started_at` / `ended_at`、元の `median_ms` を従来通り `runs.json` に保存します。追加でベンチマーク子プロセスの実行直前・直後のWindows `QueryPerformanceCounter` (QPC)値と周波数を `diagnostic_qpc` に、同じrunを監視した `cpu-monitor-run-NNN.json` の名前を `cpu_diagnostic_file` に記録します。監視はrunごとに行い、システム全体の `GetSystemTimes` 差分から得た `cpu_busy_percent` を保存します。監視の失敗はベンチマークの成否を変えません。
 
 壁時計のISO 8601時刻とQPC tickは直接比較しません。`started_at` と実験全体の `started_at` の差を `elapsed_since_experiment_start_seconds` とします。runと診断サンプルの対応には同一WindowsホストのQPC区間だけを使い、監視全体のQPC範囲がrunを包含し、周波数が一致する場合に、run区間とサンプル区間が正の長さで重なるサンプルを採用します。`cpu_busy` には採用した元ファイル名、監視範囲、サンプルの0始まりindexとQPC区間、件数、中央値、平均、最小、最大を残します。部分的に重なるサンプルも1件として扱う非加重統計です。
