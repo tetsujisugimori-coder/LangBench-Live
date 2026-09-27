@@ -153,6 +153,20 @@ class CpuPairAnalysisTests(unittest.TestCase):
                 doc["comparison"][side][field] = value
                 self.assertFalse(analyze(doc)["analysis_valid"])
 
+    def test_all_candidate_types_accept_matching_topology(self):
+        for candidate, core_b, class_b in (
+            ("same_core_siblings", 0, 1),
+            ("same_efficiency_class_different_core", 1, 1),
+            ("different_efficiency_class", 1, 2),
+        ):
+            with self.subTest(candidate=candidate):
+                doc = fixture()
+                doc["comparison"]["candidate_type"] = candidate
+                doc["comparison"]["cpu_b"]["physical_core_id"] = core_b
+                doc["comparison"]["cpu_b"]["efficiency_class"] = class_b
+                result = analyze(doc)
+                self.assertTrue(result["analysis_valid"], result["validation_errors"])
+
     def test_measurement_order_value_must_match_saved_format(self):
         doc = fixture()
         doc["measurement_settings"]["measurement_order"] = ["function_call", "direct"]
