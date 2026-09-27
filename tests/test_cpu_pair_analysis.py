@@ -10,7 +10,8 @@ def fixture():
     settings = {"benchmark_identifier": "function_call_numeric_sum", "language": "C", "case": "C/direct",
                 "item_count": 100, "warmup_iterations": 2, "measurement_iterations": 4,
                 "measurement_order": ["direct", "function_call"], "runs_per_cpu": 2,
-                "pair_run_order": "CPU A then CPU B, repeated", "compiler_options": ["-O2"]}
+                "pair_run_order": "CPU A then CPU B, repeated", "compiler_options": ["-O2"],
+                "affinity_is_the_only_configured_run_difference": True}
     runs = []
     for cycle, a, b in ((1, 10.0, 12.0), (2, 20.0, 18.0)):
         for position, label, value, processor in ((1, "A", a, 0), (2, "B", b, 1)):
@@ -92,6 +93,76 @@ class CpuPairAnalysisTests(unittest.TestCase):
         self.assertIsNone(result["cycle_pairs"][0]["b_over_a_ratio"])
         self.assertIsNone(result["cycle_pairs"][0]["b_minus_a_percent_of_a"])
         self.assertIsNone(result["aggregate_pair_statistics"]["median_b_over_a_ratio"])
+
+    def test_top_level_and_run_experiment_ids_and_binary_hashes_are_consistent(self):
+        doc = fixture()
+        del doc["experiment_id"]
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        doc["experiment_id"] = "  "
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        doc["runs"][0]["experiment_id"] = "other-experiment"
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        del doc["binary_sha256"]
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        doc["binary_sha256"] = "other-hash"
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        doc["runs"][0]["binary_sha256"] = "other-hash"
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        doc["runs"][0]["binary_sha256"] = None
+        self.assertFalse(analyze(doc)["analysis_valid"])
+
+    def test_all_candidate_topology_relationships_accept_matching_metadata(self):
+        candidates = (
+            ("same_core_siblings", 0, 1),
+            ("same_efficiency_class_different_core", 1, 1),
+            ("different_efficiency_class", 1, 2),
+        )
+        for candidate, core_b, class_b in candidates:
+            with self.subTest(candidate=candidate):
+                doc = fixture()
+                doc["comparison"]["candidate_type"] = candidate
+                doc["comparison"]["cpu_b"]["physical_core_id"] = core_b
+                doc["comparison"]["cpu_b"]["efficiency_class"] = class_b
+                result = analyze(doc)
+                self.assertTrue(result["analysis_valid"], result["validation_errors"])
+
+    def test_candidate_type_must_match_cpu_topology(self):
+        invalid_changes = [
+            ("same_core_siblings", "cpu_b", "physical_core_id", 1),
+            ("same_core_siblings", "cpu_b", "efficiency_class", 2),
+            ("same_core_siblings", "cpu_b", "efficiency_class", 2),
+            ("same_efficiency_class_different_core", "cpu_b", "physical_core_id", 0),
+            ("same_efficiency_class_different_core", "cpu_b", "efficiency_class", 2),
+            ("different_efficiency_class", "cpu_b", "efficiency_class", 1),
+            ("different_efficiency_class", "cpu_b", "group_id", 1),
+        ]
+        for candidate, side, field, value in invalid_changes:
+            with self.subTest(candidate=candidate, field=field, value=value):
+                doc = fixture()
+                doc["comparison"]["candidate_type"] = candidate
+                if candidate == "same_efficiency_class_different_core":
+                    doc["comparison"]["cpu_b"]["physical_core_id"] = 1
+                if candidate == "different_efficiency_class":
+                    doc["comparison"]["cpu_b"]["efficiency_class"] = 2
+                doc["comparison"][side][field] = value
+                self.assertFalse(analyze(doc)["analysis_valid"])
+
+    def test_measurement_order_value_must_match_saved_format(self):
+        doc = fixture()
+        doc["measurement_settings"]["measurement_order"] = ["function_call", "direct"]
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        del doc["measurement_settings"]["measurement_order"]
+        self.assertFalse(analyze(doc)["analysis_valid"])
+        doc = fixture()
+        doc["measurement_settings"]["measurement_order"] = "direct,function_call"
+        self.assertFalse(analyze(doc)["analysis_valid"])
 
     def test_cli_writes_report_for_valid_json_and_returns_nonzero_for_invalid_experiment(self):
         with tempfile.TemporaryDirectory() as temp:

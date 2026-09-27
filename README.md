@@ -52,7 +52,7 @@ python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクト�
 
 既定では入力と同じディレクトリに `cpu-pair-analysis.json` を作ります。入力の `runs.json`、`plan.json`、個別run結果は変更しません。JSONにはschema version、experiment ID、入力パス、分析時刻、妥当性とvalidation errors/warnings、candidate typeと選定理由、CPU A/Bのprocessor group・logical processor・physical core・EfficiencyClass raw value、topology hash、測定設定、CPUごとのrun-median記述統計、cycle単位のB−A差/B÷A比/A基準百分率差、全complete pairの集約値を含めます。標準偏差はsuccessful run中央値の標本標準偏差で、successful runが2件未満なら `null` です。0 msのA値ではratioと百分率差を `null` にします。
 
-分析前にCPU識別、benchmark/case、測定設定・run config、compiler options、binary SHA-256、topology SHA-256、scheduled order、cycle構成とrun statusを検証します。壊れたJSONやruns配列がない入力は非0で終了し、読めるがpending/failed/incomplete runや比較条件の不一致がある入力ではJSONレポートを残して `analysis_valid: false` と非0終了を返します。
+分析前にtop-levelと全runのexperiment IDおよびbinary SHA-256の一致、CPU識別、candidate typeとprocessor group/physical core/raw EfficiencyClassの関係、benchmark/case、測定設定（C言語・direct→function_call順・affinityのみが設定差）・run config、compiler options、topology SHA-256、scheduled order、cycle構成とrun statusを検証します。壊れたJSONやruns配列がない入力は終了コード2で終了し、読めるがpending/failed/incomplete runや比較条件の不一致がある入力ではJSONレポートを残して `analysis_valid: false` と終了コード1を返します。validな分析は終了コード0です。
 
 この出力は記述統計と実験妥当性の確認用であり、CPUの優劣、勝者、推奨、統計的有意差を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。各cycleは常にCPU A→CPU Bの固定順であるため、CPU identity effectとorder/time effectを分離できません。boostやthermal状態、cache、background loadも差に影響し得ます。この制約を明示した保存済みデータの分析を、次の実験設計改善に活用します。次段階ではA→B/B→Aを均衡させる計画を検討します。
 

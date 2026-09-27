@@ -8,6 +8,12 @@
 * 検証: `python -B -m unittest tests.test_cpu_pair_analysis -q` 5件成功、`python -B -m unittest tests.test_c_affinity tests.test_cpu_topology -q` 30件成功、`python -B -m unittest discover -s tests -q` 125件成功、`git diff --check` 成功。サンドボックス経路ではWindows一時ディレクトリACLで阻まれたため、同一テストを許可された通常実行経路で完了した。
 * PR #40の短縮smoke保存データは `measurement_settings` を含まないため、必須比較条件を保証できず分析invalidとなることを確認した。新CLIは欠落した必須metadataを推測補完せずinvalidとして扱う。これは既存smoke保存データの制約であり、正式なruns形式の修正や再測定は今回の範囲外。
 
+## 2026-09-27 CPU pair分析validation強化
+
+* PR #40の `tools/diagnose_c_affinity.py` が生成するtop-level/run metadata、同一binary hash、CPU group/logical CPU、candidate topology、`measurement_settings` と照合し、分析validatorを拡張。top-levelの非空experiment ID/binary SHAと全runの一致、candidate typeごとのphysical core/raw EfficiencyClass条件と同一processor group、`measurement_order == ["direct", "function_call"]` を検証する。生成コードに存在する `language == "C"` と `affinity_is_the_only_configured_run_difference == true` も検証する。
+* 異常系unit testを追加し、top-level/run ID・hash不整合、各candidate topology不整合、measurement orderの逆順/欠落/不正型を確認する。READMEのvalidation説明を実装と一致させた。A→B/B→A均衡化、benchmark本体、result schema、履歴、affinity/topology取得処理は変更しない。
+* 検証: `python -B -m unittest tests.test_cpu_pair_analysis -q` 9件成功、`python -B -m unittest tests.test_c_affinity tests.test_cpu_topology -q` 30件成功、`python -B -m unittest discover -s tests -q` 129件成功、`git diff --check` 成功。Windows一時ディレクトリACLのためテストは許可された通常実行経路で実行。
+
 ## 2026-09-26 CPU topology解析・説明
 
 ### 今回変更した概要

@@ -66,8 +66,32 @@ def _metadata_errors(comparison):
             errors.append(f"{side.upper()} metadata is missing required CPU identity/topology fields")
     if all(isinstance(comparison.get(side), dict) for side in ("cpu_a", "cpu_b")):
         a, b = comparison["cpu_a"], comparison["cpu_b"]
-        if (a.get("group_id"), a.get("processor_number")) == (b.get("group_id"), b.get("processor_number")):
+        for side, cpu in (("CPU A", a), ("CPU B", b)):
+            for field in REQUIRED_CPU_FIELDS:
+                value = cpu.get(field)
+                if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                    errors.append(f"{side} {field} must be a non-negative integer")
+        same_logical_cpu = (a.get("group_id"), a.get("processor_number")) == (b.get("group_id"), b.get("processor_number"))
+        same_group = a.get("group_id") == b.get("group_id")
+        same_core = same_group and a.get("physical_core_id") == b.get("physical_core_id")
+        same_efficiency = a.get("efficiency_class") == b.get("efficiency_class")
+        if same_logical_cpu:
             errors.append("CPU A and CPU B are the same logical CPU")
+        if not same_group:
+            errors.append("CPU A and CPU B must belong to the same processor group")
+        candidate = comparison.get("candidate_type")
+        if candidate == "same_core_siblings":
+            if not same_core:
+                errors.append("same_core_siblings candidate requires the same physical_core_id")
+            if not same_efficiency:
+                errors.append("same_core_siblings candidate requires the same efficiency_class")
+        elif candidate == "same_efficiency_class_different_core":
+            if same_core:
+                errors.append("same_efficiency_class_different_core candidate requires different physical_core_id values")
+            if not same_efficiency:
+                errors.append("same_efficiency_class_different_core candidate requires the same efficiency_class")
+        elif candidate == "different_efficiency_class" and same_efficiency:
+            errors.append("different_efficiency_class candidate requires different efficiency_class values")
     if not isinstance(comparison.get("topology_sha256"), str) or not comparison["topology_sha256"]:
         errors.append("topology SHA-256 is missing")
     return errors
@@ -76,6 +100,12 @@ def _metadata_errors(comparison):
 def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | None = None) -> dict:
     errors = _metadata_errors(document.get("comparison"))
     warnings = []
+    experiment_id = document.get("experiment_id")
+    if not isinstance(experiment_id, str) or not experiment_id.strip():
+        errors.append("top-level experiment_id is missing or is not a non-empty string")
+    top_level_hash = document.get("binary_sha256")
+    if not isinstance(top_level_hash, str) or not top_level_hash.strip():
+        errors.append("top-level binary_sha256 is missing or is not a non-empty string")
     settings = document.get("measurement_settings")
     if not isinstance(settings, dict):
         errors.append("measurement_settings is missing or invalid")
@@ -86,6 +116,12 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
                 errors.append(f"measurement_settings.{key} is missing")
         if settings.get("pair_run_order") != "CPU A then CPU B, repeated":
             errors.append("measurement order metadata does not declare the expected fixed A-then-B order")
+        if settings.get("measurement_order") != ["direct", "function_call"]:
+            errors.append("measurement_settings.measurement_order must be ['direct', 'function_call']")
+        if settings.get("language") != "C":
+            errors.append("measurement_settings.language must be 'C'")
+        if settings.get("affinity_is_the_only_configured_run_difference") is not True:
+            errors.append("measurement_settings.affinity_is_the_only_configured_run_difference must be true")
 
     runs = document["runs"]
     if not runs:
@@ -118,7 +154,7 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         expected_position = 1 if label == "A" else 2
         if run.get("position") != expected_position:
             errors.append(f"cycle {cycle} CPU {label} run position does not match the planned A-then-B order")
-        if document.get("experiment_id") is not None and run.get("experiment_id") != document["experiment_id"]:
+        if run.get("experiment_id") != experiment_id:
             errors.append(f"run {run.get('run_id', index)} experiment ID disagrees with runs.json")
         if run.get("status") == "failed":
             statuses["failed"] += 1
@@ -134,8 +170,12 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
             statuses["other"] += 1
             errors.append(f"run {run.get('run_id', index)} has missing or unsupported status")
         binary_hash = run.get("binary_sha256")
-        if binary_hash is not None:
+        if isinstance(binary_hash, str) and binary_hash.strip():
             hashes.add(binary_hash)
+            if binary_hash != top_level_hash:
+                errors.append(f"run {run.get('run_id', index)} binary SHA-256 disagrees with runs.json")
+        else:
+            errors.append(f"run {run.get('run_id', index)} binary SHA-256 is missing or is not a non-empty string")
         configs.append(run.get("benchmark_config"))
         # In this saved format, document.benchmark is the benchmark identifier
         # and each run.benchmark is its case label (for example C/direct).
@@ -154,10 +194,9 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         if isinstance(cpu, dict):
             if run.get("logical_cpu") != cpu.get("processor_number") or run.get("processor_group_id") != cpu.get("group_id"):
                 errors.append(f"run {run.get('run_id', index)} CPU identity disagrees with CPU {label} metadata")
-        if run.get("status") == "success" and (not isinstance(binary_hash, str) or not binary_hash):
-            errors.append(f"successful run {run.get('run_id', index)} has no binary SHA-256")
 
-    if len(hashes) > 1 or (runs and len(hashes) != 1):
+    if (len(hashes) > 1 or (runs and len(hashes) != 1)
+            or (hashes and (not isinstance(top_level_hash, str) or top_level_hash not in hashes))):
         errors.append("binary SHA-256 is missing or inconsistent across runs")
     if len({json.dumps(config, sort_keys=True) for config in configs}) > 1 or any(not isinstance(c, dict) for c in configs):
         errors.append("benchmark config is missing or inconsistent across runs")
