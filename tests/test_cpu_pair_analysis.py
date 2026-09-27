@@ -29,6 +29,20 @@ def fixture():
             "runs": runs}
 
 
+def balanced_fixture():
+    document = fixture()
+    document["measurement_settings"]["pair_run_order"] = "balanced ABBA rounds"
+    first, second, third, fourth = document["runs"]
+    document["runs"] = [first, second, fourth, third]
+    for index, run in enumerate(document["runs"], start=1):
+        run["run_number"] = index
+        run["started_at"] = f"2026-09-27T09:00:{index:02d}+09:00"
+        run["execution_order"] = "A_then_B" if run["cycle"] == 1 else "B_then_A"
+        run["scheduled_order"] = (["cpu_a", "cpu_b"] if run["cycle"] == 1 else ["cpu_b", "cpu_a"])
+        run["position"] = 1 if index % 2 else 2
+    return document
+
+
 class CpuPairAnalysisTests(unittest.TestCase):
     def test_valid_pair_statistics_and_metadata(self):
         result = analyze(fixture(), "runs.json", "2026-09-27T00:00:00+09:00")
@@ -45,6 +59,30 @@ class CpuPairAnalysisTests(unittest.TestCase):
         self.assertEqual([2.0, -2.0], [p["b_minus_a_ms"] for p in result["cycle_pairs"]])
         self.assertEqual([1.2, 0.9], [p["b_over_a_ratio"] for p in result["cycle_pairs"]])
         self.assertTrue(any("always measured before" in s for s in result["interpretation_limitations"]))
+
+    def test_balanced_round_save_load_and_analysis_preserve_candidate_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "runs.json"
+            path.write_text(json.dumps(balanced_fixture()), encoding="utf-8")
+            loaded = load_runs(path)
+            self.assertEqual([(run["cycle"], run["execution_order"], run["comparison_cpu"], run["position"])
+                              for run in loaded["runs"]],
+                             [(1, "A_then_B", "A", 1), (1, "A_then_B", "B", 2),
+                              (2, "B_then_A", "B", 1), (2, "B_then_A", "A", 2)])
+            result = analyze(loaded)
+            self.assertTrue(result["analysis_valid"], result["validation_errors"])
+            self.assertEqual({"A_then_B": 1, "B_then_A": 1}, result["round_order_counts"])
+            self.assertEqual(["A_then_B", "B_then_A"], [pair["execution_order"] for pair in result["cycle_pairs"]])
+            self.assertEqual([2.0, -2.0], [pair["b_minus_a_ms"] for pair in result["cycle_pairs"]])
+            self.assertFalse(any("always measured before" in s for s in result["interpretation_limitations"]))
+
+    def test_balanced_round_rejects_swapped_identity_order_and_position(self):
+        for field, value in (("comparison_cpu", "A"), ("position", 2),
+                             ("execution_order", "A_then_B"), ("scheduled_order", ["cpu_a", "cpu_b"])):
+            with self.subTest(field=field):
+                document = balanced_fixture()
+                document["runs"][2][field] = value
+                self.assertFalse(analyze(document)["analysis_valid"])
 
     def test_missing_comparison_candidate_cpu_and_malformed_json(self):
         doc = fixture()

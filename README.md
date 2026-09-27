@@ -29,7 +29,7 @@ normalのみ変動して固定CPUで安定すればスケジューリングやCP
 
 ## CPU topology候補ペアのaffinity比較
 
-PR #38の `comparison_candidates` から候補を選び、CPU A/Bだけを固定条件のC/direct測定で交互に実行できます。例では各CPUを2回ずつ A→B→A→B の順に測定します。既定run数は各CPU 2回です。
+PR #38の `comparison_candidates` から候補を選び、CPU A/Bだけを固定条件のC/direct測定でラウンド単位に実行できます。各ラウンドで両CPUを1回ずつ測定します。既定は2ラウンド（各CPU 2回）です。
 
 ```powershell
 python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --runs 2 --output results/diagnostics/cpu-pair-same-core-<一意な名前>
@@ -37,9 +37,9 @@ python -B tools/diagnose_c_affinity.py --candidate-type same_core_siblings --run
 
 `--candidate-type` は `same_core_siblings`、`same_efficiency_class_different_core`、`different_efficiency_class` から指定します。毎回Windowsからtopologyを取得して候補を選ぶためCPU番号は固定しません。既存設定に合わせて同じCソース・同じGCCビルド・同じバイナリを使い、入力1,000,000件、warmup 5回、direct/function_call各50測定、direct先行で実行します。各runの正式形式JSONと `plan.json` / `runs.json` / `summary.json` を新規診断フォルダーに保存します。正式result schemaや通常結果・履歴は変更しません。
 
-比較metadataには候補型・選定理由、CPU A/Bそれぞれのprocessor group・processor number・physical core・EfficiencyClass raw value、topology SHA-256、run順と設定を保存します。現在の `SetProcessAffinityMask` 実装を安全に使うため、topologyが複数processor groupの環境や異なるgroupの候補は測定前に利用不可として報告します。単一groupを確認後に既存C runnerへprocessor numberを渡します。Windows以外でも測定しません。EfficiencyClassはraw valueのまま扱います。
+比較metadataには候補型・選定理由、CPU A/Bそれぞれのprocessor group・processor number・physical core・EfficiencyClass raw value、topology SHA-256、run順と設定を保存します。`cycle` がラウンド番号、`position` がラウンド内の先行(1)・後行(2)を示します。CPUペアrunには `comparison_cpu` (A/B) と `execution_order` (`A_then_B` / `B_then_A`) を別々に保存し、`started_at` と合わせて後から順序を復元できます。`plan.json` に全順序を測定前に確定し、`runs.json` に実行結果を記録します。現在の `SetProcessAffinityMask` 実装を安全に使うため、topologyが複数processor groupの環境や異なるgroupの候補は測定前に利用不可として報告します。単一groupを確認後に既存C runnerへprocessor numberを渡します。Windows以外でも測定しません。EfficiencyClassはraw valueのまま扱います。
 
-この診断は測定データを保存するもので、CPU性能の優劣や統計的有意差は判定しません。測定順は固定交互順であり、時間経過などの影響を完全には除去しません。
+実行順は決定的な ABBA ブロック（A→B、B→A、B→A、A→B）を繰り返します。偶数ラウンドは両順序が同数、奇数ラウンドは差が最大1です。温度・クロック・cache・背景負荷などが先行と後行で変わる order/time effect を一方のCPUに偏らせにくくする実験設計です。補正済みスコアやCPU性能の優劣・統計的有意差は算出せず、影響を完全には除去しません。
 
 ### 保存済みCPU pair測定の分析
 
@@ -54,7 +54,7 @@ python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクト�
 
 分析前にtop-levelと全runのexperiment IDおよびbinary SHA-256の一致、CPU識別、candidate typeとprocessor group/physical core/raw EfficiencyClassの関係、benchmark/case、測定設定（C言語・direct→function_call順・affinityのみが設定差）・run config、compiler options、topology SHA-256、scheduled order、cycle構成とrun statusを検証します。壊れたJSONやruns配列がない入力は終了コード2で終了し、読めるがpending/failed/incomplete runや比較条件の不一致がある入力ではJSONレポートを残して `analysis_valid: false` と終了コード1を返します。validな分析は終了コード0です。
 
-この出力は記述統計と実験妥当性の確認用であり、CPUの優劣、勝者、推奨、統計的有意差を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。各cycleは常にCPU A→CPU Bの固定順であるため、CPU identity effectとorder/time effectを分離できません。boostやthermal状態、cache、background loadも差に影響し得ます。この制約を明示した保存済みデータの分析を、次の実験設計改善に活用します。次段階ではA→B/B→Aを均衡させる計画を検討します。
+この出力は記述統計と実験妥当性の確認用であり、CPUの優劣、勝者、推奨、統計的有意差を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。新しい実験の分析にはラウンド順序とA→B / B→A件数を含み、旧A→B固定順データも引き続き読み取れます。boostやthermal状態、cache、background loadも差に影響し得ます。順序による自動補正は行いません。order/time effectの分析は後続の課題です。
 
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 
