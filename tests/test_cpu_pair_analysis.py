@@ -43,7 +43,102 @@ def balanced_fixture():
     return document
 
 
+def comparison_fixture(a_first_a, a_first_b, b_first_a, b_first_b):
+    document = balanced_fixture()
+    values = {(1, "A"): a_first_a, (1, "B"): a_first_b,
+              (2, "A"): b_first_a, (2, "B"): b_first_b}
+    for run in document["runs"]:
+        run["median_ms"] = values[(run["cycle"], run["comparison_cpu"])]
+    return document
+
+
 class CpuPairAnalysisTests(unittest.TestCase):
+    def test_pure_cpu_difference_has_no_aggregate_position_difference(self):
+        result = analyze(comparison_fixture(10, 12, 10, 12))
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        self.assertEqual(2, result["aggregate_pair_statistics"]["median_b_minus_a_ms"])
+        self.assertEqual(0, result["position_effect"]["median_second_minus_first_ms"])
+        self.assertFalse(result["order_effect"]["comparison_reversal"])
+        self.assertEqual("same_direction", result["order_effect"]["comparison_direction"])
+        self.assertEqual("unchanged", result["order_effect"]["magnitude_change"])
+        self.assertEqual(10, result["order_statistics"]["B_then_A"]["cpu_a_statistics"]["median_of_run_medians_ms"])
+
+    def test_first_position_faster_reverses_apparent_cpu_winner(self):
+        result = analyze(comparison_fixture(10, 12, 12, 10))
+        self.assertEqual(2, result["position_effect"]["median_second_minus_first_ms"])
+        self.assertEqual(10, result["position_statistics"]["first"]["median_of_run_medians_ms"])
+        self.assertEqual(12, result["position_statistics"]["second"]["median_of_run_medians_ms"])
+        self.assertEqual(2, result["order_statistics"]["A_then_B"]["median_b_minus_a_ms"])
+        self.assertEqual(-2, result["order_statistics"]["B_then_A"]["median_b_minus_a_ms"])
+        self.assertTrue(result["order_effect"]["comparison_reversal"])
+        self.assertEqual("reversed", result["order_effect"]["comparison_direction"])
+
+    def test_second_position_faster_has_negative_effect(self):
+        result = analyze(comparison_fixture(12, 10, 10, 12))
+        self.assertEqual(-2, result["position_effect"]["median_second_minus_first_ms"])
+        self.assertTrue(result["order_effect"]["comparison_reversal"])
+        self.assertEqual("reversed", result["order_effect"]["comparison_direction"])
+
+    def test_order_changes_magnitude_while_cpu_direction_remains(self):
+        expanded = analyze(comparison_fixture(10, 11, 10, 12))
+        self.assertEqual(1, expanded["order_statistics"]["A_then_B"]["median_b_minus_a_ms"])
+        self.assertEqual(2, expanded["order_statistics"]["B_then_A"]["median_b_minus_a_ms"])
+        self.assertEqual(1, expanded["order_effect"]["b_first_minus_a_first_b_minus_a_ms"])
+        self.assertEqual("expanded", expanded["order_effect"]["magnitude_change"])
+        self.assertFalse(expanded["order_effect"]["comparison_reversal"])
+        contracted = analyze(comparison_fixture(10, 12, 10, 11))
+        self.assertEqual("contracted", contracted["order_effect"]["magnitude_change"])
+
+    def test_order_reversal_reports_observation_only(self):
+        result = analyze(comparison_fixture(10, 11, 11, 10))
+        self.assertTrue(result["order_effect"]["comparison_reversal"])
+        self.assertEqual(-2, result["order_effect"]["b_first_minus_a_first_b_minus_a_ms"])
+        self.assertTrue(all("caused" not in text for text in result["interpretation_limitations"]))
+
+    def test_tie_is_not_a_reversal(self):
+        result = analyze(comparison_fixture(10, 10, 10, 12))
+        self.assertFalse(result["order_effect"]["comparison_reversal"])
+        self.assertEqual("tie_in_one_order", result["order_effect"]["comparison_direction"])
+
+    def test_single_order_and_legacy_data_report_insufficient_data(self):
+        result = analyze(fixture())
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        self.assertEqual(2, result["order_statistics"]["A_then_B"]["complete_pair_count"])
+        self.assertEqual(0, result["order_statistics"]["B_then_A"]["complete_pair_count"])
+        self.assertEqual("insufficient_data", result["order_effect"]["status"])
+        self.assertIsNone(result["order_effect"]["comparison_reversal"])
+        self.assertIsNone(result["order_effect"]["comparison_direction"])
+        self.assertEqual("insufficient_data", result["position_effect"]["status"])
+        self.assertIsNone(result["position_effect"]["median_second_minus_first_ms"])
+
+    def test_missing_explicit_order_and_position_recover_from_balanced_plan(self):
+        document = balanced_fixture()
+        for run in document["runs"]:
+            del run["execution_order"]
+            del run["position"]
+        result = analyze(document)
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        self.assertEqual(["A_then_B", "B_then_A"], [pair["execution_order"] for pair in result["cycle_pairs"]])
+        self.assertEqual("available", result["position_effect"]["status"])
+
+    def test_incomplete_reverse_order_is_not_used_for_effects(self):
+        document = balanced_fixture()
+        document["runs"][2]["status"] = "pending"
+        result = analyze(document)
+        self.assertFalse(result["analysis_valid"])
+        self.assertEqual(0, result["order_statistics"]["B_then_A"]["complete_pair_count"])
+        self.assertEqual(1, result["position_effect"]["complete_pair_count"])
+        self.assertIsNone(result["order_effect"]["comparison_direction"])
+
+    def test_legacy_position_can_be_inferred_from_saved_order(self):
+        document = fixture()
+        for run in document["runs"]:
+            del run["position"]
+        result = analyze(document)
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        self.assertEqual(15.0, result["position_statistics"]["first"]["median_of_run_medians_ms"])
+        self.assertEqual("insufficient_data", result["position_effect"]["status"])
+
     def test_valid_pair_statistics_and_metadata(self):
         result = analyze(fixture(), "runs.json", "2026-09-27T00:00:00+09:00")
         self.assertTrue(result["analysis_valid"], result["validation_errors"])

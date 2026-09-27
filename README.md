@@ -54,7 +54,11 @@ python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクト�
 
 分析前にtop-levelと全runのexperiment IDおよびbinary SHA-256の一致、CPU識別、candidate typeとprocessor group/physical core/raw EfficiencyClassの関係、benchmark/case、測定設定（C言語・direct→function_call順・affinityのみが設定差）・run config、compiler options、topology SHA-256、scheduled order、cycle構成とrun statusを検証します。壊れたJSONやruns配列がない入力は終了コード2で終了し、読めるがpending/failed/incomplete runや比較条件の不一致がある入力ではJSONレポートを残して `analysis_valid: false` と終了コード1を返します。validな分析は終了コード0です。
 
-この出力は記述統計と実験妥当性の確認用であり、CPUの優劣、勝者、推奨、統計的有意差を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。新しい実験の分析にはラウンド順序とA→B / B→A件数を含み、旧A→B固定順データも引き続き読み取れます。boostやthermal状態、cache、background loadも差に影響し得ます。順序による自動補正は行いません。order/time effectの分析は後続の課題です。
+`order_statistics` は A→B / B→A ごとに完全な成功pairのA値・B値を既存のrun中央値統計で集計し、pairごとの `B−A` の中央値を示します。`position_statistics` は同じpairをCPUの種類から独立した first / second に振り分けます。`position_effect.median_second_minus_first_ms` は各pairの「second−first」の中央値で、正ならsecondが遅く、負ならsecondが速い観測です。両順序に完全な成功pairがないときは `status: insufficient_data` としてeffect値を `null` にします。片方の順序しかないデータのfirst / second統計は確認できますが、CPUと位置の差を分離したeffect判定には使いません。
+
+`order_effect` は各順序のB−A中央値を比較します。`b_first_minus_a_first_b_minus_a_ms` は「B先行時のB−A」から「A先行時のB−A」を引いた値です。`comparison_direction` は `same_direction` / `reversed` / `tie_in_one_order` / `both_tied`、`magnitude_change` はA先行を基準に `expanded` / `contracted` / `unchanged` を示します。`comparison_reversal` は両順序の符号が逆のときだけ真です。各effectには判定に使った完全pair件数を残し、元の `cycle_pairs` も保存します。既存の `runs.json` は変更せず、古い固定A→Bデータの順序・位置は既存の計画情報から復元します。明示フィールドがない均衡データも、計画順と `scheduled_order` が一致すれば復元できます。
+
+この出力は記述統計と実験妥当性の確認用であり、CPUの本質的な優劣、勝者、推奨、統計的有意差や原因を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。温度・クロック・cache・背景負荷・経過時間などとの相関分析と因果推定、順序による自動補正は今回の対象外です。次段階では `cycle` / `run_id` と保存済み時刻を診断値に対応付け、観測差との関係を別途分析できます。
 
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 

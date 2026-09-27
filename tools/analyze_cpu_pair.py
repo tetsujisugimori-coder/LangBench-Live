@@ -16,7 +16,7 @@ LEGACY_LIMITATIONS = [
     "Boost state, thermal state, cache state, and background load may contribute to observed differences.",
 ]
 BALANCED_LIMITATIONS = [
-    "Balanced A-then-B and B-then-A rounds reduce systematic order bias but do not correct order/time effects.",
+    "Order and position differences are observations; they do not identify a cause or an intrinsic CPU difference.",
     "Boost state, thermal state, cache state, and background load may contribute to observed differences.",
 ]
 REQUIRED_CPU_FIELDS = ("group_id", "processor_number", "physical_core_id", "efficiency_class")
@@ -53,6 +53,85 @@ def _stats(values: list[float]) -> dict:
         "standard_deviation_run_medians_ms": statistics.stdev(values) if len(values) > 1 else None,
         "standard_deviation_kind": "sample; null when fewer than 2 successful runs",
         "run_medians_ms": values,
+    }
+
+
+def _median_summary(values: list[float]) -> dict:
+    stats = _stats(values)
+    return {key: stats[key] for key in ("successful_run_count", "median_of_run_medians_ms")}
+
+
+def _order_position_analysis(pairs: list[dict]) -> dict:
+    """Describe complete pairs only, keeping CPU identity separate from run position."""
+    by_order = {order: [] for order in ("A_then_B", "B_then_A")}
+    by_position = {1: [], 2: []}
+    position_differences = []
+    for pair in pairs:
+        order = pair["execution_order"]
+        if order not in by_order:
+            continue
+        by_order[order].append(pair)
+        first, second = ((pair["cpu_a_median_ms"], pair["cpu_b_median_ms"])
+                         if order == "A_then_B" else
+                         (pair["cpu_b_median_ms"], pair["cpu_a_median_ms"]))
+        by_position[1].append(first)
+        by_position[2].append(second)
+        position_differences.append(second - first)
+
+    order_statistics = {}
+    for order, group in by_order.items():
+        differences = [pair["b_minus_a_ms"] for pair in group]
+        order_statistics[order] = {
+            "complete_pair_count": len(group),
+            "cpu_a_statistics": _median_summary([pair["cpu_a_median_ms"] for pair in group]),
+            "cpu_b_statistics": _median_summary([pair["cpu_b_median_ms"] for pair in group]),
+            "median_b_minus_a_ms": statistics.median(differences) if differences else None,
+        }
+
+    both_orders = all(by_order.values())
+    position_effect = {
+        "status": "available" if both_orders else "insufficient_data",
+        "complete_pair_count": len(position_differences),
+        "a_first_pair_count": len(by_order["A_then_B"]),
+        "b_first_pair_count": len(by_order["B_then_A"]),
+        "median_second_minus_first_ms": (statistics.median(position_differences)
+                                         if both_orders else None),
+        "sign_convention": "positive means second is slower; negative means second is faster",
+    }
+    order_effect = {
+        "status": "available" if both_orders else "insufficient_data",
+        "a_first_pair_count": len(by_order["A_then_B"]),
+        "b_first_pair_count": len(by_order["B_then_A"]),
+        "b_first_minus_a_first_b_minus_a_ms": None,
+        "comparison_direction": None,
+        "comparison_reversal": None,
+        "magnitude_change": None,
+    }
+    if both_orders:
+        a_first = order_statistics["A_then_B"]["median_b_minus_a_ms"]
+        b_first = order_statistics["B_then_A"]["median_b_minus_a_ms"]
+        order_effect["b_first_minus_a_first_b_minus_a_ms"] = b_first - a_first
+        order_effect["comparison_reversal"] = a_first * b_first < 0
+        if a_first == 0 and b_first == 0:
+            order_effect["comparison_direction"] = "both_tied"
+        elif a_first == 0 or b_first == 0:
+            order_effect["comparison_direction"] = "tie_in_one_order"
+        elif order_effect["comparison_reversal"]:
+            order_effect["comparison_direction"] = "reversed"
+        else:
+            order_effect["comparison_direction"] = "same_direction"
+        if abs(b_first) > abs(a_first):
+            order_effect["magnitude_change"] = "expanded"
+        elif abs(b_first) < abs(a_first):
+            order_effect["magnitude_change"] = "contracted"
+        else:
+            order_effect["magnitude_change"] = "unchanged"
+    return {
+        "order_statistics": order_statistics,
+        "position_statistics": {"first": _median_summary(by_position[1]),
+                                "second": _median_summary(by_position[2])},
+        "position_effect": position_effect,
+        "order_effect": order_effect,
     }
 
 
@@ -160,10 +239,10 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         expected_order = (("A_then_B", "B_then_A", "B_then_A", "A_then_B")[(cycle - 1) % 4]
                           if balanced else "A_then_B")
         expected_position = (1 if label == "A" else 2) if expected_order == "A_then_B" else (1 if label == "B" else 2)
-        if run.get("position") != expected_position:
+        if run.get("position", expected_position) != expected_position:
             errors.append(f"cycle {cycle} CPU {label} run position does not match the planned order")
         if balanced:
-            if run.get("execution_order") != expected_order:
+            if run.get("execution_order", expected_order) != expected_order:
                 errors.append(f"cycle {cycle} execution_order does not match the balanced plan")
             if not isinstance(run.get("started_at"), str) or not run["started_at"]:
                 errors.append(f"cycle {cycle} CPU {label} started_at is missing")
@@ -311,6 +390,7 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
             "minimum_b_minus_a_ms": min(differences) if differences else None,
             "maximum_b_minus_a_ms": max(differences) if differences else None,
             "median_b_over_a_ratio": statistics.median(ratios) if ratios else None},
+        **_order_position_analysis(pairs),
         "interpretation_limitations": list(BALANCED_LIMITATIONS if balanced else LEGACY_LIMITATIONS),
     }
 
@@ -327,6 +407,13 @@ def render_summary(result: dict) -> str:
     lines.append(f"Round orders: A->B {counts['A_then_B']}, B->A {counts['B_then_A']}")
     for pair in result["cycle_pairs"]:
         lines.append(f"cycle {pair['cycle']}: B-A {pair['b_minus_a_ms']} ms; B/A {pair['b_over_a_ratio']}")
+    position = result["position_effect"]
+    order = result["order_effect"]
+    lines.append(f"Position effect: {position['status']}; median second-first "
+                 f"{position['median_second_minus_first_ms']} ms (positive: second slower)")
+    lines.append(f"Order effect: {order['status']}; B-first minus A-first B-A "
+                 f"{order['b_first_minus_a_first_b_minus_a_ms']} ms; "
+                 f"direction {order['comparison_direction']}; magnitude {order['magnitude_change']}")
     lines.append(f"Analysis valid: {'yes' if result['analysis_valid'] else 'no'}")
     lines.append("Limitation:")
     lines.extend(result["interpretation_limitations"][:2])
