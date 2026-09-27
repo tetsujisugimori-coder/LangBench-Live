@@ -9,6 +9,7 @@ import platform
 import statistics
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -33,6 +34,66 @@ class ExperimentInvalidError(RuntimeError):
 
 def now() -> str:
     return datetime.now().astimezone().isoformat(timespec="microseconds")
+
+
+def qpc_stamp() -> tuple[int, int]:
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    value, frequency = ctypes.c_int64(), ctypes.c_int64()
+    if not kernel.QueryPerformanceFrequency(ctypes.byref(frequency)) or not kernel.QueryPerformanceCounter(ctypes.byref(value)):
+        raise OSError(ctypes.get_last_error(), "Windows QPC query failed")
+    return value.value, frequency.value
+
+
+def start_cpu_monitor(output: Path, number: int):
+    """An optional observation; a monitor failure must not change benchmark validity."""
+    name = f"cpu-monitor-run-{number:03d}.json"
+    ready, stop = output / f"cpu-monitor-run-{number:03d}.ready", output / f"cpu-monitor-run-{number:03d}.stop"
+    process = None
+    try:
+        process = subprocess.Popen([sys.executable, "-B", str(ROOT / "tools/sample_windows_cpu.py"),
+                                    "--output", str(output / name), "--ready", str(ready), "--stop", str(stop)],
+                                   cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        deadline = time.monotonic() + 10
+        while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        if not ready.exists():
+            raise RuntimeError("CPU monitor did not become ready")
+        return process, stop, ready, name
+    except (OSError, RuntimeError):
+        if process is not None:
+            try:
+                stop.write_text("stop", encoding="ascii")
+                process.wait(timeout=10)
+            except (OSError, subprocess.TimeoutExpired):
+                process.kill()
+                process.wait()
+        try:
+            ready.unlink(missing_ok=True)
+            stop.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return None
+
+
+def stop_cpu_monitor(monitor, output: Path) -> bool:
+    if monitor is None:
+        return False
+    process, stop, ready, name = monitor
+    try:
+        stop.write_text("stop", encoding="ascii")
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        return process.returncode == 0 and (output / name).is_file()
+    finally:
+        for marker in (ready, stop):
+            try:
+                marker.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def sha256(path: Path) -> str:
@@ -349,7 +410,31 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int, comparison_metad
         try:
             verify_binary(binary, binary_hash)
             run["binary_sha256"] = binary_hash
-            process = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True)
+            monitor = start_cpu_monitor(output, number) if comparison_metadata else None
+            try:
+                try:
+                    start_qpc, frequency_hz = qpc_stamp() if comparison_metadata else (None, None)
+                except OSError:
+                    start_qpc = frequency_hz = None
+                try:
+                    process = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True)
+                finally:
+                    try:
+                        end_qpc, end_frequency = qpc_stamp() if comparison_metadata else (None, None)
+                    except OSError:
+                        end_qpc = end_frequency = None
+                    if start_qpc is not None and end_qpc is not None and frequency_hz == end_frequency:
+                        run["diagnostic_qpc"] = {"start_qpc": start_qpc, "end_qpc": end_qpc,
+                                                 "frequency_hz": frequency_hz}
+            finally:
+                if monitor is not None:
+                    try:
+                        if stop_cpu_monitor(monitor, output):
+                            run["cpu_diagnostic_file"] = monitor[3]
+                        else:
+                            run["cpu_diagnostic_status"] = "unavailable"
+                    except OSError:
+                        run["cpu_diagnostic_status"] = "unavailable"
             (output / f"run-{number:03d}.log").write_text(process.stdout + process.stderr, encoding="utf-8")
             verify_binary(binary, binary_hash)
             if process.returncode:
