@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from tools.analyze_cpu_pair import InputError, analyze, load_runs, main
@@ -52,7 +53,38 @@ def comparison_fixture(a_first_a, a_first_b, b_first_a, b_first_b):
     return document
 
 
+def unbalanced_comparison_fixture(a_first_a, a_first_b, b_first_a, b_first_b):
+    document = comparison_fixture(a_first_a, a_first_b, b_first_a, b_first_b)
+    document["measurement_settings"]["runs_per_cpu"] = 3
+    for run in deepcopy(document["runs"][2:4]):
+        run["cycle"] = 3
+        run["run_number"] += 2
+        run["run_id"] = f"r3{run['comparison_cpu']}"
+        run["started_at"] = f"2026-09-27T09:00:{run['run_number']:02d}+09:00"
+        document["runs"].append(run)
+    return document
+
+
 class CpuPairAnalysisTests(unittest.TestCase):
+    def test_unbalanced_orders_do_not_turn_cpu_difference_into_position_effect(self):
+        result = analyze(unbalanced_comparison_fixture(10, 12, 10, 12))
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        effect = result["position_effect"]
+        self.assertEqual("available", effect["status"])
+        self.assertEqual((1, 2, 3), (effect["a_first_pair_count"], effect["b_first_pair_count"],
+                                     effect["complete_pair_count"]))
+        self.assertEqual(2, effect["a_first_median_second_minus_first_ms"])
+        self.assertEqual(-2, effect["b_first_median_second_minus_first_ms"])
+        self.assertEqual(0, effect["median_second_minus_first_ms"])
+
+    def test_unbalanced_orders_recover_position_effect_with_cpu_difference(self):
+        result = analyze(unbalanced_comparison_fixture(10, 15, 13, 12))
+        self.assertTrue(result["analysis_valid"], result["validation_errors"])
+        effect = result["position_effect"]
+        self.assertEqual(5, effect["a_first_median_second_minus_first_ms"])
+        self.assertEqual(1, effect["b_first_median_second_minus_first_ms"])
+        self.assertEqual(3, effect["median_second_minus_first_ms"])
+
     def test_pure_cpu_difference_has_no_aggregate_position_difference(self):
         result = analyze(comparison_fixture(10, 12, 10, 12))
         self.assertTrue(result["analysis_valid"], result["validation_errors"])

@@ -65,7 +65,7 @@ def _order_position_analysis(pairs: list[dict]) -> dict:
     """Describe complete pairs only, keeping CPU identity separate from run position."""
     by_order = {order: [] for order in ("A_then_B", "B_then_A")}
     by_position = {1: [], 2: []}
-    position_differences = []
+    position_differences = {order: [] for order in by_order}
     for pair in pairs:
         order = pair["execution_order"]
         if order not in by_order:
@@ -76,7 +76,7 @@ def _order_position_analysis(pairs: list[dict]) -> dict:
                          (pair["cpu_b_median_ms"], pair["cpu_a_median_ms"]))
         by_position[1].append(first)
         by_position[2].append(second)
-        position_differences.append(second - first)
+        position_differences[order].append(second - first)
 
     order_statistics = {}
     for order, group in by_order.items():
@@ -89,12 +89,18 @@ def _order_position_analysis(pairs: list[dict]) -> dict:
         }
 
     both_orders = all(by_order.values())
+    a_first_position_median = (statistics.median(position_differences["A_then_B"])
+                               if position_differences["A_then_B"] else None)
+    b_first_position_median = (statistics.median(position_differences["B_then_A"])
+                               if position_differences["B_then_A"] else None)
     position_effect = {
         "status": "available" if both_orders else "insufficient_data",
-        "complete_pair_count": len(position_differences),
+        "complete_pair_count": sum(len(values) for values in position_differences.values()),
         "a_first_pair_count": len(by_order["A_then_B"]),
         "b_first_pair_count": len(by_order["B_then_A"]),
-        "median_second_minus_first_ms": (statistics.median(position_differences)
+        "a_first_median_second_minus_first_ms": a_first_position_median,
+        "b_first_median_second_minus_first_ms": b_first_position_median,
+        "median_second_minus_first_ms": ((a_first_position_median + b_first_position_median) / 2
                                          if both_orders else None),
         "sign_convention": "positive means second is slower; negative means second is faster",
     }
