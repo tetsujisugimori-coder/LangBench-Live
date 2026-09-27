@@ -58,7 +58,17 @@ python -B tools/analyze_cpu_pair.py results/diagnostics/<実験ディレクト�
 
 `order_effect` は各順序のB−A中央値を比較します。`b_first_minus_a_first_b_minus_a_ms` は「B先行時のB−A」から「A先行時のB−A」を引いた値です。`comparison_direction` は `same_direction` / `reversed` / `tie_in_one_order` / `both_tied`、`magnitude_change` はA先行を基準に `expanded` / `contracted` / `unchanged` を示します。`comparison_reversal` は両順序の符号が逆のときだけ真です。各effectには判定に使った完全pair件数を残し、元の `cycle_pairs` も保存します。既存の `runs.json` は変更せず、古い固定A→Bデータの順序・位置は既存の計画情報から復元します。明示フィールドがない均衡データも、計画順と `scheduled_order` が一致すれば復元できます。
 
-この出力は記述統計と実験妥当性の確認用であり、CPUの本質的な優劣、勝者、推奨、統計的有意差や原因を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。温度・クロック・cache・背景負荷・経過時間などとの相関分析と因果推定、順序による自動補正は今回の対象外です。次段階では `cycle` / `run_id` と保存済み時刻を診断値に対応付け、観測差との関係を別途分析できます。
+この出力は記述統計と実験妥当性の確認用であり、CPUの本質的な優劣、勝者、推奨、統計的有意差や原因を判定しません。candidate typeはtopology上のペア選定理由を示すもので、EfficiencyClassはraw値のままです。順序による自動補正は行いません。
+
+### CPU pair の時間・CPU busy 観測
+
+新規のCPU pair実験では、各runの `run_id`、`cycle`、CPU A/B、`execution_order`、`position`、`started_at` / `ended_at`、元の `median_ms` を従来通り `runs.json` に保存します。追加でベンチマーク子プロセスの実行直前・直後のWindows `QueryPerformanceCounter` (QPC)値と周波数を `diagnostic_qpc` に、同じrunを監視した `cpu-monitor-run-NNN.json` の名前を `cpu_diagnostic_file` に記録します。監視はrunごとに行い、システム全体の `GetSystemTimes` 差分から得た `cpu_busy_percent` を保存します。監視の失敗はベンチマークの成否を変えません。
+
+壁時計のISO 8601時刻とQPC tickは直接比較しません。`started_at` と実験全体の `started_at` の差を `elapsed_since_experiment_start_seconds` とします。runと診断サンプルの対応には同一WindowsホストのQPC区間だけを使い、監視全体のQPC範囲がrunを包含し、周波数が一致する場合に、run区間とサンプル区間が正の長さで重なるサンプルを採用します。`cpu_busy` には採用した元ファイル名、監視範囲、サンプルの0始まりindexとQPC区間、件数、中央値、平均、最小、最大を残します。部分的に重なるサンプルも1件として扱う非加重統計です。監視値は対象logical CPU単独のbusy値ではありません。
+
+`time_analysis.run_sequence` / `run_time_observations` は成功runを壁時計順に、`cycle_trend` と各 `cycle_pairs[].time_observation` はcycleごとのA/B中央値、B−A、開始時の経過秒、run間の開始時刻差、A/B別busy値を示します。`early_late_comparison` は完了cycleを前半・後半に分け、各側に2 cycle以上あり、前後のorder件数が同じ場合だけCPU A/B別のrun中央値の中央値を比較します。これだけで時間の影響とは判定できません。`order_effect` は順序によるB−Aの違い、`position_effect` は第1・第2位置の違い、time分析は経過時間と観測値の並びを表します。これらは互いに置き換わりません。
+
+`time_analysis.status: insufficient_data` は時刻または重なる有効busyサンプルが不足することを示し、`reasons` とrunごとの `timing_reason` / `cpu_busy.reason` に詳細を残します。旧 `runs.json` にQPC区間や診断ファイルがなくても従来のCPU pair分析は続行します。time分析の `available` は少なくとも一部の成功runに時刻とbusy観測がある状態で、全runを覆う保証ではありません。CLIのcoverage件数を確認してください。CPU busyと測定値がともに変化しても相関は原因を意味しません。温度、boost、周波数、cache、背景プロセス負荷は未観測または完全には制御されていません。次段階ではこの時間軸を見て、それらの追加診断や長時間の連続測定を検討できます。
 
 ## C測定順の追加診断：事前固定40回（2026-09-24）
 

@@ -8,6 +8,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from .cpu_pair_time import analyze_time, load_diagnostics
+except ImportError:
+    from cpu_pair_time import analyze_time, load_diagnostics
+
 
 SCHEMA_VERSION = "1.0"
 LEGACY_LIMITATIONS = [
@@ -186,7 +191,8 @@ def _metadata_errors(comparison):
     return errors
 
 
-def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | None = None) -> dict:
+def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | None = None,
+            diagnostics: dict | None = None) -> dict:
     errors = _metadata_errors(document.get("comparison"))
     warnings = []
     experiment_id = document.get("experiment_id")
@@ -367,6 +373,10 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
         same_efficiency = a["efficiency_class"] == b["efficiency_class"]
     else:
         same_group = same_core = same_efficiency = None
+    time_analysis = analyze_time(document, pairs, diagnostics)
+    for pair, time_row in zip(pairs, time_analysis["cycle_trend"]):
+        pair["time_observation"] = {key: time_row[key] for key in
+            ("elapsed_since_experiment_start_seconds", "a_b_start_gap_seconds", "cpu_a_busy", "cpu_b_busy")}
     return {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": document.get("experiment_id"),
@@ -390,6 +400,7 @@ def analyze(document: dict, source_file: str = "runs.json", analyzed_at: str | N
                               "run_observations": [{"cycle": cycle, "run_id": by_cycle[cycle]["B"].get("run_id"), "median_ms": value}
                                                    for cycle, value in cpu_stats["B"]]},
         "cycle_pairs": pairs,
+        "time_analysis": time_analysis,
         "aggregate_pair_statistics": {"complete_pair_count": len(pairs),
             "median_b_minus_a_ms": statistics.median(differences) if differences else None,
             "mean_b_minus_a_ms": statistics.mean(differences) if differences else None,
@@ -420,6 +431,13 @@ def render_summary(result: dict) -> str:
     lines.append(f"Order effect: {order['status']}; B-first minus A-first B-A "
                  f"{order['b_first_minus_a_first_b_minus_a_ms']} ms; "
                  f"direction {order['comparison_direction']}; magnitude {order['magnitude_change']}")
+    time = result["time_analysis"]
+    lines.append(f"Time analysis: {time['status']}; elapsed {time['experiment_elapsed_seconds']} s; "
+                 f"CPU busy coverage {time['runs_with_diagnostic_coverage']}/{time['successful_run_count']} runs; "
+                 f"early/late {time['early_late_comparison']['status']} (observation, not cause)")
+    busy = time["cpu_busy_run_median_statistics"]
+    lines.append(f"CPU busy run medians: median {busy['median_percent']}%, range "
+                 f"{busy['minimum_percent']}..{busy['maximum_percent']}%")
     lines.append(f"Analysis valid: {'yes' if result['analysis_valid'] else 'no'}")
     lines.append("Limitation:")
     lines.extend(result["interpretation_limitations"][:2])
@@ -438,7 +456,7 @@ def main(argv=None) -> int:
     except InputError as error:
         print(f"Input error: {error}", file=sys.stderr)
         return 2
-    result = analyze(document, str(source))
+    result = analyze(document, str(source), diagnostics=load_diagnostics(document, source.parent))
     output = args.output or source.parent / "cpu-pair-analysis.json"
     if output.resolve() == source.resolve():
         print("Output error: analysis output must not overwrite the source runs.json", file=sys.stderr)
