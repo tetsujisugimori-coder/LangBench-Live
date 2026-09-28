@@ -576,6 +576,23 @@ PR #17 の1回目にも前半寄りの遅いサンプルが22件ありました�
 
 ### CPU pair の独立反復と長時間測定
 
+同じ条件で独立した測定を複数回まとめて行う場合は、次のCLIを使います。`--cycles` は各回の A/B 比較 cycle 数、`--repetitions` は測定器を独立して起動する回数です。`--output` は存在しないディレクトリを指定してください。
+
+```powershell
+python -B tools/repeat_cpu_pair.py --candidate-type same_core_siblings --cycles 4 --repetitions 3 --output results/diagnostics/cpu-pair-repeats-<一意な名前>
+```
+
+`manifest.json` の `repeat_experiment_id` が反復全体を識別します。各 `run-NNN/runs.json` は従来の形式を維持し、同じ `repeat_experiment_id` を追加します。従来の `experiment_id` は独立した測定器起動1回、内側の `run_id` はCPU AまたはBの1測定、`cycle` はその回のA/B比較単位を指します。各 `run-NNN` にはplan、個別結果、CPU busy診断も保存されます。各回のCLIログは反復ディレクトリに残ります。途中で失敗するとそこで停止し、完了済みの生データは残ります。
+
+2回目以降は各 `runs.json` を個別分析して `comparison.json` に上書き更新します。各独立測定のCPU A/B中央値、elapsed相関、early/late差、order/position効果、system-wide CPU busyに加え、`cross_run` に相関とlate−early差の符号一致・最小値・最大値・範囲を保存します。反復内はCPU pair、ソース、compiler、測定設定、cycle数、反復IDの一致を検証します。生のelapsed系列は結合しません。個別の詳細JSONが必要なら以下を実行します。
+
+```powershell
+python -B tools/analyze_cpu_pair.py results/diagnostics/<反復ディレクトリ>/run-001
+python -B tools/compare_cpu_pair_runs.py results/diagnostics/<反復ディレクトリ>/run-001 results/diagnostics/<反復ディレクトリ>/run-002 --same-repeat-experiment --output results/diagnostics/<新しい比較名>.json
+```
+
+前回観測のCPU B elapsed相関は約+0.460、late中央値は0.1135 msでした。late−early差は+0.0085 msです。これらの方向と大きさを独立測定ごとに比較してください。
+
 既存の `--runs` が cycle 数です。短い確認、独立反復、長時間測定はいずれも同じCLIを使います。毎回一意な新しい `--output` ディレクトリを指定してください。既存ディレクトリは上書きされません。各実験の `experiment_id` と各測定の `run_id`、`started_at`、`cycle`、順序、位置、elapsed、CPU busyは従来の形式で保存されます。
 
 ```powershell

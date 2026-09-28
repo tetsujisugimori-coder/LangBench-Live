@@ -34,6 +34,7 @@ def summarize(path):
                                        "median_percent": statistics.median(values) if values else None}
     return document, {
         "experiment_id": result["experiment_id"],
+        "repeat_experiment_id": document.get("repeat_experiment_id"),
         "source_file": str(source),
         "started_at": document["started_at"],
         "compiler": document.get("compiler"),
@@ -59,7 +60,21 @@ def summarize(path):
     }
 
 
-def compare(paths):
+def _effect_summary(summaries, cpu, key):
+    values = [summary["elapsed_correlation"][cpu]["pearson_r"] if key == "elapsed_correlation"
+              else summary["early_late"]["by_cpu"][cpu]["late_minus_early_ms"] for summary in summaries]
+    available = [value for value in values if value is not None]
+    signs = ["positive" if value > 0 else "negative" if value < 0 else "zero" if value == 0 else None
+             for value in values]
+    return {"by_run": [{"experiment_id": summary["experiment_id"], "value": value, "sign": sign}
+                       for summary, value, sign in zip(summaries, values, signs)],
+            "all_available_signs_match": len(available) == len(values) and len(set(signs)) == 1,
+            "minimum": min(available) if available else None,
+            "maximum": max(available) if available else None,
+            "range": max(available) - min(available) if available else None}
+
+
+def compare(paths, require_same_repeat_id=False):
     if len(paths) < 2:
         raise ValueError("at least two experiments are required")
     entries = [summarize(Path(path)) for path in paths]
@@ -67,6 +82,9 @@ def compare(paths):
     ids = [summary["experiment_id"] for summary in summaries]
     if len(set(ids)) != len(ids):
         raise ValueError("experiment_id must be unique across independent runs")
+    repeat_ids = [document.get("repeat_experiment_id") for document in documents]
+    if require_same_repeat_id and (not repeat_ids[0] or len(set(repeat_ids)) != 1):
+        raise ValueError("repeat_experiment_id must match across independent runs")
     first = documents[0]
     for document in documents[1:]:
         if document["comparison"] != first["comparison"]:
@@ -79,17 +97,25 @@ def compare(paths):
                                  if key != "runs_per_cpu"}
         if settings(document) != settings(first):
             raise ValueError("measurement settings differ between experiments")
+        if require_same_repeat_id and document["measurement_settings"]["runs_per_cpu"] != first["measurement_settings"]["runs_per_cpu"]:
+            raise ValueError("cycle counts differ between repeat runs")
     return {"schema_version": "1.0", "comparison_method": "analyze each experiment separately; never concatenate elapsed observations",
-            "experiments": list(summaries)}
+            "repeat_experiment_id": repeat_ids[0] if len(set(repeat_ids)) == 1 else None,
+            "experiments": list(summaries),
+            "cross_run": {cpu: {key: _effect_summary(summaries, cpu, key)
+                                for key in ("elapsed_correlation", "late_minus_early_ms")}
+                          for cpu in ("A", "B")}}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("experiments", nargs="+", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--same-repeat-experiment", action="store_true",
+                        help="require one repeat_experiment_id and identical cycle counts")
     args = parser.parse_args(argv)
     try:
-        result = compare(args.experiments)
+        result = compare(args.experiments, require_same_repeat_id=args.same_repeat_experiment)
         sources = {(path / "runs.json" if path.is_dir() else path).resolve() for path in args.experiments}
         if args.output.resolve() in sources or args.output.exists():
             raise ValueError("output must be a new file distinct from all source files")
