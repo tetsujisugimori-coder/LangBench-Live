@@ -57,6 +57,45 @@ class RepeatCpuPairTests(unittest.TestCase):
             self.assertEqual("compiler failed", (output / "run-001.log").read_text(encoding="utf-8"))
             self.assertFalse((output / "run-002").exists())
 
+    def test_success_without_runs_json_marks_failed_and_stops(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "repeats"
+            def successful_child(command, **_):
+                (output / "run-001").mkdir()
+                return subprocess.CompletedProcess(command, 0, "measurement finished", "")
+
+            with patch("tools.repeat_cpu_pair.subprocess.run", side_effect=successful_child) as runner:
+                with self.assertRaises(FileNotFoundError):
+                    repeat(output, 3, 2, "same_core_siblings")
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            row = manifest["runs"][0]
+            self.assertEqual("failed", row["status"])
+            self.assertEqual(0, row["exit_code"])
+            self.assertIn("FileNotFoundError", row["error"])
+            self.assertEqual(1, len(manifest["runs"]))
+            self.assertEqual(1, runner.call_count)
+            self.assertEqual("measurement finished", (output / "run-001.log").read_text(encoding="utf-8"))
+
+    def test_success_with_invalid_runs_json_marks_failed_and_stops(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "repeats"
+            def malformed_child(command, **_):
+                directory = output / "run-001"
+                directory.mkdir()
+                (directory / "runs.json").write_text("{broken", encoding="utf-8")
+                return subprocess.CompletedProcess(command, 0, "measurement finished", "")
+
+            with patch("tools.repeat_cpu_pair.subprocess.run", side_effect=malformed_child) as runner:
+                with self.assertRaises(json.JSONDecodeError):
+                    repeat(output, 3, 2, "same_core_siblings")
+            manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            row = manifest["runs"][0]
+            self.assertEqual("failed", row["status"])
+            self.assertEqual(0, row["exit_code"])
+            self.assertIn("JSONDecodeError", row["error"])
+            self.assertEqual(1, len(manifest["runs"]))
+            self.assertEqual(1, runner.call_count)
+
 
 if __name__ == "__main__":
     unittest.main()

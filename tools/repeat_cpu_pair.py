@@ -42,29 +42,39 @@ def repeat(output, repetitions, cycles, candidate_type):
         command = [sys.executable, "-B", str(ROOT / "tools/diagnose_c_affinity.py"),
                    "--candidate-type", candidate_type, "--runs", str(cycles),
                    "--repeat-experiment-id", repeat_id, "--output", str(directory)]
-        process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-        (output / f"run-{number:03d}.log").write_text(process.stdout + process.stderr, encoding="utf-8")
-        row["exit_code"] = process.returncode
-        if process.returncode:
-            row["status"] = "failed"
-            save_new(output / "manifest.json", manifest)
-            return 1
-        document = json.loads((directory / "runs.json").read_text(encoding="utf-8"))
-        row.update(status="complete", experiment_id=document["experiment_id"],
-                   started_at=document["started_at"], ended_at=document["ended_at"])
-        paths.append(directory)
-        save_new(output / "manifest.json", manifest)
-        if len(paths) >= 2:
-            # Validate before allowing a third run under different conditions.
-            try:
-                comparison = compare(paths, require_same_repeat_id=True)
-            except ValueError as error:
-                row["status"] = "incompatible"
-                row["comparison_error"] = str(error)
+        try:
+            process = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+            row["exit_code"] = process.returncode
+            (output / f"run-{number:03d}.log").write_text(
+                process.stdout + process.stderr, encoding="utf-8")
+            if process.returncode:
+                row.update(status="failed", error=f"child process exited with code {process.returncode}")
                 save_new(output / "manifest.json", manifest)
-                raise
-            save_new(output / "comparison.json", comparison)
-        print(f"independent run {number}/{repetitions}: {row['experiment_id']}", flush=True)
+                return 1
+
+            document = json.loads((directory / "runs.json").read_text(encoding="utf-8"))
+            row.update(status="complete", experiment_id=document["experiment_id"],
+                       started_at=document["started_at"], ended_at=document["ended_at"])
+            paths.append(directory)
+            save_new(output / "manifest.json", manifest)
+            if len(paths) >= 2:
+                # Validate before allowing a third run under different conditions.
+                comparison = compare(paths, require_same_repeat_id=True)
+                save_new(output / "comparison.json", comparison)
+            print(f"independent run {number}/{repetitions}: {row['experiment_id']}", flush=True)
+        except ValueError as error:
+            # A completed measurement can be incompatible with prior runs; preserve
+            # that status and its raw files while recording why comparison stopped.
+            if row.get("status") == "complete" and len(paths) >= 2:
+                row.update(status="incompatible", comparison_error=str(error))
+            else:
+                row.update(status="failed", error=f"{type(error).__name__}: {error}")
+            save_new(output / "manifest.json", manifest)
+            raise
+        except Exception as error:
+            row.update(status="failed", error=f"{type(error).__name__}: {error}")
+            save_new(output / "manifest.json", manifest)
+            raise
     return 0
 
 
@@ -79,7 +89,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         return repeat(args.output, args.repetitions, args.cycles, args.candidate_type)
-    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+    except Exception as error:
         parser.exit(2, f"Repeat error: {error}\n")
 
 
