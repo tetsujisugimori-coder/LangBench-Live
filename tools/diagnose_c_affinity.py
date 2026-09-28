@@ -325,11 +325,14 @@ def run_checked(arguments: list[str], **kwargs) -> subprocess.CompletedProcess:
     return result
 
 
-def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int, comparison_metadata: dict | None = None) -> dict:
+def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int, comparison_metadata: dict | None = None,
+            repeat_experiment_id: str | None = None) -> dict:
     if sys.platform != "win32":
         raise RuntimeError("affinity diagnosis requires Windows")
     if repeats < 1:
         raise ValueError("--runs must be at least 1")
+    if repeat_experiment_id is not None and not comparison_metadata:
+        raise ValueError("repeat experiment ID requires a CPU pair comparison")
     if comparison_metadata:
         group_reason = candidate_group_unavailable_reason(comparison_metadata, current_processor_group_id())
         if group_reason:
@@ -361,6 +364,8 @@ def execute(output: Path, repeats: int, cpu_a: int, cpu_b: int, comparison_metad
     }
     if comparison_metadata:
         record["comparison"] = comparison_metadata
+        if repeat_experiment_id is not None:
+            record["repeat_experiment_id"] = repeat_experiment_id
         record["measurement_settings"] = {
             "benchmark_identifier": "function_call_numeric_sum",
             "language": "C",
@@ -505,6 +510,7 @@ def main() -> int:
     parser.add_argument("--candidate-type", choices=COMPARISON_CANDIDATE_TYPES,
                         help="compare the two logical CPUs selected by this topology candidate")
     parser.add_argument("--output", type=Path, help="new diagnostic output directory (must not already exist)")
+    parser.add_argument("--repeat-experiment-id", help="group independent CPU pair invocations")
     args = parser.parse_args()
     try:
         if args.candidate_type:
@@ -547,11 +553,11 @@ def main() -> int:
                 f"cpu-pair-{args.candidate_type}-{datetime.now():%Y%m%d_%H%M%S}")
             print(f"Candidate {args.candidate_type}: group {active_group} CPU {cpu_a} vs CPU {cpu_b}")
             print(f"Order: balanced ABBA rounds for group {active_group} CPU A/B; {runs} run(s) per CPU")
-            record = execute(output, runs, cpu_a, cpu_b, comparison)
+            record = execute(output, runs, cpu_a, cpu_b, comparison, args.repeat_experiment_id)
         else:
             runs = args.runs if args.runs is not None else 40
             output = args.output or ROOT / "results/diagnostics" / f"c-affinity-{datetime.now():%Y%m%d_%H%M%S}"
-            record = execute(output, runs, args.cpu_a, args.cpu_b)
+            record = execute(output, runs, args.cpu_a, args.cpu_b, repeat_experiment_id=args.repeat_experiment_id)
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(2, f"error: {error}\n")
     return 0 if all(run["status"] == "success" for run in record["runs"]) else 1
