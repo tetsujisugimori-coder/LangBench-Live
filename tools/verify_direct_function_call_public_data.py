@@ -229,7 +229,7 @@ def verify_public_data(output_dir: Path, manifest_path: Path) -> None:
         if matching != [expected_line]:
             raise ValueError(f"summary.md table row mismatch: {language}")
 
-    print("検証成功: 9 run、900 sample、平均/中央値/標本SD/最小/最大、差/比、JSON/CSV/summary、manifest、checksum")
+    print("verified: 9 runs, 900 samples, aggregates, summary, manifest and checksums")
 
 
 if __name__ == "__main__":
