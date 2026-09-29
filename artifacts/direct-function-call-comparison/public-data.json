@@ -1,0 +1,583 @@
+{
+  "schema_version": "1.0",
+  "title": "同一言語内のdirect／function_call独立測定比較",
+  "generated_from": "tools/analyze_direct_function_call_comparison.py",
+  "analysis_manifest": "artifacts/function-call-analysis/manifest.json",
+  "plan": "artifacts/direct-function-call-comparison/plan.md",
+  "data_boundary": {
+    "published_contains_raw_samples": false,
+    "published_contains_per_experiment_aggregates": true,
+    "raw_data_location": "results/diagnostics/issue61-direct-function-call-20260929/results/raw-matched/ (ignored; not committed)",
+    "experiment_id_semantics": "IDs use a schema-required timestamp-shaped label chosen before the run; use run_id and created_at as the actual execution time because the ID prefix does not match the recorded clock time.",
+    "raw_sha256_published_for_audit": true
+  },
+  "statistical_unit": "independent process experiment; the 50 samples per case are within-run observations, not independent experiments",
+  "interpretation_limit": "descriptive association only; runtime evidence does not establish optimization causation; no cross-language speed ranking",
+  "experiment_count": 3,
+  "conditions": {
+    "item_count": 1000000,
+    "warmup_iterations": 5,
+    "measurement_iterations_per_case": 50,
+    "case_order": [
+      "direct",
+      "function_call"
+    ],
+    "platform": "Windows x64; current machine; one machine only"
+  },
+  "language_summaries": {
+    "c": {
+      "independent_experiment_count": 3,
+      "within_run_samples_per_case": 50,
+      "median_delta_ms_across_experiments": 0.289,
+      "median_delta_ms_range": [
+        0.262,
+        0.29
+      ],
+      "median_ratio_across_experiments": 4.010417,
+      "median_ratio_range": [
+        2.735099,
+        4.020833
+      ]
+    },
+    "python": {
+      "independent_experiment_count": 3,
+      "within_run_samples_per_case": 50,
+      "median_delta_ms_across_experiments": 13.386,
+      "median_delta_ms_range": [
+        12.486,
+        13.532
+      ],
+      "median_ratio_across_experiments": 1.701722,
+      "median_ratio_range": [
+        1.622278,
+        1.707505
+      ]
+    },
+    "javascript": {
+      "independent_experiment_count": 3,
+      "within_run_samples_per_case": 50,
+      "median_delta_ms_across_experiments": 0.014,
+      "median_delta_ms_range": [
+        -0.002,
+        0.019
+      ],
+      "median_ratio_across_experiments": 1.029661,
+      "median_ratio_range": [
+        0.99536,
+        1.040254
+      ]
+    }
+  },
+  "experiments": [
+    {
+      "experiment_id": "20260929_131300_function_call_numeric_sum",
+      "languages": {
+        "c": {
+          "experiment_id": "20260929_131300_function_call_numeric_sum",
+          "language": "c",
+          "run_id": "20260929_125214_c_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:18+09:00",
+          "raw_sha256": "5f010b9b75cbee3950704cd5af4d127e595fadfd45c9f6578afb3541e9e447fa",
+          "source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+          "implementation": {
+            "name": "GCC",
+            "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+          },
+          "architecture": "x64",
+          "options": [
+            "-O2",
+            "-std=c11",
+            "-Wall",
+            "-Wextra"
+          ],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-c",
+          "analysis_findings": {
+            "inlining": {
+              "result": "not_detected"
+            },
+            "vectorization": {
+              "result": "detected"
+            },
+            "simd": {
+              "result": "detected",
+              "isa": [
+                "SSE2"
+              ]
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 0.115,
+            "median_ms": 0.096,
+            "sample_sd_ms": 0.034363,
+            "min_ms": 0.096,
+            "max_ms": 0.211
+          },
+          "function_call": {
+            "mean_ms": 0.39,
+            "median_ms": 0.385,
+            "sample_sd_ms": 0.01107,
+            "min_ms": 0.385,
+            "max_ms": 0.437
+          },
+          "median_delta_call_minus_direct_ms": 0.289,
+          "median_ratio_call_over_direct": 4.010417,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        },
+        "python": {
+          "experiment_id": "20260929_131300_function_call_numeric_sum",
+          "language": "python",
+          "run_id": "20260929_125210_python_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:13.964+09:00",
+          "raw_sha256": "757119ca4724b544f5fdab40e53d240d6d270c4efec2708e6a0092e755aa08f8",
+          "source_sha256": "ecd62939cfb6128c9c8ed1d4ad371079907691a1d7d5c8c50576291968633d17",
+          "implementation": {
+            "name": "CPython",
+            "version": "3.14.7"
+          },
+          "architecture": "amd64",
+          "options": [
+            "optimize=0"
+          ],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-python",
+          "analysis_findings": {
+            "inlining": {
+              "result": "not_detected"
+            },
+            "vectorization": {
+              "result": "not_detected"
+            },
+            "simd": {
+              "result": "not_checked",
+              "isa": []
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 18.959,
+            "median_ms": 18.92,
+            "sample_sd_ms": 0.551624,
+            "min_ms": 18.062,
+            "max_ms": 20.7
+          },
+          "function_call": {
+            "mean_ms": 32.66,
+            "median_ms": 32.306,
+            "sample_sd_ms": 1.19318,
+            "min_ms": 31.08,
+            "max_ms": 37.532
+          },
+          "median_delta_call_minus_direct_ms": 13.386,
+          "median_ratio_call_over_direct": 1.707505,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        },
+        "javascript": {
+          "experiment_id": "20260929_131300_function_call_numeric_sum",
+          "language": "javascript",
+          "run_id": "20260929_125214_javascript_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:14+09:00",
+          "raw_sha256": "c8dd1d8046e0a511f4cba7fabad5906e890efdd846a4f41efe813d31cd8c0111",
+          "source_sha256": "6acceacabf8a90c13a544957208fa762751f58d0d340e7d2b436e4f3555bae6c",
+          "implementation": {
+            "name": "V8",
+            "version": "13.6.233.17-node.53"
+          },
+          "architecture": "x64",
+          "options": [],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-javascript",
+          "analysis_findings": {
+            "jit": {
+              "result": "detected"
+            },
+            "inlining": {
+              "result": "detected"
+            },
+            "vectorization": {
+              "result": "not_checked"
+            },
+            "simd": {
+              "result": "not_checked",
+              "isa": []
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 0.471,
+            "median_ms": 0.472,
+            "sample_sd_ms": 0.003964,
+            "min_ms": 0.467,
+            "max_ms": 0.49
+          },
+          "function_call": {
+            "mean_ms": 0.486,
+            "median_ms": 0.486,
+            "sample_sd_ms": 0.004658,
+            "min_ms": 0.477,
+            "max_ms": 0.504
+          },
+          "median_delta_call_minus_direct_ms": 0.014,
+          "median_ratio_call_over_direct": 1.029661,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "experiment_id": "20260929_131400_function_call_numeric_sum",
+      "languages": {
+        "c": {
+          "experiment_id": "20260929_131400_function_call_numeric_sum",
+          "language": "c",
+          "run_id": "20260929_125222_c_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:24+09:00",
+          "raw_sha256": "7adc2a847a528eef7bdf0902b60101d73d37c3c30569d37eb1fbe1dc97826e71",
+          "source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+          "implementation": {
+            "name": "GCC",
+            "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+          },
+          "architecture": "x64",
+          "options": [
+            "-O2",
+            "-std=c11",
+            "-Wall",
+            "-Wextra"
+          ],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-c",
+          "analysis_findings": {
+            "inlining": {
+              "result": "not_detected"
+            },
+            "vectorization": {
+              "result": "detected"
+            },
+            "simd": {
+              "result": "detected",
+              "isa": [
+                "SSE2"
+              ]
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 0.154,
+            "median_ms": 0.151,
+            "sample_sd_ms": 0.01123,
+            "min_ms": 0.146,
+            "max_ms": 0.2
+          },
+          "function_call": {
+            "mean_ms": 0.416,
+            "median_ms": 0.413,
+            "sample_sd_ms": 0.017185,
+            "min_ms": 0.386,
+            "max_ms": 0.471
+          },
+          "median_delta_call_minus_direct_ms": 0.262,
+          "median_ratio_call_over_direct": 2.735099,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        },
+        "python": {
+          "experiment_id": "20260929_131400_function_call_numeric_sum",
+          "language": "python",
+          "run_id": "20260929_125218_python_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:21.860+09:00",
+          "raw_sha256": "40fdef7ae7abaf7f9da0380a4d727f475737f00b3479fa766186e98719216fee",
+          "source_sha256": "ecd62939cfb6128c9c8ed1d4ad371079907691a1d7d5c8c50576291968633d17",
+          "implementation": {
+            "name": "CPython",
+            "version": "3.14.7"
+          },
+          "architecture": "amd64",
+          "options": [
+            "optimize=0"
+          ],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-python",
+          "analysis_findings": {
+            "inlining": {
+              "result": "not_detected"
+            },
+            "vectorization": {
+              "result": "not_detected"
+            },
+            "simd": {
+              "result": "not_checked",
+              "isa": []
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 19.29,
+            "median_ms": 19.284,
+            "sample_sd_ms": 0.323981,
+            "min_ms": 18.756,
+            "max_ms": 20.284
+          },
+          "function_call": {
+            "mean_ms": 33.035,
+            "median_ms": 32.816,
+            "sample_sd_ms": 1.161567,
+            "min_ms": 30.979,
+            "max_ms": 37.024
+          },
+          "median_delta_call_minus_direct_ms": 13.532,
+          "median_ratio_call_over_direct": 1.701722,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        },
+        "javascript": {
+          "experiment_id": "20260929_131400_function_call_numeric_sum",
+          "language": "javascript",
+          "run_id": "20260929_125221_javascript_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:22+09:00",
+          "raw_sha256": "c4ebd0aefc1b46800d7fbbb22077dbba35f70cc189fd447aaf0fc24a2413b041",
+          "source_sha256": "6acceacabf8a90c13a544957208fa762751f58d0d340e7d2b436e4f3555bae6c",
+          "implementation": {
+            "name": "V8",
+            "version": "13.6.233.17-node.53"
+          },
+          "architecture": "x64",
+          "options": [],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-javascript",
+          "analysis_findings": {
+            "jit": {
+              "result": "detected"
+            },
+            "inlining": {
+              "result": "detected"
+            },
+            "vectorization": {
+              "result": "not_checked"
+            },
+            "simd": {
+              "result": "not_checked",
+              "isa": []
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 0.474,
+            "median_ms": 0.472,
+            "sample_sd_ms": 0.006691,
+            "min_ms": 0.467,
+            "max_ms": 0.494
+          },
+          "function_call": {
+            "mean_ms": 0.493,
+            "median_ms": 0.491,
+            "sample_sd_ms": 0.007839,
+            "min_ms": 0.481,
+            "max_ms": 0.517
+          },
+          "median_delta_call_minus_direct_ms": 0.019,
+          "median_ratio_call_over_direct": 1.040254,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        }
+      }
+    },
+    {
+      "experiment_id": "20260929_131500_function_call_numeric_sum",
+      "languages": {
+        "c": {
+          "experiment_id": "20260929_131500_function_call_numeric_sum",
+          "language": "c",
+          "run_id": "20260929_125228_c_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:29+09:00",
+          "raw_sha256": "897aa3a7080226fa1120a0bcd70de70d0414a2926aa82e227b2112b32ff054f4",
+          "source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+          "implementation": {
+            "name": "GCC",
+            "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+          },
+          "architecture": "x64",
+          "options": [
+            "-O2",
+            "-std=c11",
+            "-Wall",
+            "-Wextra"
+          ],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-c",
+          "analysis_findings": {
+            "inlining": {
+              "result": "not_detected"
+            },
+            "vectorization": {
+              "result": "detected"
+            },
+            "simd": {
+              "result": "detected",
+              "isa": [
+                "SSE2"
+              ]
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 0.1,
+            "median_ms": 0.096,
+            "sample_sd_ms": 0.005751,
+            "min_ms": 0.096,
+            "max_ms": 0.117
+          },
+          "function_call": {
+            "mean_ms": 0.391,
+            "median_ms": 0.386,
+            "sample_sd_ms": 0.013549,
+            "min_ms": 0.385,
+            "max_ms": 0.45
+          },
+          "median_delta_call_minus_direct_ms": 0.29,
+          "median_ratio_call_over_direct": 4.020833,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        },
+        "python": {
+          "experiment_id": "20260929_131500_function_call_numeric_sum",
+          "language": "python",
+          "run_id": "20260929_125224_python_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:27.792+09:00",
+          "raw_sha256": "9816a9b9afebde1f6c6e817722dc58f7ac913dedb47d3bc30878f061446d8cd4",
+          "source_sha256": "ecd62939cfb6128c9c8ed1d4ad371079907691a1d7d5c8c50576291968633d17",
+          "implementation": {
+            "name": "CPython",
+            "version": "3.14.7"
+          },
+          "architecture": "amd64",
+          "options": [
+            "optimize=0"
+          ],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-python",
+          "analysis_findings": {
+            "inlining": {
+              "result": "not_detected"
+            },
+            "vectorization": {
+              "result": "not_detected"
+            },
+            "simd": {
+              "result": "not_checked",
+              "isa": []
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 20.075,
+            "median_ms": 20.065,
+            "sample_sd_ms": 0.68095,
+            "min_ms": 18.472,
+            "max_ms": 21.206
+          },
+          "function_call": {
+            "mean_ms": 32.636,
+            "median_ms": 32.551,
+            "sample_sd_ms": 0.75742,
+            "min_ms": 30.855,
+            "max_ms": 34.675
+          },
+          "median_delta_call_minus_direct_ms": 12.486,
+          "median_ratio_call_over_direct": 1.622278,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        },
+        "javascript": {
+          "experiment_id": "20260929_131500_function_call_numeric_sum",
+          "language": "javascript",
+          "run_id": "20260929_125227_javascript_function_call_numeric_sum",
+          "created_at": "2026-09-29T12:52:28+09:00",
+          "raw_sha256": "9a4ddd66ead6a9fbde92b0c04622049975627f6b5738e8e923b1a1afc40b3a9f",
+          "source_sha256": "6acceacabf8a90c13a544957208fa762751f58d0d340e7d2b436e4f3555bae6c",
+          "implementation": {
+            "name": "V8",
+            "version": "13.6.233.17-node.53"
+          },
+          "architecture": "x64",
+          "options": [],
+          "analysis_artifact_id": "function-call-analysis-20260929-current-review-javascript",
+          "analysis_findings": {
+            "jit": {
+              "result": "detected"
+            },
+            "inlining": {
+              "result": "detected"
+            },
+            "vectorization": {
+              "result": "not_checked"
+            },
+            "simd": {
+              "result": "not_checked",
+              "isa": []
+            }
+          },
+          "sample_count_per_case": 50,
+          "direct": {
+            "mean_ms": 0.433,
+            "median_ms": 0.431,
+            "sample_sd_ms": 0.005611,
+            "min_ms": 0.426,
+            "max_ms": 0.461
+          },
+          "function_call": {
+            "mean_ms": 0.433,
+            "median_ms": 0.429,
+            "sample_sd_ms": 0.010851,
+            "min_ms": 0.426,
+            "max_ms": 0.48
+          },
+          "median_delta_call_minus_direct_ms": -0.002,
+          "median_ratio_call_over_direct": 0.99536,
+          "checksums": {
+            "direct_checksum": 500000500000,
+            "function_call_checksum": 500000500000,
+            "expected_checksum": 500000500000,
+            "tolerance": 0,
+            "passed": true
+          }
+        }
+      }
+    }
+  ]
+}
