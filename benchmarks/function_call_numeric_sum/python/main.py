@@ -173,6 +173,14 @@ def current_analysis_condition(implementation_name=None, implementation_version=
         "architecture": architecture or platform.machine().lower(),
         "options": options if options is not None else [f"optimize={sys.flags.optimize}"],
     }
+def write_result(path: Path, result: dict, exclusive: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    output = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+    if exclusive:
+        with path.open("x", encoding="utf-8") as destination:
+            destination.write(output)
+    else:
+        path.write_text(output, encoding="utf-8")
 def parse_manifest_entry(content):
     try:
         document = json.loads(content)
@@ -242,8 +250,7 @@ def main():
         result = run(eid, rid, order); result_path = arg("--result-path")
         (project_root() / "results").mkdir(exist_ok=True)
         path = Path(result_path) if result_path else project_root() / "results" / RESULT_FILE
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        write_result(path, result, exclusive="--exclusive-result" in sys.argv[1:])
         print("status=success"); return 0
     except Exception as error:
         print("status=error", file=sys.stderr); print(f"message={error}", file=sys.stderr); return 1

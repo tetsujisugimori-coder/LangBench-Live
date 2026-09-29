@@ -36,14 +36,22 @@ try {
     )
     if ($MeasurementOrder -eq 'function_call_first') {
         $diagnosticDirectory = Join-Path $projectRoot "results/diagnostics/$ExperimentId"
+        # A diagnostic run is immutable: reject a reused ID before any language starts.
+        if (Test-Path -LiteralPath $diagnosticDirectory) {
+            throw "Diagnostic output already exists; choose a new ExperimentId: $diagnosticDirectory"
+        }
         [System.IO.Directory]::CreateDirectory($diagnosticDirectory) | Out-Null
         $resultPaths = @('python', 'javascript', 'c') | ForEach-Object { Join-Path $diagnosticDirectory "$_.json" }
     }
-    & python "benchmarks/function_call_numeric_sum/python/main.py" "--experiment-id=$ExperimentId" "--run-id=$pythonRunId" "--measurement-order=$MeasurementOrder" "--result-path=$($resultPaths[0])"
+    $pythonArguments = @("--experiment-id=$ExperimentId", "--run-id=$pythonRunId", "--measurement-order=$MeasurementOrder")
+    if ($MeasurementOrder -eq 'function_call_first') { $pythonArguments += @("--result-path=$($resultPaths[0])", '--exclusive-result') }
+    & python "benchmarks/function_call_numeric_sum/python/main.py" @pythonArguments
     if ($LASTEXITCODE -ne 0) { throw "Python benchmark failed with exit code $LASTEXITCODE" }
 
     $javascriptRunId = "$(New-TimestampId)_javascript_$benchmark"
-    & node "benchmarks/function_call_numeric_sum/javascript/main.js" "--experiment-id=$ExperimentId" "--run-id=$javascriptRunId" "--measurement-order=$MeasurementOrder" "--result-path=$($resultPaths[1])"
+    $javascriptArguments = @("--experiment-id=$ExperimentId", "--run-id=$javascriptRunId", "--measurement-order=$MeasurementOrder")
+    if ($MeasurementOrder -eq 'function_call_first') { $javascriptArguments += @("--result-path=$($resultPaths[1])", '--exclusive-result') }
+    & node "benchmarks/function_call_numeric_sum/javascript/main.js" @javascriptArguments
     if ($LASTEXITCODE -ne 0) { throw "JavaScript benchmark failed with exit code $LASTEXITCODE" }
 
     $cRunId = "$(New-TimestampId)_c_$benchmark"
