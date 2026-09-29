@@ -550,12 +550,12 @@ benchmarks/function_call_numeric_sum/c/main.c:26:56: missed: statement clobbers 
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: ***** Analysis succeeded with vector mode V2DI
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: SLPing BB part
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: Costing subgraph:
-benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node 000000001e9de0d8 (max_nunits=2, refcnt=1) vector(2) long long int
+benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node 000000001ec28d58 (max_nunits=2, refcnt=1) vector(2) long long int
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: op template: trace_1(D)->samples[iteration_137].start = _103;
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	stmt 0 trace_1(D)->samples[iteration_137].start = _103;
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	stmt 1 trace_1(D)->samples[iteration_137].end = _96;
-benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	children 000000001e9de218
-benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node (external) 000000001e9de218 (max_nunits=1, refcnt=1) vector(2) long long int
+benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	children 000000001ec28e98
+benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node (external) 000000001ec28e98 (max_nunits=1, refcnt=1) vector(2) long long int
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	{ _103, _96 }
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: Cost model analysis:
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: Cost model analysis for part in loop 1:
@@ -564,12 +564,12 @@ benchmarks/function_call_numeric_sum/c/main.c:139:45: note: Cost model analysis 
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: Basic block will be vectorized using SLP
 benchmarks/function_call_numeric_sum/c/main.c:139:45: optimized: basic block part vectorized using 16 byte vectors
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: Vectorizing SLP tree:
-benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node 000000001e9de0d8 (max_nunits=2, refcnt=1) vector(2) long long int
+benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node 000000001ec28d58 (max_nunits=2, refcnt=1) vector(2) long long int
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: op template: trace_1(D)->samples[iteration_137].start = _103;
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	stmt 0 trace_1(D)->samples[iteration_137].start = _103;
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	stmt 1 trace_1(D)->samples[iteration_137].end = _96;
-benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	children 000000001e9de218
-benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node (external) 000000001e9de218 (max_nunits=1, refcnt=1) vector(2) long long int
+benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	children 000000001ec28e98
+benchmarks/function_call_numeric_sum/c/main.c:139:45: note: node (external) 000000001ec28e98 (max_nunits=1, refcnt=1) vector(2) long long int
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: 	{ _103, _96 }
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: ------>vectorizing SLP node starting from: trace_1(D)->samples[iteration_137].start = _103;
 benchmarks/function_call_numeric_sum/c/main.c:139:45: note: transform store.
@@ -794,12 +794,12 @@ benchmarks/function_call_numeric_sum/c/main.c:234:9: missed: statement clobbers 
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: ***** Analysis succeeded with vector mode V2DI
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: SLPing BB part
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: Costing subgraph:
-benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001eb077e8 (max_nunits=2, refcnt=1) vector(2) long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001ec38d68 (max_nunits=2, refcnt=1) vector(2) long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: op template: combined.D.6708.LowPart = _367;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 0 combined.D.6708.LowPart = _367;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 1 combined.D.6708.HighPart = _368;
-benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	children 000000001eb07888
-benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001eb07888 (max_nunits=2, refcnt=1) vector(2) long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	children 000000001ec38e08
+benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001ec38e08 (max_nunits=2, refcnt=1) vector(2) long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: op template: _367 = value.dwLowDateTime;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 0 _367 = value.dwLowDateTime;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 1 _368 = value.dwHighDateTime;
@@ -808,12 +808,12 @@ benchmarks/function_call_numeric_sum/c/main.c:27:137: note: Cost model analysis 
   Vector cost: 24
   Scalar cost: 32
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: Costing subgraph:
-benchmarks/function_call_numeric_sum/c/main.c:155:22: note: node 000000001eb07928 (max_nunits=2, refcnt=1) vector(2) long long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:155:22: note: node 000000001ec38ea8 (max_nunits=2, refcnt=1) vector(2) long long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: op template: cases[0] = &direct_trace;
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: 	stmt 0 cases[0] = &direct_trace;
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: 	stmt 1 cases[1] = &call_trace;
-benchmarks/function_call_numeric_sum/c/main.c:155:22: note: 	children 000000001eb079c8
-benchmarks/function_call_numeric_sum/c/main.c:155:22: note: node (external) 000000001eb079c8 (max_nunits=1, refcnt=1) vector(2) long long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:155:22: note: 	children 000000001ec38f48
+benchmarks/function_call_numeric_sum/c/main.c:155:22: note: node (external) 000000001ec38f48 (max_nunits=1, refcnt=1) vector(2) long long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: 	{ &direct_trace, &call_trace }
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: Cost model analysis:
 benchmarks/function_call_numeric_sum/c/main.c:155:22: note: Cost model analysis for part in loop 0:
@@ -821,12 +821,12 @@ benchmarks/function_call_numeric_sum/c/main.c:155:22: note: Cost model analysis 
   Scalar cost: 8
 benchmarks/function_call_numeric_sum/c/main.c:155:22: missed: not vectorized: vectorization is not profitable.
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: Costing subgraph:
-benchmarks/function_call_numeric_sum/c/main.c:155:62: note: node 000000001eb07a68 (max_nunits=2, refcnt=1) vector(2) long long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:155:62: note: node 000000001ec38fe8 (max_nunits=2, refcnt=1) vector(2) long long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: op template: samples[0] = &direct_samples;
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: 	stmt 0 samples[0] = &direct_samples;
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: 	stmt 1 samples[1] = &call_samples;
-benchmarks/function_call_numeric_sum/c/main.c:155:62: note: 	children 000000001eb07b08
-benchmarks/function_call_numeric_sum/c/main.c:155:62: note: node (external) 000000001eb07b08 (max_nunits=1, refcnt=1) vector(2) long long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:155:62: note: 	children 000000001ec39088
+benchmarks/function_call_numeric_sum/c/main.c:155:62: note: node (external) 000000001ec39088 (max_nunits=1, refcnt=1) vector(2) long long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: 	{ &direct_samples, &call_samples }
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: Cost model analysis:
 benchmarks/function_call_numeric_sum/c/main.c:155:62: note: Cost model analysis for part in loop 0:
@@ -834,12 +834,12 @@ benchmarks/function_call_numeric_sum/c/main.c:155:62: note: Cost model analysis 
   Scalar cost: 8
 benchmarks/function_call_numeric_sum/c/main.c:155:62: missed: not vectorized: vectorization is not profitable.
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: Costing subgraph:
-benchmarks/function_call_numeric_sum/c/main.c:156:17: note: node 000000001eb07ba8 (max_nunits=2, refcnt=1) vector(2) long long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:156:17: note: node 000000001ec39128 (max_nunits=2, refcnt=1) vector(2) long long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: op template: names[0] = "direct";
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: 	stmt 0 names[0] = "direct";
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: 	stmt 1 names[1] = "function_call";
-benchmarks/function_call_numeric_sum/c/main.c:156:17: note: 	children 000000001eb07c48
-benchmarks/function_call_numeric_sum/c/main.c:156:17: note: node (external) 000000001eb07c48 (max_nunits=1, refcnt=1) vector(2) long long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:156:17: note: 	children 000000001ec391c8
+benchmarks/function_call_numeric_sum/c/main.c:156:17: note: node (external) 000000001ec391c8 (max_nunits=1, refcnt=1) vector(2) long long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: 	{ "direct", "function_call" }
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: Cost model analysis:
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: Cost model analysis for part in loop 0:
@@ -849,12 +849,12 @@ benchmarks/function_call_numeric_sum/c/main.c:156:17: missed: not vectorized: ve
 benchmarks/function_call_numeric_sum/c/main.c:156:17: note: Basic block will be vectorized using SLP
 benchmarks/function_call_numeric_sum/c/main.c:27:137: optimized: basic block part vectorized using 8 byte vectors
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: Vectorizing SLP tree:
-benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001eb077e8 (max_nunits=2, refcnt=1) vector(2) long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001ec38d68 (max_nunits=2, refcnt=1) vector(2) long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: op template: combined.D.6708.LowPart = _367;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 0 combined.D.6708.LowPart = _367;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 1 combined.D.6708.HighPart = _368;
-benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	children 000000001eb07888
-benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001eb07888 (max_nunits=2, refcnt=1) vector(2) long unsigned int
+benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	children 000000001ec38e08
+benchmarks/function_call_numeric_sum/c/main.c:27:137: note: node 000000001ec38e08 (max_nunits=2, refcnt=1) vector(2) long unsigned int
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: op template: _367 = value.dwLowDateTime;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 0 _367 = value.dwLowDateTime;
 benchmarks/function_call_numeric_sum/c/main.c:27:137: note: 	stmt 1 _368 = value.dwHighDateTime;

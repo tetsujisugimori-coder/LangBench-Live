@@ -49,224 +49,250 @@
               STORE_NAME               9 (Path)
               POP_TOP
 
- 11           LOAD_CONST               4 ('LangBench Live')
-              STORE_NAME              10 (PROJECT)
+ 11           LOAD_NAME                5 (sys)
+              LOAD_ATTR               20 (path)
+              LOAD_ATTR               23 (insert + NULL|self)
+              LOAD_SMALL_INT           0
+              LOAD_NAME               12 (str)
+              PUSH_NULL
+              LOAD_NAME                9 (Path)
+              PUSH_NULL
+              LOAD_NAME               13 (__file__)
+              CALL                     1
+              LOAD_ATTR               29 (resolve + NULL|self)
+              CALL                     0
+              LOAD_ATTR               30 (parents)
+              LOAD_SMALL_INT           3
+              BINARY_OP               26 ([])
+              CALL                     1
+              CALL                     2
+              POP_TOP
 
- 12           LOAD_CONST               5 ('1.0')
-              STORE_NAME              11 (SCHEMA_VERSION)
+ 12           LOAD_SMALL_INT           0
+              LOAD_CONST               4 (('safe_collect_topology',))
+              IMPORT_NAME             16 (tools.cpu_topology)
+              IMPORT_FROM             17 (safe_collect_topology)
+              STORE_NAME              17 (safe_collect_topology)
+              POP_TOP
 
- 13           LOAD_CONST               6 ('python')
-              STORE_NAME              12 (LANGUAGE)
+ 14           LOAD_CONST               5 ('LangBench Live')
+              STORE_NAME              18 (PROJECT)
 
- 14           LOAD_CONST               7 ('function_call_numeric_sum')
-              STORE_NAME              13 (BENCHMARK)
+ 15           LOAD_CONST               6 ('1.0')
+              STORE_NAME              19 (SCHEMA_VERSION)
 
- 15           LOAD_CONST               8 (1000000)
-              STORE_NAME              14 (ITEM_COUNT)
+ 16           LOAD_CONST               7 ('python')
+              STORE_NAME              20 (LANGUAGE)
 
- 16           LOAD_SMALL_INT           5
-              STORE_NAME              15 (WARMUP_ITERATIONS)
+ 17           LOAD_CONST               8 ('function_call_numeric_sum')
+              STORE_NAME              21 (BENCHMARK)
 
- 17           LOAD_SMALL_INT          50
-              STORE_NAME              16 (MEASUREMENT_ITERATIONS)
+ 18           LOAD_CONST               9 (1000000)
+              STORE_NAME              22 (ITEM_COUNT)
 
- 18           LOAD_NAME               14 (ITEM_COUNT)
-              LOAD_NAME               14 (ITEM_COUNT)
+ 19           LOAD_SMALL_INT           5
+              STORE_NAME              23 (WARMUP_ITERATIONS)
+
+ 20           LOAD_SMALL_INT          50
+              STORE_NAME              24 (MEASUREMENT_ITERATIONS)
+
+ 21           LOAD_NAME               22 (ITEM_COUNT)
+              LOAD_NAME               22 (ITEM_COUNT)
               LOAD_SMALL_INT           1
               BINARY_OP                0 (+)
               BINARY_OP                5 (*)
               LOAD_SMALL_INT           2
               BINARY_OP                2 (//)
-              STORE_NAME              17 (EXPECTED_CHECKSUM)
+              STORE_NAME              25 (EXPECTED_CHECKSUM)
 
- 19           LOAD_CONST               9 ('function_call_numeric_sum_python_result.json')
-              STORE_NAME              18 (RESULT_FILE)
+ 22           LOAD_CONST              10 ('function_call_numeric_sum_python_result.json')
+              STORE_NAME              26 (RESULT_FILE)
 
- 20           LOAD_CONST              10 ('artifacts/function-call-analysis/manifest.json')
-              STORE_NAME              19 (ANALYSIS_MANIFEST)
+ 23           LOAD_CONST              11 ('artifacts/function-call-analysis/manifest.json')
+              STORE_NAME              27 (ANALYSIS_MANIFEST)
 
- 21           LOAD_NAME               20 (object)
+ 24           LOAD_NAME               28 (object)
               PUSH_NULL
               CALL                     0
-              STORE_NAME              21 (_DEFAULT_JIT)
+              STORE_NAME              29 (_DEFAULT_JIT)
 
- 22           LOAD_NAME               20 (object)
+ 25           LOAD_NAME               28 (object)
               PUSH_NULL
               CALL                     0
-              STORE_NAME              22 (_LOAD_MANIFEST)
+              STORE_NAME              30 (_LOAD_MANIFEST)
 
- 23           LOAD_NAME               20 (object)
+ 26           LOAD_NAME               28 (object)
               PUSH_NULL
               CALL                     0
-              STORE_NAME              23 (_INVALID_MANIFEST)
+              STORE_NAME              31 (_INVALID_MANIFEST)
 
- 24           BUILD_SET                0
-              LOAD_CONST              42 (frozenset({'not_applicable', 'not_detected', 'unknown', 'not_checked', 'detected'}))
+ 27           BUILD_SET                0
+              LOAD_CONST              43 (frozenset({'not_applicable', 'unknown', 'not_detected', 'detected', 'not_checked'}))
               SET_UPDATE               1
-              STORE_NAME              24 (OPTIMIZATION_RESULTS)
+              STORE_NAME              32 (OPTIMIZATION_RESULTS)
 
- 25           BUILD_SET                0
-              LOAD_CONST              43 (frozenset({'c', 'python', 'javascript'}))
+ 28           BUILD_SET                0
+              LOAD_CONST              44 (frozenset({'javascript', 'c', 'python'}))
               SET_UPDATE               1
-              STORE_NAME              25 (MANIFEST_LANGUAGES)
+              STORE_NAME              33 (MANIFEST_LANGUAGES)
 
- 27           LOAD_CONST              11 ('c')
+ 30           LOAD_CONST              12 ('c')
               BUILD_SET                0
-              LOAD_CONST              44 (frozenset({'inlining', 'vectorization', 'simd'}))
+              LOAD_CONST              45 (frozenset({'inlining', 'vectorization', 'simd'}))
               SET_UPDATE               1
 
- 28           LOAD_CONST               6 ('python')
+ 31           LOAD_CONST               7 ('python')
               BUILD_SET                0
-              LOAD_CONST              44 (frozenset({'inlining', 'vectorization', 'simd'}))
+              LOAD_CONST              45 (frozenset({'inlining', 'vectorization', 'simd'}))
               SET_UPDATE               1
 
- 29           LOAD_CONST              12 ('javascript')
+ 32           LOAD_CONST              13 ('javascript')
               BUILD_SET                0
-              LOAD_CONST              45 (frozenset({'inlining', 'vectorization', 'jit', 'simd'}))
+              LOAD_CONST              46 (frozenset({'jit', 'vectorization', 'simd', 'inlining'}))
               SET_UPDATE               1
 
- 26           BUILD_MAP                3
-              STORE_NAME              26 (SAVED_FINDING_NAMES_BY_LANGUAGE)
+ 29           BUILD_MAP                3
+              STORE_NAME              34 (SAVED_FINDING_NAMES_BY_LANGUAGE)
 
- 31           LOAD_NAME               26 (SAVED_FINDING_NAMES_BY_LANGUAGE)
-              LOAD_NAME               12 (LANGUAGE)
+ 34           LOAD_NAME               34 (SAVED_FINDING_NAMES_BY_LANGUAGE)
+              LOAD_NAME               20 (LANGUAGE)
               BINARY_OP               26 ([])
-              STORE_NAME              27 (SAVED_FINDING_NAMES)
+              STORE_NAME              35 (SAVED_FINDING_NAMES)
 
- 33           LOAD_CONST              13 (<code object project_root at 0x000001A0E5B32D50, file "benchmarks/function_call_numeric_sum/python/main.py", line 33>)
+ 36           LOAD_CONST              14 (<code object project_root at 0x000002ACD096AD50, file "benchmarks/function_call_numeric_sum/python/main.py", line 36>)
               MAKE_FUNCTION
-              STORE_NAME              28 (project_root)
+              STORE_NAME              36 (project_root)
 
- 34           LOAD_CONST              14 (<code object now_ms at 0x000001A0E5A6A120, file "benchmarks/function_call_numeric_sum/python/main.py", line 34>)
+ 37           LOAD_CONST              15 (<code object now_ms at 0x000002ACD08A2120, file "benchmarks/function_call_numeric_sum/python/main.py", line 37>)
               MAKE_FUNCTION
-              STORE_NAME              29 (now_ms)
+              STORE_NAME              37 (now_ms)
 
- 35           LOAD_CONST              15 (<code object rounded at 0x000001A0E59EDE30, file "benchmarks/function_call_numeric_sum/python/main.py", line 35>)
+ 38           LOAD_CONST              16 (<code object rounded at 0x000002ACD0829E30, file "benchmarks/function_call_numeric_sum/python/main.py", line 38>)
               MAKE_FUNCTION
-              STORE_NAME              30 (rounded)
+              STORE_NAME              38 (rounded)
 
- 36           LOAD_CONST              16 (<code object arg at 0x000001A0E5B32AF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 36>)
+ 39           LOAD_CONST              17 (<code object arg at 0x000002ACD096AAF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 39>)
               MAKE_FUNCTION
-              STORE_NAME              31 (arg)
+              STORE_NAME              39 (arg)
 
- 37           LOAD_CONST              17 (<code object stamp at 0x000001A0E5B81CF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 37>)
+ 40           LOAD_CONST              18 (<code object stamp at 0x000002ACD09B9CF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 40>)
               MAKE_FUNCTION
-              STORE_NAME              32 (stamp)
+              STORE_NAME              40 (stamp)
 
- 38           LOAD_CONST              18 (<code object experiment_id at 0x000001A0E5B74F50, file "benchmarks/function_call_numeric_sum/python/main.py", line 38>)
+ 41           LOAD_CONST              19 (<code object experiment_id at 0x000002ACD09ACF50, file "benchmarks/function_call_numeric_sum/python/main.py", line 41>)
               MAKE_FUNCTION
-              STORE_NAME              33 (experiment_id)
+              STORE_NAME              41 (experiment_id)
 
- 39           LOAD_CONST              19 (<code object run_id at 0x000001A0E5B3ACC0, file "benchmarks/function_call_numeric_sum/python/main.py", line 39>)
+ 42           LOAD_CONST              20 (<code object run_id at 0x000002ACD0972CC0, file "benchmarks/function_call_numeric_sum/python/main.py", line 42>)
               MAKE_FUNCTION
-              STORE_NAME              34 (run_id)
+              STORE_NAME              42 (run_id)
 
- 41           LOAD_CONST              20 (<code object direct at 0x000001A0E5A4E630, file "benchmarks/function_call_numeric_sum/python/main.py", line 41>)
+ 44           LOAD_CONST              21 (<code object direct at 0x000002ACD0886630, file "benchmarks/function_call_numeric_sum/python/main.py", line 44>)
               MAKE_FUNCTION
-              STORE_NAME              35 (direct)
+              STORE_NAME              43 (direct)
 
- 45           LOAD_CONST              21 (<code object add at 0x000001A0E59EE5B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 45>)
+ 48           LOAD_CONST              22 (<code object add at 0x000002ACD082A5B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 48>)
               MAKE_FUNCTION
-              STORE_NAME              36 (add)
+              STORE_NAME              44 (add)
 
- 46           LOAD_CONST              22 (<code object function_call at 0x000001A0E5A69F00, file "benchmarks/function_call_numeric_sum/python/main.py", line 46>)
+ 49           LOAD_CONST              23 (<code object function_call at 0x000002ACD08A1F00, file "benchmarks/function_call_numeric_sum/python/main.py", line 49>)
               MAKE_FUNCTION
-              STORE_NAME              37 (function_call)
+              STORE_NAME              45 (function_call)
 
- 50           LOAD_CONST              23 (<code object stats at 0x000001A0E58CB940, file "benchmarks/function_call_numeric_sum/python/main.py", line 50>)
+ 53           LOAD_CONST              24 (<code object stats at 0x000002ACD071E7A0, file "benchmarks/function_call_numeric_sum/python/main.py", line 53>)
               MAKE_FUNCTION
-              STORE_NAME              38 (stats)
+              STORE_NAME              46 (stats)
 
- 53           LOAD_CONST              24 (<code object measure at 0x000001A0E58DE590, file "benchmarks/function_call_numeric_sum/python/main.py", line 53>)
+ 56           LOAD_CONST              25 (<code object measure at 0x000002ACD0712090, file "benchmarks/function_call_numeric_sum/python/main.py", line 56>)
               MAKE_FUNCTION
-              STORE_NAME              39 (measure)
+              STORE_NAME              47 (measure)
 
- 62           LOAD_CONST              25 (<code object metadata at 0x000001A0E58DD960, file "benchmarks/function_call_numeric_sum/python/main.py", line 62>)
+ 65           LOAD_CONST              26 (<code object metadata at 0x000002ACD0746E90, file "benchmarks/function_call_numeric_sum/python/main.py", line 65>)
               MAKE_FUNCTION
-              STORE_NAME              40 (metadata)
+              STORE_NAME              48 (metadata)
 
- 64           LOAD_CONST              26 (<code object condition_mismatches at 0x000001A0E58C4B60, file "benchmarks/function_call_numeric_sum/python/main.py", line 64>)
+ 68           LOAD_CONST              27 (<code object condition_mismatches at 0x000002ACD07348A0, file "benchmarks/function_call_numeric_sum/python/main.py", line 68>)
               MAKE_FUNCTION
-              STORE_NAME              41 (condition_mismatches)
+              STORE_NAME              49 (condition_mismatches)
 
- 72           LOAD_CONST              27 (<code object valid_condition at 0x000001A0E599E6A0, file "benchmarks/function_call_numeric_sum/python/main.py", line 72>)
+ 76           LOAD_CONST              28 (<code object valid_condition at 0x000002ACD0BFD4F0, file "benchmarks/function_call_numeric_sum/python/main.py", line 76>)
               MAKE_FUNCTION
-              STORE_NAME              42 (valid_condition)
+              STORE_NAME              50 (valid_condition)
 
- 87           LOAD_NAME               27 (SAVED_FINDING_NAMES)
+ 91           LOAD_NAME               35 (SAVED_FINDING_NAMES)
               BUILD_TUPLE              1
-              LOAD_CONST              28 (<code object valid_findings at 0x000001A0E5947170, file "benchmarks/function_call_numeric_sum/python/main.py", line 87>)
+              LOAD_CONST              29 (<code object valid_findings at 0x000002ACD079DA70, file "benchmarks/function_call_numeric_sum/python/main.py", line 91>)
               MAKE_FUNCTION
               SET_FUNCTION_ATTRIBUTE   1 (defaults)
-              STORE_NAME              43 (valid_findings)
+              STORE_NAME              51 (valid_findings)
 
- 99           LOAD_NAME               27 (SAVED_FINDING_NAMES)
+103           LOAD_NAME               35 (SAVED_FINDING_NAMES)
               BUILD_TUPLE              1
-              LOAD_CONST              29 (<code object valid_manifest_entry at 0x000001A0E599CBD0, file "benchmarks/function_call_numeric_sum/python/main.py", line 99>)
+              LOAD_CONST              30 (<code object valid_manifest_entry at 0x000002ACD07EEF30, file "benchmarks/function_call_numeric_sum/python/main.py", line 103>)
               MAKE_FUNCTION
               SET_FUNCTION_ATTRIBUTE   1 (defaults)
-              STORE_NAME              44 (valid_manifest_entry)
+              STORE_NAME              52 (valid_manifest_entry)
 
-122           LOAD_CONST              30 (<code object valid_manifest_document at 0x000001A0E5928810, file "benchmarks/function_call_numeric_sum/python/main.py", line 122>)
+126           LOAD_CONST              31 (<code object valid_manifest_document at 0x000002ACD0BFD9D0, file "benchmarks/function_call_numeric_sum/python/main.py", line 126>)
               MAKE_FUNCTION
-              STORE_NAME              45 (valid_manifest_document)
+              STORE_NAME              53 (valid_manifest_document)
 
-139           LOAD_CONST              31 (<code object compare_provenance at 0x000001A0E5C5D430, file "benchmarks/function_call_numeric_sum/python/main.py", line 139>)
+143           LOAD_CONST              32 (<code object compare_provenance at 0x000002ACD0A65430, file "benchmarks/function_call_numeric_sum/python/main.py", line 143>)
               MAKE_FUNCTION
-              STORE_NAME              46 (compare_provenance)
+              STORE_NAME              54 (compare_provenance)
 
-147           LOAD_CONST              32 (<code object classify_jit at 0x000001A0E506FDD0, file "benchmarks/function_call_numeric_sum/python/main.py", line 147>)
+151           LOAD_CONST              33 (<code object classify_jit at 0x000002ACD022FDD0, file "benchmarks/function_call_numeric_sum/python/main.py", line 151>)
               MAKE_FUNCTION
-              STORE_NAME              47 (classify_jit)
+              STORE_NAME              55 (classify_jit)
 
-161           LOAD_CONST              33 (<code object __annotate__ at 0x000001A0E5A4E330, file "benchmarks/function_call_numeric_sum/python/main.py", line 161>)
+165           LOAD_CONST              34 (<code object __annotate__ at 0x000002ACD0886330, file "benchmarks/function_call_numeric_sum/python/main.py", line 165>)
               MAKE_FUNCTION
-              LOAD_CONST              34 (<code object canonical_source_sha256 at 0x000001A0E5B81E30, file "benchmarks/function_call_numeric_sum/python/main.py", line 161>)
+              LOAD_CONST              35 (<code object canonical_source_sha256 at 0x000002ACD09B9E30, file "benchmarks/function_call_numeric_sum/python/main.py", line 165>)
               MAKE_FUNCTION
               SET_FUNCTION_ATTRIBUTE  16 (annotate)
-              STORE_NAME              48 (canonical_source_sha256)
+              STORE_NAME              56 (canonical_source_sha256)
 
-164           LOAD_CONST              46 ((None, None, None, None, None))
-              LOAD_CONST              35 (<code object current_analysis_condition at 0x000001A0E58B16F0, file "benchmarks/function_call_numeric_sum/python/main.py", line 164>)
+168           LOAD_CONST              47 ((None, None, None, None, None))
+              LOAD_CONST              36 (<code object current_analysis_condition at 0x000002ACD06C2B60, file "benchmarks/function_call_numeric_sum/python/main.py", line 168>)
               MAKE_FUNCTION
               SET_FUNCTION_ATTRIBUTE   1 (defaults)
-              STORE_NAME              49 (current_analysis_condition)
+              STORE_NAME              57 (current_analysis_condition)
 
-172           LOAD_CONST              36 (<code object parse_manifest_entry at 0x000001A0E5A393B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 172>)
+176           LOAD_CONST              37 (<code object parse_manifest_entry at 0x000002ACD08713B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 176>)
               MAKE_FUNCTION
-              STORE_NAME              50 (parse_manifest_entry)
+              STORE_NAME              58 (parse_manifest_entry)
 
-180           LOAD_CONST              47 ((None,))
-              LOAD_CONST              37 (<code object load_manifest_entry at 0x000001A0E5A25B30, file "benchmarks/function_call_numeric_sum/python/main.py", line 180>)
+184           LOAD_CONST              48 ((None,))
+              LOAD_CONST              38 (<code object load_manifest_entry at 0x000002ACD085DB30, file "benchmarks/function_call_numeric_sum/python/main.py", line 184>)
               MAKE_FUNCTION
               SET_FUNCTION_ATTRIBUTE   1 (defaults)
-              STORE_NAME              51 (load_manifest_entry)
+              STORE_NAME              59 (load_manifest_entry)
 
-186           LOAD_NAME               22 (_LOAD_MANIFEST)
+190           LOAD_NAME               30 (_LOAD_MANIFEST)
               LOAD_CONST               1 (None)
-              LOAD_NAME               21 (_DEFAULT_JIT)
+              LOAD_NAME               29 (_DEFAULT_JIT)
               BUILD_TUPLE              3
-              LOAD_CONST              38 (<code object optimization_analysis at 0x000001A0E5D44500, file "benchmarks/function_call_numeric_sum/python/main.py", line 186>)
+              LOAD_CONST              39 (<code object optimization_analysis at 0x000002ACD07F1960, file "benchmarks/function_call_numeric_sum/python/main.py", line 190>)
               MAKE_FUNCTION
               SET_FUNCTION_ATTRIBUTE   1 (defaults)
-              STORE_NAME              52 (optimization_analysis)
+              STORE_NAME              60 (optimization_analysis)
 
-219           LOAD_CONST              39 (<code object run at 0x000001A0E58E71F0, file "benchmarks/function_call_numeric_sum/python/main.py", line 219>)
+223           LOAD_CONST              40 (<code object run at 0x000002ACD07BEB40, file "benchmarks/function_call_numeric_sum/python/main.py", line 223>)
               MAKE_FUNCTION
-              STORE_NAME              53 (run)
+              STORE_NAME              61 (run)
 
-225           LOAD_CONST              40 (<code object main at 0x000001A0E5933A10, file "benchmarks/function_call_numeric_sum/python/main.py", line 225>)
+229           LOAD_CONST              41 (<code object main at 0x000002ACD074EA50, file "benchmarks/function_call_numeric_sum/python/main.py", line 229>)
               MAKE_FUNCTION
-              STORE_NAME              54 (main)
+              STORE_NAME              62 (main)
 
-233           LOAD_NAME               55 (__name__)
-              LOAD_CONST              41 ('__main__')
+237           LOAD_NAME               63 (__name__)
+              LOAD_CONST              42 ('__main__')
               COMPARE_OP              88 (bool(==))
               POP_JUMP_IF_FALSE       14 (to L1)
               NOT_TAKEN
-              LOAD_NAME               56 (SystemExit)
+              LOAD_NAME               64 (SystemExit)
               PUSH_NULL
-              LOAD_NAME               54 (main)
+              LOAD_NAME               62 (main)
               PUSH_NULL
               CALL                     0
               CALL                     1
@@ -274,8 +300,8 @@
       L1:     LOAD_CONST               1 (None)
               RETURN_VALUE
 
-Disassembly of <code object project_root at 0x000001A0E5B32D50, file "benchmarks/function_call_numeric_sum/python/main.py", line 33>:
- 33           RESUME                   0
+Disassembly of <code object project_root at 0x000002ACD096AD50, file "benchmarks/function_call_numeric_sum/python/main.py", line 36>:
+ 36           RESUME                   0
               LOAD_GLOBAL              1 (Path + NULL)
               LOAD_GLOBAL              2 (__file__)
               CALL                     1
@@ -286,8 +312,8 @@ Disassembly of <code object project_root at 0x000001A0E5B32D50, file "benchmarks
               BINARY_OP               26 ([])
               RETURN_VALUE
 
-Disassembly of <code object now_ms at 0x000001A0E5A6A120, file "benchmarks/function_call_numeric_sum/python/main.py", line 34>:
- 34           RESUME                   0
+Disassembly of <code object now_ms at 0x000002ACD08A2120, file "benchmarks/function_call_numeric_sum/python/main.py", line 37>:
+ 37           RESUME                   0
               LOAD_GLOBAL              0 (time)
               LOAD_ATTR                2 (perf_counter_ns)
               PUSH_NULL
@@ -296,22 +322,22 @@ Disassembly of <code object now_ms at 0x000001A0E5A6A120, file "benchmarks/funct
               BINARY_OP               11 (/)
               RETURN_VALUE
 
-Disassembly of <code object rounded at 0x000001A0E59EDE30, file "benchmarks/function_call_numeric_sum/python/main.py", line 35>:
- 35           RESUME                   0
+Disassembly of <code object rounded at 0x000002ACD0829E30, file "benchmarks/function_call_numeric_sum/python/main.py", line 38>:
+ 38           RESUME                   0
               LOAD_GLOBAL              1 (round + NULL)
               LOAD_FAST_BORROW         0 (value)
               LOAD_SMALL_INT           3
               CALL                     2
               RETURN_VALUE
 
-Disassembly of <code object arg at 0x000001A0E5B32AF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 36>:
+Disassembly of <code object arg at 0x000002ACD096AAF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 39>:
   --           MAKE_CELL                0 (name)
 
-  36           RESUME                   0
+  39           RESUME                   0
                LOAD_GLOBAL              1 (next + NULL)
                LOAD_FAST_BORROW         0 (name)
                BUILD_TUPLE              1
-               LOAD_CONST               0 (<code object <genexpr> at 0x000001A0E579F9B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 36>)
+               LOAD_CONST               0 (<code object <genexpr> at 0x000002ACD080B9B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 39>)
                MAKE_FUNCTION
                SET_FUNCTION_ATTRIBUTE   8 (closure)
                LOAD_GLOBAL              2 (sys)
@@ -324,10 +350,10 @@ Disassembly of <code object arg at 0x000001A0E5B32AF0, file "benchmarks/function
                CALL                     2
                RETURN_VALUE
 
-Disassembly of <code object <genexpr> at 0x000001A0E579F9B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 36>:
+Disassembly of <code object <genexpr> at 0x000002ACD080B9B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 39>:
   --           COPY_FREE_VARS           1
 
-  36           RETURN_GENERATOR
+  39           RETURN_GENERATOR
                POP_TOP
        L1:     RESUME                   0
                LOAD_FAST                0 (.0)
@@ -364,8 +390,8 @@ ExceptionTable:
   L1 to L3 -> L6 [0] lasti
   L4 to L6 -> L6 [0] lasti
 
-Disassembly of <code object stamp at 0x000001A0E5B81CF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 37>:
- 37           RESUME                   0
+Disassembly of <code object stamp at 0x000002ACD09B9CF0, file "benchmarks/function_call_numeric_sum/python/main.py", line 40>:
+ 40           RESUME                   0
               LOAD_GLOBAL              0 (datetime)
               LOAD_ATTR                2 (now)
               PUSH_NULL
@@ -377,8 +403,8 @@ Disassembly of <code object stamp at 0x000001A0E5B81CF0, file "benchmarks/functi
               CALL                     1
               RETURN_VALUE
 
-Disassembly of <code object experiment_id at 0x000001A0E5B74F50, file "benchmarks/function_call_numeric_sum/python/main.py", line 38>:
- 38           RESUME                   0
+Disassembly of <code object experiment_id at 0x000002ACD09ACF50, file "benchmarks/function_call_numeric_sum/python/main.py", line 41>:
+ 41           RESUME                   0
               LOAD_GLOBAL              1 (arg + NULL)
               LOAD_CONST               0 ('--experiment-id')
               CALL                     1
@@ -406,8 +432,8 @@ Disassembly of <code object experiment_id at 0x000001A0E5B74F50, file "benchmark
               BUILD_STRING             3
       L1:     RETURN_VALUE
 
-Disassembly of <code object run_id at 0x000001A0E5B3ACC0, file "benchmarks/function_call_numeric_sum/python/main.py", line 39>:
- 39           RESUME                   0
+Disassembly of <code object run_id at 0x000002ACD0972CC0, file "benchmarks/function_call_numeric_sum/python/main.py", line 42>:
+ 42           RESUME                   0
               LOAD_GLOBAL              1 (arg + NULL)
               LOAD_CONST               0 ('--run-id')
               CALL                     1
@@ -438,13 +464,13 @@ Disassembly of <code object run_id at 0x000001A0E5B3ACC0, file "benchmarks/funct
               BUILD_STRING             5
       L1:     RETURN_VALUE
 
-Disassembly of <code object direct at 0x000001A0E5A4E630, file "benchmarks/function_call_numeric_sum/python/main.py", line 41>:
- 41           RESUME                   0
+Disassembly of <code object direct at 0x000002ACD0886630, file "benchmarks/function_call_numeric_sum/python/main.py", line 44>:
+ 44           RESUME                   0
 
- 42           LOAD_SMALL_INT           0
+ 45           LOAD_SMALL_INT           0
               STORE_FAST               1 (total)
 
- 43           LOAD_FAST_BORROW         0 (values)
+ 46           LOAD_FAST_BORROW         0 (values)
               GET_ITER
       L1:     FOR_ITER                11 (to L2)
               STORE_FAST_LOAD_FAST    33 (value, total)
@@ -455,22 +481,22 @@ Disassembly of <code object direct at 0x000001A0E5A4E630, file "benchmarks/funct
       L2:     END_FOR
               POP_ITER
 
- 44           LOAD_FAST_BORROW         1 (total)
+ 47           LOAD_FAST_BORROW         1 (total)
               RETURN_VALUE
 
-Disassembly of <code object add at 0x000001A0E59EE5B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 45>:
- 45           RESUME                   0
+Disassembly of <code object add at 0x000002ACD082A5B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 48>:
+ 48           RESUME                   0
               LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (current, value)
               BINARY_OP                0 (+)
               RETURN_VALUE
 
-Disassembly of <code object function_call at 0x000001A0E5A69F00, file "benchmarks/function_call_numeric_sum/python/main.py", line 46>:
- 46           RESUME                   0
+Disassembly of <code object function_call at 0x000002ACD08A1F00, file "benchmarks/function_call_numeric_sum/python/main.py", line 49>:
+ 49           RESUME                   0
 
- 47           LOAD_SMALL_INT           0
+ 50           LOAD_SMALL_INT           0
               STORE_FAST               1 (total)
 
- 48           LOAD_FAST_BORROW         0 (values)
+ 51           LOAD_FAST_BORROW         0 (values)
               GET_ITER
       L1:     FOR_ITER                14 (to L2)
               STORE_FAST               2 (value)
@@ -482,13 +508,13 @@ Disassembly of <code object function_call at 0x000001A0E5A69F00, file "benchmark
       L2:     END_FOR
               POP_ITER
 
- 49           LOAD_FAST_BORROW         1 (total)
+ 52           LOAD_FAST_BORROW         1 (total)
               RETURN_VALUE
 
-Disassembly of <code object stats at 0x000001A0E58CB940, file "benchmarks/function_call_numeric_sum/python/main.py", line 50>:
- 50           RESUME                   0
+Disassembly of <code object stats at 0x000002ACD071E7A0, file "benchmarks/function_call_numeric_sum/python/main.py", line 53>:
+ 53           RESUME                   0
 
- 51           LOAD_GLOBAL              1 (sorted + NULL)
+ 54           LOAD_GLOBAL              1 (sorted + NULL)
               LOAD_FAST_BORROW         0 (samples)
               CALL                     1
               STORE_FAST               1 (ordered)
@@ -499,7 +525,7 @@ Disassembly of <code object stats at 0x000001A0E58CB940, file "benchmarks/functi
               BINARY_OP                2 (//)
               STORE_FAST               2 (mid)
 
- 52           LOAD_CONST               1 ('samples_ms')
+ 55           LOAD_CONST               1 ('samples_ms')
               LOAD_FAST_BORROW         0 (samples)
               LOAD_CONST               2 ('min_ms')
               LOAD_GLOBAL              5 (rounded + NULL)
@@ -538,21 +564,21 @@ Disassembly of <code object stats at 0x000001A0E58CB940, file "benchmarks/functi
               BUILD_MAP                5
               RETURN_VALUE
 
-Disassembly of <code object measure at 0x000001A0E58DE590, file "benchmarks/function_call_numeric_sum/python/main.py", line 53>:
- 53           RESUME                   0
+Disassembly of <code object measure at 0x000002ACD0712090, file "benchmarks/function_call_numeric_sum/python/main.py", line 56>:
+ 56           RESUME                   0
 
- 54           LOAD_GLOBAL              1 (now_ms + NULL)
+ 57           LOAD_GLOBAL              1 (now_ms + NULL)
               CALL                     0
               STORE_FAST               2 (warmup_start)
 
- 55           LOAD_GLOBAL              3 (range + NULL)
+ 58           LOAD_GLOBAL              3 (range + NULL)
               LOAD_GLOBAL              4 (WARMUP_ITERATIONS)
               CALL                     1
               GET_ITER
       L1:     FOR_ITER                31 (to L3)
               STORE_FAST               3 (_)
 
- 56           LOAD_FAST_BORROW         0 (case)
+ 59           LOAD_FAST_BORROW         0 (case)
               PUSH_NULL
               LOAD_FAST_BORROW         1 (values)
               CALL                     1
@@ -566,10 +592,10 @@ Disassembly of <code object measure at 0x000001A0E58DE590, file "benchmarks/func
               CALL                     1
               RAISE_VARARGS            1
 
- 55   L3:     END_FOR
+ 58   L3:     END_FOR
               POP_ITER
 
- 57           LOAD_GLOBAL             11 (rounded + NULL)
+ 60           LOAD_GLOBAL             11 (rounded + NULL)
               LOAD_GLOBAL              1 (now_ms + NULL)
               CALL                     0
               LOAD_FAST_BORROW         2 (warmup_start)
@@ -581,14 +607,14 @@ Disassembly of <code object measure at 0x000001A0E58DE590, file "benchmarks/func
               LOAD_CONST               1 (None)
               STORE_FAST               6 (checksum)
 
- 58           LOAD_GLOBAL              3 (range + NULL)
+ 61           LOAD_GLOBAL              3 (range + NULL)
               LOAD_GLOBAL             12 (MEASUREMENT_ITERATIONS)
               CALL                     1
               GET_ITER
       L4:     FOR_ITER                82 (to L6)
               STORE_FAST               3 (_)
 
- 59           LOAD_GLOBAL              1 (now_ms + NULL)
+ 62           LOAD_GLOBAL              1 (now_ms + NULL)
               CALL                     0
               STORE_FAST_LOAD_FAST   112 (start, case)
               PUSH_NULL
@@ -605,7 +631,7 @@ Disassembly of <code object measure at 0x000001A0E58DE590, file "benchmarks/func
               CALL                     1
               POP_TOP
 
- 60           LOAD_FAST_BORROW         6 (checksum)
+ 63           LOAD_FAST_BORROW         6 (checksum)
               LOAD_GLOBAL              6 (EXPECTED_CHECKSUM)
               COMPARE_OP             119 (bool(!=))
               POP_JUMP_IF_TRUE         3 (to L5)
@@ -616,10 +642,10 @@ Disassembly of <code object measure at 0x000001A0E58DE590, file "benchmarks/func
               CALL                     1
               RAISE_VARARGS            1
 
- 58   L6:     END_FOR
+ 61   L6:     END_FOR
               POP_ITER
 
- 61           LOAD_FAST_BORROW         4 (warmup_ms)
+ 64           LOAD_FAST_BORROW         4 (warmup_ms)
               LOAD_GLOBAL             11 (rounded + NULL)
               LOAD_GLOBAL             17 (sum + NULL)
               LOAD_FAST_BORROW         5 (samples)
@@ -632,31 +658,35 @@ Disassembly of <code object measure at 0x000001A0E58DE590, file "benchmarks/func
               BUILD_TUPLE              4
               RETURN_VALUE
 
-Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/function_call_numeric_sum/python/main.py", line 62>:
- 62           RESUME                   0
+Disassembly of <code object metadata at 0x000002ACD0746E90, file "benchmarks/function_call_numeric_sum/python/main.py", line 65>:
+ 65           RESUME                   0
 
- 63           LOAD_CONST               0 ('type')
+ 66           LOAD_GLOBAL              1 (safe_collect_topology + NULL)
+              CALL                     0
+              STORE_FAST               3 (topology)
+
+ 67           LOAD_CONST               0 ('type')
               LOAD_CONST               1 ('langbench_result')
               LOAD_CONST               2 ('schema_version')
-              LOAD_GLOBAL              0 (SCHEMA_VERSION)
+              LOAD_GLOBAL              2 (SCHEMA_VERSION)
               LOAD_CONST               3 ('project')
-              LOAD_GLOBAL              2 (PROJECT)
+              LOAD_GLOBAL              4 (PROJECT)
               LOAD_CONST               4 ('benchmark')
-              LOAD_GLOBAL              4 (BENCHMARK)
+              LOAD_GLOBAL              6 (BENCHMARK)
               LOAD_CONST               5 ('experiment_id')
               LOAD_FAST                1 (eid)
               LOAD_CONST               6 ('run_id')
               LOAD_FAST                2 (rid)
               LOAD_CONST               7 ('language')
-              LOAD_GLOBAL              6 (LANGUAGE)
+              LOAD_GLOBAL              8 (LANGUAGE)
               LOAD_CONST               8 ('created_at')
-              LOAD_GLOBAL              8 (datetime)
-              LOAD_ATTR               10 (now)
+              LOAD_GLOBAL             10 (datetime)
+              LOAD_ATTR               12 (now)
               PUSH_NULL
               CALL                     0
-              LOAD_ATTR               13 (astimezone + NULL|self)
+              LOAD_ATTR               15 (astimezone + NULL|self)
               CALL                     0
-              LOAD_ATTR               15 (isoformat + NULL|self)
+              LOAD_ATTR               17 (isoformat + NULL|self)
               LOAD_CONST               9 ('milliseconds')
               LOAD_CONST              10 (('timespec',))
               CALL_KW                  1
@@ -666,8 +696,8 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               LOAD_CONST              13 ('runtime')
               LOAD_CONST              14 ('python')
               LOAD_CONST              15 ('runtime_version')
-              LOAD_GLOBAL             16 (platform)
-              LOAD_ATTR               18 (python_version)
+              LOAD_GLOBAL             18 (platform)
+              LOAD_ATTR               20 (python_version)
               PUSH_NULL
               CALL                     0
               LOAD_CONST              16 ('compiler')
@@ -675,8 +705,8 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               LOAD_CONST              18 ('compiler_version')
               LOAD_CONST              17 (None)
               LOAD_CONST              19 ('python_implementation')
-              LOAD_GLOBAL             16 (platform)
-              LOAD_ATTR               20 (python_implementation)
+              LOAD_GLOBAL             18 (platform)
+              LOAD_ATTR               22 (python_implementation)
               PUSH_NULL
               CALL                     0
               BUILD_MAP                5
@@ -686,24 +716,24 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               LOAD_CONST              23 ('runner_label')
               LOAD_CONST              24 ('VSCode Terminal / PowerShell')
               LOAD_CONST              25 ('cwd')
-              LOAD_GLOBAL             23 (str + NULL)
-              LOAD_GLOBAL             24 (Path)
-              LOAD_ATTR               26 (cwd)
+              LOAD_GLOBAL             25 (str + NULL)
+              LOAD_GLOBAL             26 (Path)
+              LOAD_ATTR               28 (cwd)
               PUSH_NULL
               CALL                     0
               CALL                     1
               LOAD_CONST              26 ('argv')
-              LOAD_GLOBAL             28 (sys)
-              LOAD_ATTR               30 (executable)
+              LOAD_GLOBAL             30 (sys)
+              LOAD_ATTR               32 (executable)
               BUILD_LIST               1
-              LOAD_GLOBAL             28 (sys)
-              LOAD_ATTR               32 (argv)
+              LOAD_GLOBAL             30 (sys)
+              LOAD_ATTR               34 (argv)
               LIST_EXTEND              1
               BUILD_MAP                4
               LOAD_CONST              27 ('environment')
               LOAD_CONST              28 ('os')
-              LOAD_GLOBAL             16 (platform)
-              LOAD_ATTR               34 (system)
+              LOAD_GLOBAL             18 (platform)
+              LOAD_ATTR               36 (system)
               PUSH_NULL
               CALL                     0
               COPY                     1
@@ -713,8 +743,8 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               POP_TOP
               LOAD_CONST              17 (None)
       L1:     LOAD_CONST              29 ('os_version')
-              LOAD_GLOBAL             16 (platform)
-              LOAD_ATTR               36 (version)
+              LOAD_GLOBAL             18 (platform)
+              LOAD_ATTR               38 (version)
               PUSH_NULL
               CALL                     0
               COPY                     1
@@ -724,8 +754,8 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               POP_TOP
               LOAD_CONST              17 (None)
       L2:     LOAD_CONST              30 ('architecture')
-              LOAD_GLOBAL             16 (platform)
-              LOAD_ATTR               38 (machine)
+              LOAD_GLOBAL             18 (platform)
+              LOAD_ATTR               40 (machine)
               PUSH_NULL
               CALL                     0
               COPY                     1
@@ -735,8 +765,8 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               POP_TOP
               LOAD_CONST              17 (None)
       L3:     LOAD_CONST              31 ('cpu')
-              LOAD_GLOBAL             16 (platform)
-              LOAD_ATTR               40 (processor)
+              LOAD_GLOBAL             18 (platform)
+              LOAD_ATTR               42 (processor)
               PUSH_NULL
               CALL                     0
               COPY                     1
@@ -746,25 +776,27 @@ Disassembly of <code object metadata at 0x000001A0E58DD960, file "benchmarks/fun
               POP_TOP
               LOAD_CONST              17 (None)
       L4:     LOAD_CONST              32 ('logical_processors')
-              LOAD_GLOBAL             42 (os)
-              LOAD_ATTR               44 (cpu_count)
+              LOAD_GLOBAL             44 (os)
+              LOAD_ATTR               46 (cpu_count)
               PUSH_NULL
               CALL                     0
-              LOAD_CONST              33 ('memory_bytes')
+              LOAD_CONST              33 ('cpu_topology')
+              LOAD_FAST_BORROW         3 (topology)
+              LOAD_CONST              34 ('memory_bytes')
               LOAD_CONST              17 (None)
-              BUILD_MAP                6
-              LOAD_CONST              34 ('build')
+              BUILD_MAP                7
+              LOAD_CONST              35 ('build')
               LOAD_CONST              17 (None)
               BUILD_MAP               13
               RETURN_VALUE
 
-Disassembly of <code object condition_mismatches at 0x000001A0E58C4B60, file "benchmarks/function_call_numeric_sum/python/main.py", line 64>:
- 64           RESUME                   0
+Disassembly of <code object condition_mismatches at 0x000002ACD07348A0, file "benchmarks/function_call_numeric_sum/python/main.py", line 68>:
+ 68           RESUME                   0
 
- 65           BUILD_LIST               0
+ 69           BUILD_LIST               0
               STORE_FAST               2 (mismatches)
 
- 66           LOAD_FAST_BORROW         0 (analysis)
+ 70           LOAD_FAST_BORROW         0 (analysis)
               LOAD_ATTR                1 (get + NULL|self)
               LOAD_CONST               0 ('source_sha256')
               CALL                     1
@@ -781,7 +813,7 @@ Disassembly of <code object condition_mismatches at 0x000001A0E58C4B60, file "be
               CALL                     1
               POP_TOP
 
- 67   L1:     LOAD_FAST_BORROW         0 (analysis)
+ 71   L1:     LOAD_FAST_BORROW         0 (analysis)
               LOAD_ATTR                1 (get + NULL|self)
               LOAD_CONST               1 ('implementation')
               BUILD_MAP                0
@@ -806,7 +838,7 @@ Disassembly of <code object condition_mismatches at 0x000001A0E58C4B60, file "be
               CALL                     1
               POP_TOP
 
- 68   L2:     LOAD_FAST_BORROW         0 (analysis)
+ 72   L2:     LOAD_FAST_BORROW         0 (analysis)
               LOAD_ATTR                1 (get + NULL|self)
               LOAD_CONST               1 ('implementation')
               BUILD_MAP                0
@@ -831,7 +863,7 @@ Disassembly of <code object condition_mismatches at 0x000001A0E58C4B60, file "be
               CALL                     1
               POP_TOP
 
- 69   L3:     LOAD_FAST_BORROW         0 (analysis)
+ 73   L3:     LOAD_FAST_BORROW         0 (analysis)
               LOAD_ATTR                1 (get + NULL|self)
               LOAD_CONST               6 ('architecture')
               CALL                     1
@@ -848,7 +880,7 @@ Disassembly of <code object condition_mismatches at 0x000001A0E58C4B60, file "be
               CALL                     1
               POP_TOP
 
- 70   L4:     LOAD_FAST_BORROW         0 (analysis)
+ 74   L4:     LOAD_FAST_BORROW         0 (analysis)
               LOAD_ATTR                1 (get + NULL|self)
               LOAD_CONST               7 ('options')
               CALL                     1
@@ -865,15 +897,15 @@ Disassembly of <code object condition_mismatches at 0x000001A0E58C4B60, file "be
               CALL                     1
               POP_TOP
 
- 71   L5:     LOAD_FAST_BORROW         2 (mismatches)
+ 75   L5:     LOAD_FAST_BORROW         2 (mismatches)
               RETURN_VALUE
 
-Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchmarks/function_call_numeric_sum/python/main.py", line 72>:
+Disassembly of <code object valid_condition at 0x000002ACD0BFD4F0, file "benchmarks/function_call_numeric_sum/python/main.py", line 76>:
   --            MAKE_CELL                0 (condition)
 
-  72            RESUME                   0
+  76            RESUME                   0
 
-  74            LOAD_GLOBAL              1 (isinstance + NULL)
+  78            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_GLOBAL              2 (dict)
                 CALL                     2
@@ -884,22 +916,22 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 NOT_TAKEN
                 POP_TOP
 
-  75            LOAD_GLOBAL              5 (set + NULL)
+  79            LOAD_GLOBAL              5 (set + NULL)
                 LOAD_DEREF               0 (condition)
                 CALL                     1
                 BUILD_SET                0
-                LOAD_CONST              12 (frozenset({'architecture', 'implementation', 'options', 'source_sha256'}))
+                LOAD_CONST              12 (frozenset({'source_sha256', 'implementation', 'architecture', 'options'}))
                 SET_UPDATE               1
                 COMPARE_OP              72 (==)
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 EXTENDED_ARG             1
                 POP_JUMP_IF_FALSE      458 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  76            LOAD_GLOBAL              1 (isinstance + NULL)
+  80            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_ATTR                7 (get + NULL|self)
                 LOAD_CONST               0 ('source_sha256')
@@ -907,14 +939,14 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 LOAD_GLOBAL              8 (str)
                 CALL                     2
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 EXTENDED_ARG             1
                 POP_JUMP_IF_FALSE      418 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  77            LOAD_GLOBAL             10 (re)
+  81            LOAD_GLOBAL             10 (re)
                 LOAD_ATTR               12 (fullmatch)
                 PUSH_NULL
                 LOAD_CONST               4 ('[0-9a-f]{64}')
@@ -925,14 +957,14 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 LOAD_CONST               5 (None)
                 IS_OP                    1 (is not)
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 EXTENDED_ARG             1
                 POP_JUMP_IF_FALSE      377 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  78            LOAD_GLOBAL              1 (isinstance + NULL)
+  82            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_ATTR                7 (get + NULL|self)
                 LOAD_CONST               1 ('implementation')
@@ -940,14 +972,14 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 LOAD_GLOBAL              2 (dict)
                 CALL                     2
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 EXTENDED_ARG             1
                 POP_JUMP_IF_FALSE      337 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  79            LOAD_GLOBAL              5 (set + NULL)
+  83            LOAD_GLOBAL              5 (set + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_CONST               1 ('implementation')
                 BINARY_OP               26 ([])
@@ -957,14 +989,14 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 BUILD_SET                2
                 COMPARE_OP              72 (==)
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 EXTENDED_ARG             1
                 POP_JUMP_IF_FALSE      305 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  80            LOAD_GLOBAL             14 (all)
+  84            LOAD_GLOBAL             14 (all)
                 COPY                     1
                 LOAD_COMMON_CONSTANT     3 (<built-in function all>)
                 IS_OP                    0 (is)
@@ -973,7 +1005,7 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 POP_TOP
                 LOAD_FAST_BORROW         0 (condition)
                 BUILD_TUPLE              1
-                LOAD_CONST               8 (<code object <genexpr> at 0x000001A0E5CB0350, file "benchmarks/function_call_numeric_sum/python/main.py", line 80>)
+                LOAD_CONST               8 (<code object <genexpr> at 0x000002ACD0AB8350, file "benchmarks/function_call_numeric_sum/python/main.py", line 84>)
                 MAKE_FUNCTION
                 SET_FUNCTION_ATTRIBUTE   8 (closure)
                 LOAD_CONST              13 (('name', 'version'))
@@ -994,7 +1026,7 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
         L4:     PUSH_NULL
                 LOAD_FAST_BORROW         0 (condition)
                 BUILD_TUPLE              1
-                LOAD_CONST               8 (<code object <genexpr> at 0x000001A0E5CB0350, file "benchmarks/function_call_numeric_sum/python/main.py", line 80>)
+                LOAD_CONST               8 (<code object <genexpr> at 0x000002ACD0AB8350, file "benchmarks/function_call_numeric_sum/python/main.py", line 84>)
                 MAKE_FUNCTION
                 SET_FUNCTION_ATTRIBUTE   8 (closure)
                 LOAD_CONST              13 (('name', 'version'))
@@ -1002,13 +1034,13 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 CALL                     0
                 CALL                     1
 
-  74    L5:     COPY                     1
+  78    L5:     COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE      239 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  81            LOAD_GLOBAL              1 (isinstance + NULL)
+  85            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_ATTR                7 (get + NULL|self)
                 LOAD_CONST               2 ('architecture')
@@ -1016,13 +1048,13 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 LOAD_GLOBAL              8 (str)
                 CALL                     2
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE      200 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  82            LOAD_GLOBAL             17 (bool + NULL)
+  86            LOAD_GLOBAL             17 (bool + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_CONST               2 ('architecture')
                 BINARY_OP               26 ([])
@@ -1030,13 +1062,13 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 CALL                     0
                 CALL                     1
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE      160 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  83            LOAD_GLOBAL              1 (isinstance + NULL)
+  87            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_ATTR                7 (get + NULL|self)
                 LOAD_CONST               3 ('options')
@@ -1044,20 +1076,20 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 LOAD_GLOBAL             20 (list)
                 CALL                     2
 
-  74            COPY                     1
+  78            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE      121 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  84            LOAD_GLOBAL             14 (all)
+  88            LOAD_GLOBAL             14 (all)
                 COPY                     1
                 LOAD_COMMON_CONSTANT     3 (<built-in function all>)
                 IS_OP                    0 (is)
                 POP_JUMP_IF_FALSE       35 (to L9)
                 NOT_TAKEN
                 POP_TOP
-                LOAD_CONST              11 (<code object <genexpr> at 0x000001A0E5B530C0, file "benchmarks/function_call_numeric_sum/python/main.py", line 84>)
+                LOAD_CONST              11 (<code object <genexpr> at 0x000002ACD098F0C0, file "benchmarks/function_call_numeric_sum/python/main.py", line 88>)
                 MAKE_FUNCTION
                 LOAD_DEREF               0 (condition)
                 LOAD_CONST               3 ('options')
@@ -1077,7 +1109,7 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 LOAD_CONST              10 (True)
                 JUMP_FORWARD            20 (to L10)
         L9:     PUSH_NULL
-                LOAD_CONST              11 (<code object <genexpr> at 0x000001A0E5B530C0, file "benchmarks/function_call_numeric_sum/python/main.py", line 84>)
+                LOAD_CONST              11 (<code object <genexpr> at 0x000002ACD098F0C0, file "benchmarks/function_call_numeric_sum/python/main.py", line 88>)
                 MAKE_FUNCTION
                 LOAD_DEREF               0 (condition)
                 LOAD_CONST               3 ('options')
@@ -1086,13 +1118,13 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 CALL                     0
                 CALL                     1
 
-  74   L10:     COPY                     1
+  78   L10:     COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE       47 (to L11)
                 NOT_TAKEN
                 POP_TOP
 
-  85            LOAD_GLOBAL             23 (len + NULL)
+  89            LOAD_GLOBAL             23 (len + NULL)
                 LOAD_DEREF               0 (condition)
                 LOAD_CONST               3 ('options')
                 BINARY_OP               26 ([])
@@ -1106,12 +1138,12 @@ Disassembly of <code object valid_condition at 0x000001A0E599E6A0, file "benchma
                 CALL                     1
                 COMPARE_OP              72 (==)
 
-  73   L11:     RETURN_VALUE
+  77   L11:     RETURN_VALUE
 
-Disassembly of <code object <genexpr> at 0x000001A0E5CB0350, file "benchmarks/function_call_numeric_sum/python/main.py", line 80>:
+Disassembly of <code object <genexpr> at 0x000002ACD0AB8350, file "benchmarks/function_call_numeric_sum/python/main.py", line 84>:
   --           COPY_FREE_VARS           1
 
-  80           RETURN_GENERATOR
+  84           RETURN_GENERATOR
                POP_TOP
        L1:     RESUME                   0
                LOAD_FAST                0 (.0)
@@ -1153,8 +1185,8 @@ ExceptionTable:
   L1 to L3 -> L7 [0] lasti
   L4 to L7 -> L7 [0] lasti
 
-Disassembly of <code object <genexpr> at 0x000001A0E5B530C0, file "benchmarks/function_call_numeric_sum/python/main.py", line 84>:
-  84           RETURN_GENERATOR
+Disassembly of <code object <genexpr> at 0x000002ACD098F0C0, file "benchmarks/function_call_numeric_sum/python/main.py", line 88>:
+  88           RETURN_GENERATOR
                POP_TOP
        L1:     RESUME                   0
                LOAD_FAST                0 (.0)
@@ -1187,10 +1219,10 @@ ExceptionTable:
   L1 to L3 -> L7 [0] lasti
   L4 to L7 -> L7 [0] lasti
 
-Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmarks/function_call_numeric_sum/python/main.py", line 87>:
- 87            RESUME                   0
+Disassembly of <code object valid_findings at 0x000002ACD079DA70, file "benchmarks/function_call_numeric_sum/python/main.py", line 91>:
+ 91            RESUME                   0
 
- 88            LOAD_GLOBAL              1 (isinstance + NULL)
+ 92            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (findings)
                LOAD_GLOBAL              2 (dict)
                CALL                     2
@@ -1205,10 +1237,10 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
                POP_JUMP_IF_FALSE        3 (to L2)
                NOT_TAKEN
 
- 89    L1:     LOAD_CONST               0 (False)
+ 93    L1:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
- 90    L2:     LOAD_FAST_BORROW         1 (expected_names)
+ 94    L2:     LOAD_FAST_BORROW         1 (expected_names)
                LOAD_CONST               1 ('simd')
                BUILD_SET                1
                BINARY_OP               10 (-)
@@ -1216,13 +1248,13 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
        L3:     FOR_ITER                88 (to L5)
                STORE_FAST               2 (name)
 
- 91            LOAD_FAST_BORROW         0 (findings)
+ 95            LOAD_FAST_BORROW         0 (findings)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_FAST_BORROW         2 (name)
                CALL                     1
                STORE_FAST               3 (item)
 
- 92            LOAD_GLOBAL              1 (isinstance + NULL)
+ 96            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         3 (item)
                LOAD_GLOBAL              2 (dict)
                CALL                     2
@@ -1247,20 +1279,20 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
                NOT_TAKEN
                JUMP_BACKWARD           87 (to L3)
 
- 93    L4:     POP_TOP
+ 97    L4:     POP_TOP
                LOAD_CONST               0 (False)
                RETURN_VALUE
 
- 90    L5:     END_FOR
+ 94    L5:     END_FOR
                POP_ITER
 
- 94            LOAD_FAST_BORROW         0 (findings)
+ 98            LOAD_FAST_BORROW         0 (findings)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_CONST               1 ('simd')
                CALL                     1
                STORE_FAST               4 (simd)
 
- 95            LOAD_GLOBAL              1 (isinstance + NULL)
+ 99            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         4 (simd)
                LOAD_GLOBAL              2 (dict)
                CALL                     2
@@ -1285,16 +1317,16 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
                POP_JUMP_IF_FALSE        3 (to L7)
                NOT_TAKEN
 
- 96    L6:     LOAD_CONST               0 (False)
+100    L6:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
- 97    L7:     LOAD_FAST_BORROW         4 (simd)
+101    L7:     LOAD_FAST_BORROW         4 (simd)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_CONST               3 ('isa')
                CALL                     1
                STORE_FAST               5 (isa)
 
- 98            LOAD_GLOBAL              1 (isinstance + NULL)
+102            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         5 (isa)
                LOAD_GLOBAL             10 (list)
                CALL                     2
@@ -1310,7 +1342,7 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
                POP_JUMP_IF_FALSE       28 (to L11)
                NOT_TAKEN
                POP_TOP
-               LOAD_CONST               4 (<code object <genexpr> at 0x000001A0E5B53210, file "benchmarks/function_call_numeric_sum/python/main.py", line 98>)
+               LOAD_CONST               4 (<code object <genexpr> at 0x000002ACD098F210, file "benchmarks/function_call_numeric_sum/python/main.py", line 102>)
                MAKE_FUNCTION
                LOAD_FAST_BORROW         5 (isa)
                GET_ITER
@@ -1328,7 +1360,7 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
                LOAD_CONST               5 (True)
                JUMP_FORWARD            13 (to L12)
       L11:     PUSH_NULL
-               LOAD_CONST               4 (<code object <genexpr> at 0x000001A0E5B53210, file "benchmarks/function_call_numeric_sum/python/main.py", line 98>)
+               LOAD_CONST               4 (<code object <genexpr> at 0x000002ACD098F210, file "benchmarks/function_call_numeric_sum/python/main.py", line 102>)
                MAKE_FUNCTION
                LOAD_FAST_BORROW         5 (isa)
                GET_ITER
@@ -1364,8 +1396,8 @@ Disassembly of <code object valid_findings at 0x000001A0E5947170, file "benchmar
                COMPARE_OP              72 (==)
       L13:     RETURN_VALUE
 
-Disassembly of <code object <genexpr> at 0x000001A0E5B53210, file "benchmarks/function_call_numeric_sum/python/main.py", line 98>:
-  98           RETURN_GENERATOR
+Disassembly of <code object <genexpr> at 0x000002ACD098F210, file "benchmarks/function_call_numeric_sum/python/main.py", line 102>:
+ 102           RETURN_GENERATOR
                POP_TOP
        L1:     RESUME                   0
                LOAD_FAST                0 (.0)
@@ -1398,10 +1430,10 @@ ExceptionTable:
   L1 to L3 -> L7 [0] lasti
   L4 to L7 -> L7 [0] lasti
 
-Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "benchmarks/function_call_numeric_sum/python/main.py", line 99>:
- 99            RESUME                   0
+Disassembly of <code object valid_manifest_entry at 0x000002ACD07EEF30, file "benchmarks/function_call_numeric_sum/python/main.py", line 103>:
+103            RESUME                   0
 
-100            LOAD_GLOBAL              1 (isinstance + NULL)
+104            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (entry)
                LOAD_GLOBAL              2 (dict)
                CALL                     2
@@ -1409,10 +1441,10 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_TRUE         3 (to L1)
                NOT_TAKEN
 
-101            LOAD_CONST               0 (False)
+105            LOAD_CONST               0 (False)
                RETURN_VALUE
 
-102    L1:     LOAD_GLOBAL              1 (isinstance + NULL)
+106    L1:     LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (entry)
                LOAD_ATTR                5 (get + NULL|self)
                LOAD_CONST               1 ('artifact_id')
@@ -1431,10 +1463,10 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_TRUE         3 (to L3)
                NOT_TAKEN
 
-103    L2:     LOAD_CONST               0 (False)
+107    L2:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
-104    L3:     LOAD_GLOBAL              1 (isinstance + NULL)
+108    L3:     LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (entry)
                LOAD_ATTR                5 (get + NULL|self)
                LOAD_CONST               2 ('analyzed_at')
@@ -1456,16 +1488,16 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_TRUE         3 (to L5)
                NOT_TAKEN
 
-105    L4:     LOAD_CONST               0 (False)
+109    L4:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
-106    L5:     LOAD_FAST_BORROW         0 (entry)
+110    L5:     LOAD_FAST_BORROW         0 (entry)
                LOAD_ATTR                5 (get + NULL|self)
                LOAD_CONST               4 ('applies_to')
                CALL                     1
                STORE_FAST               2 (applies_to)
 
-107            LOAD_GLOBAL              1 (isinstance + NULL)
+111            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         2 (applies_to)
                LOAD_GLOBAL             14 (list)
                CALL                     2
@@ -1489,10 +1521,10 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_FALSE        3 (to L7)
                NOT_TAKEN
 
-108    L6:     LOAD_CONST               0 (False)
+112    L6:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
-109    L7:     LOAD_GLOBAL             21 (valid_condition + NULL)
+113    L7:     LOAD_GLOBAL             21 (valid_condition + NULL)
                LOAD_FAST_BORROW         0 (entry)
                LOAD_ATTR                5 (get + NULL|self)
                LOAD_CONST               5 ('condition')
@@ -1512,16 +1544,16 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_TRUE         3 (to L9)
                NOT_TAKEN
 
-110    L8:     LOAD_CONST               0 (False)
+114    L8:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
-111    L9:     LOAD_FAST_BORROW         0 (entry)
+115    L9:     LOAD_FAST_BORROW         0 (entry)
                LOAD_ATTR                5 (get + NULL|self)
                LOAD_CONST               7 ('generation_commands')
                CALL                     1
                STORE_FAST               3 (commands)
 
-112            LOAD_GLOBAL              1 (isinstance + NULL)
+116            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         3 (commands)
                LOAD_GLOBAL             14 (list)
                CALL                     2
@@ -1539,7 +1571,7 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_FALSE       28 (to L13)
                NOT_TAKEN
                POP_TOP
-               LOAD_CONST               8 (<code object <genexpr> at 0x000001A0E5B53360, file "benchmarks/function_call_numeric_sum/python/main.py", line 112>)
+               LOAD_CONST               8 (<code object <genexpr> at 0x000002ACD098F360, file "benchmarks/function_call_numeric_sum/python/main.py", line 116>)
                MAKE_FUNCTION
                LOAD_FAST_BORROW         3 (commands)
                GET_ITER
@@ -1557,7 +1589,7 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                LOAD_CONST               9 (True)
                JUMP_FORWARD            13 (to L14)
       L13:     PUSH_NULL
-               LOAD_CONST               8 (<code object <genexpr> at 0x000001A0E5B53360, file "benchmarks/function_call_numeric_sum/python/main.py", line 112>)
+               LOAD_CONST               8 (<code object <genexpr> at 0x000002ACD098F360, file "benchmarks/function_call_numeric_sum/python/main.py", line 116>)
                MAKE_FUNCTION
                LOAD_FAST_BORROW         3 (commands)
                GET_ITER
@@ -1567,16 +1599,16 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_TRUE         3 (to L16)
                NOT_TAKEN
 
-113   L15:     LOAD_CONST               0 (False)
+117   L15:     LOAD_CONST               0 (False)
                RETURN_VALUE
 
-114   L16:     LOAD_FAST_BORROW         0 (entry)
+118   L16:     LOAD_FAST_BORROW         0 (entry)
                LOAD_ATTR                5 (get + NULL|self)
                LOAD_CONST              10 ('evidence')
                CALL                     1
                STORE_FAST               4 (evidence)
 
-115            LOAD_GLOBAL              1 (isinstance + NULL)
+119            LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         4 (evidence)
                LOAD_GLOBAL             14 (list)
                CALL                     2
@@ -1600,13 +1632,13 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                POP_JUMP_IF_FALSE       28 (to L20)
                NOT_TAKEN
                POP_TOP
-               LOAD_CONST              11 (<code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/function_call_numeric_sum/python/main.py", line 115>)
+               LOAD_CONST              11 (<code object <genexpr> at 0x000002ACD06C1F30, file "benchmarks/function_call_numeric_sum/python/main.py", line 119>)
                MAKE_FUNCTION
 
-120            LOAD_FAST_BORROW         4 (evidence)
+124            LOAD_FAST_BORROW         4 (evidence)
                GET_ITER
 
-115            CALL                     0
+119            CALL                     0
       L17:     FOR_ITER                12 (to L19)
                TO_BOOL
                POP_JUMP_IF_FALSE        3 (to L18)
@@ -1620,18 +1652,18 @@ Disassembly of <code object valid_manifest_entry at 0x000001A0E599CBD0, file "be
                LOAD_CONST               9 (True)
                RETURN_VALUE
       L20:     PUSH_NULL
-               LOAD_CONST              11 (<code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/function_call_numeric_sum/python/main.py", line 115>)
+               LOAD_CONST              11 (<code object <genexpr> at 0x000002ACD06C1F30, file "benchmarks/function_call_numeric_sum/python/main.py", line 119>)
                MAKE_FUNCTION
 
-120            LOAD_FAST_BORROW         4 (evidence)
+124            LOAD_FAST_BORROW         4 (evidence)
                GET_ITER
 
-115            CALL                     0
+119            CALL                     0
                CALL                     1
       L21:     RETURN_VALUE
 
-Disassembly of <code object <genexpr> at 0x000001A0E5B53360, file "benchmarks/function_call_numeric_sum/python/main.py", line 112>:
- 112           RETURN_GENERATOR
+Disassembly of <code object <genexpr> at 0x000002ACD098F360, file "benchmarks/function_call_numeric_sum/python/main.py", line 116>:
+ 116           RETURN_GENERATOR
                POP_TOP
        L1:     RESUME                   0
                LOAD_FAST                0 (.0)
@@ -1664,16 +1696,16 @@ ExceptionTable:
   L1 to L3 -> L7 [0] lasti
   L4 to L7 -> L7 [0] lasti
 
-Disassembly of <code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/function_call_numeric_sum/python/main.py", line 115>:
- 115            RETURN_GENERATOR
+Disassembly of <code object <genexpr> at 0x000002ACD06C1F30, file "benchmarks/function_call_numeric_sum/python/main.py", line 119>:
+ 119            RETURN_GENERATOR
                 POP_TOP
         L1:     RESUME                   0
                 LOAD_FAST                0 (.0)
 
- 120    L2:     FOR_ITER               185 (to L14)
+ 124    L2:     FOR_ITER               185 (to L14)
                 STORE_FAST               1 (item)
 
- 116            LOAD_GLOBAL              1 (isinstance + NULL)
+ 120            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_FAST_BORROW         1 (item)
                 LOAD_GLOBAL              2 (dict)
                 CALL                     2
@@ -1683,7 +1715,7 @@ Disassembly of <code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/fu
         L3:     NOT_TAKEN
         L4:     POP_TOP
 
- 117            LOAD_GLOBAL              5 (set + NULL)
+ 121            LOAD_GLOBAL              5 (set + NULL)
                 LOAD_FAST_BORROW         1 (item)
                 CALL                     1
                 LOAD_CONST               0 ('type')
@@ -1691,13 +1723,13 @@ Disassembly of <code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/fu
                 BUILD_SET                2
                 COMPARE_OP              72 (==)
 
- 116            COPY                     1
+ 120            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE      133 (to L13)
         L5:     NOT_TAKEN
         L6:     POP_TOP
 
- 118            LOAD_GLOBAL              1 (isinstance + NULL)
+ 122            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_FAST_BORROW         1 (item)
                 LOAD_ATTR                7 (get + NULL|self)
                 LOAD_CONST               0 ('type')
@@ -1705,25 +1737,25 @@ Disassembly of <code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/fu
                 LOAD_GLOBAL              8 (str)
                 CALL                     2
 
- 116            COPY                     1
+ 120            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE       94 (to L13)
         L7:     NOT_TAKEN
         L8:     POP_TOP
 
- 118            LOAD_FAST_BORROW         1 (item)
+ 122            LOAD_FAST_BORROW         1 (item)
                 LOAD_CONST               0 ('type')
                 BINARY_OP               26 ([])
                 LOAD_ATTR               11 (strip + NULL|self)
                 CALL                     0
 
- 116            COPY                     1
+ 120            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE       63 (to L13)
         L9:     NOT_TAKEN
        L10:     POP_TOP
 
- 119            LOAD_GLOBAL              1 (isinstance + NULL)
+ 123            LOAD_GLOBAL              1 (isinstance + NULL)
                 LOAD_FAST_BORROW         1 (item)
                 LOAD_ATTR                7 (get + NULL|self)
                 LOAD_CONST               1 ('path')
@@ -1731,24 +1763,24 @@ Disassembly of <code object <genexpr> at 0x000001A0E58AE630, file "benchmarks/fu
                 LOAD_GLOBAL              8 (str)
                 CALL                     2
 
- 116            COPY                     1
+ 120            COPY                     1
                 TO_BOOL
                 POP_JUMP_IF_FALSE       24 (to L13)
        L11:     NOT_TAKEN
        L12:     POP_TOP
 
- 119            LOAD_FAST_BORROW         1 (item)
+ 123            LOAD_FAST_BORROW         1 (item)
                 LOAD_CONST               1 ('path')
                 BINARY_OP               26 ([])
                 LOAD_ATTR               11 (strip + NULL|self)
                 CALL                     0
 
- 116   L13:     YIELD_VALUE              0
+ 120   L13:     YIELD_VALUE              0
                 RESUME                   5
                 POP_TOP
                 JUMP_BACKWARD          187 (to L2)
 
- 120   L14:     END_FOR
+ 124   L14:     END_FOR
                 POP_ITER
                 LOAD_CONST               2 (None)
                 RETURN_VALUE
@@ -1763,12 +1795,12 @@ ExceptionTable:
   L10 to L11 -> L15 [0] lasti
   L12 to L15 -> L15 [0] lasti
 
-Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file "benchmarks/function_call_numeric_sum/python/main.py", line 122>:
+Disassembly of <code object valid_manifest_document at 0x000002ACD0BFD9D0, file "benchmarks/function_call_numeric_sum/python/main.py", line 126>:
   --           MAKE_CELL                1 (languages)
 
- 122           RESUME                   0
+ 126           RESUME                   0
 
- 124           LOAD_GLOBAL              1 (isinstance + NULL)
+ 128           LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (document)
                LOAD_GLOBAL              2 (dict)
                CALL                     2
@@ -1776,17 +1808,17 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_JUMP_IF_FALSE      176 (to L1)
                NOT_TAKEN
 
- 125           LOAD_GLOBAL              5 (set + NULL)
+ 129           LOAD_GLOBAL              5 (set + NULL)
                LOAD_FAST_BORROW         0 (document)
                CALL                     1
                BUILD_SET                0
-               LOAD_CONST               9 (frozenset({'generated_at', 'analysis_id', 'languages', 'schema_version'}))
+               LOAD_CONST               9 (frozenset({'analysis_id', 'schema_version', 'generated_at', 'languages'}))
                SET_UPDATE               1
                COMPARE_OP             119 (bool(!=))
                POP_JUMP_IF_TRUE       158 (to L1)
                NOT_TAKEN
 
- 126           LOAD_FAST_BORROW         0 (document)
+ 130           LOAD_FAST_BORROW         0 (document)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_CONST               0 ('schema_version')
                CALL                     1
@@ -1795,7 +1827,7 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_JUMP_IF_TRUE       136 (to L1)
                NOT_TAKEN
 
- 127           LOAD_GLOBAL              1 (isinstance + NULL)
+ 131           LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (document)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_CONST               1 ('analysis_id')
@@ -1806,7 +1838,7 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_JUMP_IF_FALSE       99 (to L1)
                NOT_TAKEN
 
- 128           LOAD_FAST_BORROW         0 (document)
+ 132           LOAD_FAST_BORROW         0 (document)
                LOAD_CONST               1 ('analysis_id')
                BINARY_OP               26 ([])
                LOAD_ATTR               11 (strip + NULL|self)
@@ -1815,7 +1847,7 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_JUMP_IF_FALSE       70 (to L1)
                NOT_TAKEN
 
- 129           LOAD_GLOBAL              1 (isinstance + NULL)
+ 133           LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_FAST_BORROW         0 (document)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_CONST               2 ('generated_at')
@@ -1826,7 +1858,7 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_JUMP_IF_FALSE       33 (to L1)
                NOT_TAKEN
 
- 130           LOAD_GLOBAL             12 (re)
+ 134           LOAD_GLOBAL             12 (re)
                LOAD_ATTR               14 (fullmatch)
                PUSH_NULL
                LOAD_CONST               5 ('\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})')
@@ -1837,16 +1869,16 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_JUMP_IF_NOT_NONE     3 (to L2)
                NOT_TAKEN
 
- 132   L1:     LOAD_CONST               6 (False)
+ 136   L1:     LOAD_CONST               6 (False)
                RETURN_VALUE
 
- 133   L2:     LOAD_FAST_BORROW         0 (document)
+ 137   L2:     LOAD_FAST_BORROW         0 (document)
                LOAD_ATTR                7 (get + NULL|self)
                LOAD_CONST               3 ('languages')
                CALL                     1
                STORE_DEREF              1 (languages)
 
- 135           LOAD_GLOBAL              1 (isinstance + NULL)
+ 139           LOAD_GLOBAL              1 (isinstance + NULL)
                LOAD_DEREF               1 (languages)
                LOAD_GLOBAL              2 (dict)
                CALL                     2
@@ -1856,19 +1888,19 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                NOT_TAKEN
                POP_TOP
 
- 136           LOAD_GLOBAL              5 (set + NULL)
+ 140           LOAD_GLOBAL              5 (set + NULL)
                LOAD_DEREF               1 (languages)
                CALL                     1
                LOAD_GLOBAL             16 (MANIFEST_LANGUAGES)
                COMPARE_OP              72 (==)
 
- 135           COPY                     1
+ 139           COPY                     1
                TO_BOOL
                POP_JUMP_IF_FALSE       67 (to L7)
                NOT_TAKEN
                POP_TOP
 
- 137           LOAD_GLOBAL             18 (all)
+ 141           LOAD_GLOBAL             18 (all)
                COPY                     1
                LOAD_COMMON_CONSTANT     3 (<built-in function all>)
                IS_OP                    0 (is)
@@ -1877,7 +1909,7 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                POP_TOP
                LOAD_FAST_BORROW         1 (languages)
                BUILD_TUPLE              1
-               LOAD_CONST               7 (<code object <genexpr> at 0x000001A0E5B33210, file "benchmarks/function_call_numeric_sum/python/main.py", line 137>)
+               LOAD_CONST               7 (<code object <genexpr> at 0x000002ACD096B210, file "benchmarks/function_call_numeric_sum/python/main.py", line 141>)
                MAKE_FUNCTION
                SET_FUNCTION_ATTRIBUTE   8 (closure)
                LOAD_GLOBAL             16 (MANIFEST_LANGUAGES)
@@ -1891,18 +1923,18 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
        L4:     POP_ITER
                LOAD_CONST               6 (False)
 
- 134           RETURN_VALUE
+ 138           RETURN_VALUE
 
- 137   L5:     END_FOR
+ 141   L5:     END_FOR
                POP_ITER
                LOAD_CONST               8 (True)
 
- 134           RETURN_VALUE
+ 138           RETURN_VALUE
 
- 137   L6:     PUSH_NULL
+ 141   L6:     PUSH_NULL
                LOAD_FAST_BORROW         1 (languages)
                BUILD_TUPLE              1
-               LOAD_CONST               7 (<code object <genexpr> at 0x000001A0E5B33210, file "benchmarks/function_call_numeric_sum/python/main.py", line 137>)
+               LOAD_CONST               7 (<code object <genexpr> at 0x000002ACD096B210, file "benchmarks/function_call_numeric_sum/python/main.py", line 141>)
                MAKE_FUNCTION
                SET_FUNCTION_ATTRIBUTE   8 (closure)
                LOAD_GLOBAL             16 (MANIFEST_LANGUAGES)
@@ -1910,12 +1942,12 @@ Disassembly of <code object valid_manifest_document at 0x000001A0E5928810, file 
                CALL                     0
                CALL                     1
 
- 134   L7:     RETURN_VALUE
+ 138   L7:     RETURN_VALUE
 
-Disassembly of <code object <genexpr> at 0x000001A0E5B33210, file "benchmarks/function_call_numeric_sum/python/main.py", line 137>:
+Disassembly of <code object <genexpr> at 0x000002ACD096B210, file "benchmarks/function_call_numeric_sum/python/main.py", line 141>:
   --           COPY_FREE_VARS           1
 
- 137           RETURN_GENERATOR
+ 141           RETURN_GENERATOR
                POP_TOP
        L1:     RESUME                   0
                LOAD_FAST                0 (.0)
@@ -1943,14 +1975,14 @@ Disassembly of <code object <genexpr> at 0x000001A0E5B33210, file "benchmarks/fu
 ExceptionTable:
   L1 to L4 -> L4 [0] lasti
 
-Disassembly of <code object compare_provenance at 0x000001A0E5C5D430, file "benchmarks/function_call_numeric_sum/python/main.py", line 139>:
-139           RESUME                   0
+Disassembly of <code object compare_provenance at 0x000002ACD0A65430, file "benchmarks/function_call_numeric_sum/python/main.py", line 143>:
+143           RESUME                   0
 
-140           LOAD_FAST_BORROW         0 (manifest_entry)
+144           LOAD_FAST_BORROW         0 (manifest_entry)
               POP_JUMP_IF_NOT_NONE    24 (to L1)
               NOT_TAKEN
 
-141           LOAD_CONST               1 ('status')
+145           LOAD_CONST               1 ('status')
               LOAD_CONST               2 ('unavailable')
               LOAD_CONST               3 ('artifact_id')
               LOAD_CONST               0 (None)
@@ -1974,14 +2006,14 @@ Disassembly of <code object compare_provenance at 0x000001A0E5C5D430, file "benc
               BUILD_MAP                9
               RETURN_VALUE
 
-142   L1:     LOAD_GLOBAL              1 (valid_manifest_entry + NULL)
+146   L1:     LOAD_GLOBAL              1 (valid_manifest_entry + NULL)
               LOAD_FAST_BORROW         0 (manifest_entry)
               CALL                     1
               TO_BOOL
               POP_JUMP_IF_TRUE        24 (to L2)
               NOT_TAKEN
 
-143           LOAD_CONST               1 ('status')
+147           LOAD_CONST               1 ('status')
               LOAD_CONST               2 ('unavailable')
               LOAD_CONST               3 ('artifact_id')
               LOAD_CONST               0 (None)
@@ -2005,17 +2037,17 @@ Disassembly of <code object compare_provenance at 0x000001A0E5C5D430, file "benc
               BUILD_MAP                9
               RETURN_VALUE
 
-144   L2:     LOAD_FAST_BORROW         0 (manifest_entry)
+148   L2:     LOAD_FAST_BORROW         0 (manifest_entry)
               LOAD_CONST              14 ('condition')
               BINARY_OP               26 ([])
               STORE_FAST               2 (analysis)
 
-145           LOAD_GLOBAL              3 (condition_mismatches + NULL)
+149           LOAD_GLOBAL              3 (condition_mismatches + NULL)
               LOAD_FAST_BORROW_LOAD_FAST_BORROW 33 (analysis, current)
               CALL                     2
               STORE_FAST               3 (mismatches)
 
-146           LOAD_CONST               1 ('status')
+150           LOAD_CONST               1 ('status')
               LOAD_FAST_BORROW         3 (mismatches)
               TO_BOOL
               POP_JUMP_IF_TRUE         3 (to L3)
@@ -2052,47 +2084,47 @@ Disassembly of <code object compare_provenance at 0x000001A0E5C5D430, file "benc
               BUILD_MAP                9
               RETURN_VALUE
 
-Disassembly of <code object classify_jit at 0x000001A0E506FDD0, file "benchmarks/function_call_numeric_sum/python/main.py", line 147>:
- 147            RESUME                   0
+Disassembly of <code object classify_jit at 0x000002ACD022FDD0, file "benchmarks/function_call_numeric_sum/python/main.py", line 151>:
+ 151            RESUME                   0
 
- 148            LOAD_FAST_BORROW         0 (jit_info)
+ 152            LOAD_FAST_BORROW         0 (jit_info)
                 POP_JUMP_IF_NOT_NONE     7 (to L1)
                 NOT_TAKEN
 
- 149            LOAD_CONST               1 ('applicable')
+ 153            LOAD_CONST               1 ('applicable')
                 LOAD_CONST               2 (True)
                 LOAD_CONST               3 ('result')
                 LOAD_CONST               4 ('not_checked')
                 BUILD_MAP                2
                 RETURN_VALUE
 
- 150    L1:     NOP
+ 154    L1:     NOP
 
- 151    L2:     LOAD_FAST_BORROW         0 (jit_info)
+ 155    L2:     LOAD_FAST_BORROW         0 (jit_info)
                 LOAD_ATTR                1 (is_available + NULL|self)
                 CALL                     0
                 STORE_FAST               1 (available)
 
- 154    L3:     LOAD_FAST                1 (available)
+ 158    L3:     LOAD_FAST                1 (available)
                 TO_BOOL
                 POP_JUMP_IF_TRUE         7 (to L4)
                 NOT_TAKEN
 
- 155            LOAD_CONST               1 ('applicable')
+ 159            LOAD_CONST               1 ('applicable')
                 LOAD_CONST               6 (False)
                 LOAD_CONST               3 ('result')
                 LOAD_CONST               7 ('not_applicable')
                 BUILD_MAP                2
                 RETURN_VALUE
 
- 156    L4:     NOP
+ 160    L4:     NOP
 
- 157    L5:     LOAD_FAST                0 (jit_info)
+ 161    L5:     LOAD_FAST                0 (jit_info)
                 LOAD_ATTR                5 (is_enabled + NULL|self)
                 CALL                     0
                 STORE_FAST               2 (enabled)
 
- 160    L6:     LOAD_CONST               1 ('applicable')
+ 164    L6:     LOAD_CONST               1 ('applicable')
                 LOAD_CONST               2 (True)
                 LOAD_CONST               3 ('result')
                 LOAD_FAST                2 (enabled)
@@ -2108,13 +2140,13 @@ Disassembly of <code object classify_jit at 0x000001A0E506FDD0, file "benchmarks
 
   --    L8:     PUSH_EXC_INFO
 
- 152            LOAD_GLOBAL              2 (Exception)
+ 156            LOAD_GLOBAL              2 (Exception)
                 CHECK_EXC_MATCH
                 POP_JUMP_IF_FALSE       10 (to L10)
                 NOT_TAKEN
                 POP_TOP
 
- 153            LOAD_CONST               1 ('applicable')
+ 157            LOAD_CONST               1 ('applicable')
                 LOAD_CONST               2 (True)
                 LOAD_CONST               3 ('result')
                 LOAD_CONST               5 ('unknown')
@@ -2123,20 +2155,20 @@ Disassembly of <code object classify_jit at 0x000001A0E506FDD0, file "benchmarks
         L9:     POP_EXCEPT
                 RETURN_VALUE
 
- 152   L10:     RERAISE                  0
+ 156   L10:     RERAISE                  0
 
   --   L11:     COPY                     3
                 POP_EXCEPT
                 RERAISE                  1
        L12:     PUSH_EXC_INFO
 
- 158            LOAD_GLOBAL              2 (Exception)
+ 162            LOAD_GLOBAL              2 (Exception)
                 CHECK_EXC_MATCH
                 POP_JUMP_IF_FALSE       10 (to L14)
                 NOT_TAKEN
                 POP_TOP
 
- 159            LOAD_CONST               1 ('applicable')
+ 163            LOAD_CONST               1 ('applicable')
                 LOAD_CONST               2 (True)
                 LOAD_CONST               3 ('result')
                 LOAD_CONST               5 ('unknown')
@@ -2145,7 +2177,7 @@ Disassembly of <code object classify_jit at 0x000001A0E506FDD0, file "benchmarks
        L13:     POP_EXCEPT
                 RETURN_VALUE
 
- 158   L14:     RERAISE                  0
+ 162   L14:     RERAISE                  0
 
   --   L15:     COPY                     3
                 POP_EXCEPT
@@ -2158,8 +2190,8 @@ ExceptionTable:
   L12 to L13 -> L15 [1] lasti
   L14 to L15 -> L15 [1] lasti
 
-Disassembly of <code object __annotate__ at 0x000001A0E5A4E330, file "benchmarks/function_call_numeric_sum/python/main.py", line 161>:
-161           RESUME                   0
+Disassembly of <code object __annotate__ at 0x000002ACD0886330, file "benchmarks/function_call_numeric_sum/python/main.py", line 165>:
+165           RESUME                   0
               LOAD_FAST_BORROW         0 (format)
               LOAD_SMALL_INT           2
               COMPARE_OP             132 (>)
@@ -2174,10 +2206,10 @@ Disassembly of <code object __annotate__ at 0x000001A0E5A4E330, file "benchmarks
               BUILD_MAP                2
               RETURN_VALUE
 
-Disassembly of <code object canonical_source_sha256 at 0x000001A0E5B81E30, file "benchmarks/function_call_numeric_sum/python/main.py", line 161>:
-161           RESUME                   0
+Disassembly of <code object canonical_source_sha256 at 0x000002ACD09B9E30, file "benchmarks/function_call_numeric_sum/python/main.py", line 165>:
+165           RESUME                   0
 
-162           LOAD_GLOBAL              0 (hashlib)
+166           LOAD_GLOBAL              0 (hashlib)
               LOAD_ATTR                2 (sha256)
               PUSH_NULL
               LOAD_FAST_BORROW         0 (source)
@@ -2190,17 +2222,17 @@ Disassembly of <code object canonical_source_sha256 at 0x000001A0E5B81E30, file 
               CALL                     0
               RETURN_VALUE
 
-Disassembly of <code object current_analysis_condition at 0x000001A0E58B16F0, file "benchmarks/function_call_numeric_sum/python/main.py", line 164>:
-164           RESUME                   0
+Disassembly of <code object current_analysis_condition at 0x000002ACD06C2B60, file "benchmarks/function_call_numeric_sum/python/main.py", line 168>:
+168           RESUME                   0
 
-165           LOAD_GLOBAL              1 (Path + NULL)
+169           LOAD_GLOBAL              1 (Path + NULL)
               LOAD_GLOBAL              2 (__file__)
               CALL                     1
               LOAD_ATTR                5 (read_bytes + NULL|self)
               CALL                     0
               STORE_FAST               5 (source)
 
-167           LOAD_CONST               0 ('source_sha256')
+171           LOAD_CONST               0 ('source_sha256')
               LOAD_FAST                4 (source_sha256)
               COPY                     1
               TO_BOOL
@@ -2211,7 +2243,7 @@ Disassembly of <code object current_analysis_condition at 0x000001A0E58B16F0, fi
               LOAD_FAST_BORROW         5 (source)
               CALL                     1
 
-168   L1:     LOAD_CONST               1 ('implementation')
+172   L1:     LOAD_CONST               1 ('implementation')
               LOAD_CONST               2 ('name')
               LOAD_FAST                0 (implementation_name)
               COPY                     1
@@ -2236,7 +2268,7 @@ Disassembly of <code object current_analysis_condition at 0x000001A0E58B16F0, fi
               CALL                     0
       L3:     BUILD_MAP                2
 
-169           LOAD_CONST               4 ('architecture')
+173           LOAD_CONST               4 ('architecture')
               LOAD_FAST                2 (architecture)
               COPY                     1
               TO_BOOL
@@ -2250,16 +2282,16 @@ Disassembly of <code object current_analysis_condition at 0x000001A0E58B16F0, fi
               LOAD_ATTR               17 (lower + NULL|self)
               CALL                     0
 
-170   L4:     LOAD_CONST               5 ('options')
+174   L4:     LOAD_CONST               5 ('options')
               LOAD_FAST_BORROW         3 (options)
               POP_JUMP_IF_NONE         4 (to L5)
               NOT_TAKEN
               LOAD_FAST_BORROW         3 (options)
 
-166           BUILD_MAP                4
+170           BUILD_MAP                4
               RETURN_VALUE
 
-170   L5:     LOAD_CONST               6 ('optimize=')
+174   L5:     LOAD_CONST               6 ('optimize=')
               LOAD_GLOBAL             18 (sys)
               LOAD_ATTR               20 (flags)
               LOAD_ATTR               22 (optimize)
@@ -2267,32 +2299,32 @@ Disassembly of <code object current_analysis_condition at 0x000001A0E58B16F0, fi
               BUILD_STRING             2
               BUILD_LIST               1
 
-166           BUILD_MAP                4
+170           BUILD_MAP                4
               RETURN_VALUE
 
-Disassembly of <code object parse_manifest_entry at 0x000001A0E5A393B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 172>:
- 172           RESUME                   0
+Disassembly of <code object parse_manifest_entry at 0x000002ACD08713B0, file "benchmarks/function_call_numeric_sum/python/main.py", line 176>:
+ 176           RESUME                   0
 
- 173           NOP
+ 177           NOP
 
- 174   L1:     LOAD_GLOBAL              0 (json)
+ 178   L1:     LOAD_GLOBAL              0 (json)
                LOAD_ATTR                2 (loads)
                PUSH_NULL
                LOAD_FAST_BORROW         0 (content)
                CALL                     1
                STORE_FAST               1 (document)
 
- 177   L2:     LOAD_GLOBAL              9 (valid_manifest_document + NULL)
+ 181   L2:     LOAD_GLOBAL              9 (valid_manifest_document + NULL)
                LOAD_FAST                1 (document)
                CALL                     1
                TO_BOOL
                POP_JUMP_IF_TRUE         7 (to L3)
                NOT_TAKEN
 
- 178           LOAD_GLOBAL              6 (_INVALID_MANIFEST)
+ 182           LOAD_GLOBAL              6 (_INVALID_MANIFEST)
                RETURN_VALUE
 
- 179   L3:     LOAD_FAST                1 (document)
+ 183   L3:     LOAD_FAST                1 (document)
                LOAD_CONST               0 ('languages')
                BINARY_OP               26 ([])
                LOAD_GLOBAL             10 (LANGUAGE)
@@ -2301,19 +2333,19 @@ Disassembly of <code object parse_manifest_entry at 0x000001A0E5A393B0, file "be
 
   --   L4:     PUSH_EXC_INFO
 
- 175           LOAD_GLOBAL              0 (json)
+ 179           LOAD_GLOBAL              0 (json)
                LOAD_ATTR                4 (JSONDecodeError)
                CHECK_EXC_MATCH
                POP_JUMP_IF_FALSE       10 (to L6)
                NOT_TAKEN
                POP_TOP
 
- 176           LOAD_GLOBAL              6 (_INVALID_MANIFEST)
+ 180           LOAD_GLOBAL              6 (_INVALID_MANIFEST)
                SWAP                     2
        L5:     POP_EXCEPT
                RETURN_VALUE
 
- 175   L6:     RERAISE                  0
+ 179   L6:     RERAISE                  0
 
   --   L7:     COPY                     3
                POP_EXCEPT
@@ -2323,12 +2355,12 @@ ExceptionTable:
   L4 to L5 -> L7 [1] lasti
   L6 to L7 -> L7 [1] lasti
 
-Disassembly of <code object load_manifest_entry at 0x000001A0E5A25B30, file "benchmarks/function_call_numeric_sum/python/main.py", line 180>:
- 180           RESUME                   0
+Disassembly of <code object load_manifest_entry at 0x000002ACD085DB30, file "benchmarks/function_call_numeric_sum/python/main.py", line 184>:
+ 184           RESUME                   0
 
- 181           NOP
+ 185           NOP
 
- 182   L1:     LOAD_FAST_BORROW         0 (manifest_path)
+ 186   L1:     LOAD_FAST_BORROW         0 (manifest_path)
                POP_JUMP_IF_NONE        12 (to L2)
                NOT_TAKEN
                LOAD_GLOBAL              1 (Path + NULL)
@@ -2341,7 +2373,7 @@ Disassembly of <code object load_manifest_entry at 0x000001A0E5A25B30, file "ben
                BINARY_OP               11 (/)
        L3:     STORE_FAST               1 (path)
 
- 183           LOAD_GLOBAL              7 (parse_manifest_entry + NULL)
+ 187           LOAD_GLOBAL              7 (parse_manifest_entry + NULL)
                LOAD_FAST_BORROW         1 (path)
                LOAD_ATTR                9 (read_text + NULL|self)
                LOAD_CONST               1 ('utf-8')
@@ -2352,17 +2384,17 @@ Disassembly of <code object load_manifest_entry at 0x000001A0E5A25B30, file "ben
 
   --   L5:     PUSH_EXC_INFO
 
- 184           LOAD_GLOBAL             10 (OSError)
+ 188           LOAD_GLOBAL             10 (OSError)
                CHECK_EXC_MATCH
                POP_JUMP_IF_FALSE        5 (to L7)
                NOT_TAKEN
                POP_TOP
 
- 185   L6:     POP_EXCEPT
+ 189   L6:     POP_EXCEPT
                LOAD_CONST               0 (None)
                RETURN_VALUE
 
- 184   L7:     RERAISE                  0
+ 188   L7:     RERAISE                  0
 
   --   L8:     COPY                     3
                POP_EXCEPT
@@ -2372,54 +2404,54 @@ ExceptionTable:
   L5 to L6 -> L8 [1] lasti
   L7 to L8 -> L8 [1] lasti
 
-Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "benchmarks/function_call_numeric_sum/python/main.py", line 186>:
-186            RESUME                   0
+Disassembly of <code object optimization_analysis at 0x000002ACD07F1960, file "benchmarks/function_call_numeric_sum/python/main.py", line 190>:
+190            RESUME                   0
 
-187            LOAD_FAST_BORROW         0 (manifest_entry)
+191            LOAD_FAST_BORROW         0 (manifest_entry)
                LOAD_GLOBAL              0 (_LOAD_MANIFEST)
                IS_OP                    0 (is)
                POP_JUMP_IF_FALSE       11 (to L1)
                NOT_TAKEN
 
-188            LOAD_GLOBAL              3 (load_manifest_entry + NULL)
+192            LOAD_GLOBAL              3 (load_manifest_entry + NULL)
                CALL                     0
                STORE_FAST               0 (manifest_entry)
 
-189    L1:     LOAD_FAST_BORROW         1 (current)
+193    L1:     LOAD_FAST_BORROW         1 (current)
                POP_JUMP_IF_NOT_NONE    11 (to L2)
                NOT_TAKEN
 
-190            LOAD_GLOBAL              5 (current_analysis_condition + NULL)
+194            LOAD_GLOBAL              5 (current_analysis_condition + NULL)
                CALL                     0
                STORE_FAST               1 (current)
 
-191    L2:     LOAD_FAST_BORROW         2 (jit_info)
+195    L2:     LOAD_FAST_BORROW         2 (jit_info)
                LOAD_GLOBAL              6 (_DEFAULT_JIT)
                IS_OP                    0 (is)
                POP_JUMP_IF_FALSE       18 (to L3)
                NOT_TAKEN
 
-192            LOAD_GLOBAL              9 (getattr + NULL)
+196            LOAD_GLOBAL              9 (getattr + NULL)
                LOAD_GLOBAL             10 (sys)
                LOAD_CONST               1 ('_jit')
                LOAD_CONST               0 (None)
                CALL                     3
                STORE_FAST               2 (jit_info)
 
-193    L3:     LOAD_GLOBAL             13 (compare_provenance + NULL)
+197    L3:     LOAD_GLOBAL             13 (compare_provenance + NULL)
                LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (manifest_entry, current)
                CALL                     2
                STORE_FAST               3 (provenance)
 
-194            LOAD_GLOBAL             15 (classify_jit + NULL)
+198            LOAD_GLOBAL             15 (classify_jit + NULL)
                LOAD_FAST_BORROW         2 (jit_info)
                CALL                     1
                STORE_FAST               4 (jit)
 
-195            BUILD_LIST               0
+199            BUILD_LIST               0
                STORE_FAST               5 (evidence)
 
-196            LOAD_FAST_BORROW         4 (jit)
+200            LOAD_FAST_BORROW         4 (jit)
                LOAD_CONST               2 ('result')
                BINARY_OP               26 ([])
                LOAD_CONST              31 (frozenset({'not_detected', 'detected'}))
@@ -2427,7 +2459,7 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                POP_JUMP_IF_FALSE       22 (to L4)
                NOT_TAKEN
 
-197            LOAD_FAST_BORROW         5 (evidence)
+201            LOAD_FAST_BORROW         5 (evidence)
                LOAD_ATTR               17 (append + NULL|self)
                LOAD_CONST               3 ('type')
                LOAD_CONST               4 ('runtime_api')
@@ -2437,14 +2469,14 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                CALL                     1
                POP_TOP
 
-198    L4:     LOAD_FAST_BORROW         3 (provenance)
+202    L4:     LOAD_FAST_BORROW         3 (provenance)
                LOAD_CONST               7 ('matched')
                BINARY_OP               26 ([])
                TO_BOOL
                POP_JUMP_IF_FALSE       25 (to L5)
                NOT_TAKEN
 
-199            LOAD_FAST_BORROW         5 (evidence)
+203            LOAD_FAST_BORROW         5 (evidence)
                LOAD_ATTR               19 (extend + NULL|self)
                LOAD_FAST_BORROW         0 (manifest_entry)
                LOAD_CONST               8 ('evidence')
@@ -2452,10 +2484,10 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                CALL                     1
                POP_TOP
 
-200    L5:     BUILD_LIST               0
+204    L5:     BUILD_LIST               0
                STORE_FAST               6 (notes)
 
-201            LOAD_FAST_BORROW         3 (provenance)
+205            LOAD_FAST_BORROW         3 (provenance)
                LOAD_CONST               9 ('status')
                BINARY_OP               26 ([])
                LOAD_CONST              10 ('mismatched')
@@ -2463,7 +2495,7 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                POP_JUMP_IF_FALSE       55 (to L6)
                NOT_TAKEN
 
-202            LOAD_FAST_BORROW         6 (notes)
+206            LOAD_FAST_BORROW         6 (notes)
                LOAD_ATTR               17 (append + NULL|self)
                LOAD_CONST              11 ('Saved CPython bytecode analysis was not applied because these conditions differed: ')
                LOAD_CONST              12 (', ')
@@ -2479,7 +2511,7 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                POP_TOP
                JUMP_FORWARD            49 (to L8)
 
-203    L6:     LOAD_FAST_BORROW         3 (provenance)
+207    L6:     LOAD_FAST_BORROW         3 (provenance)
                LOAD_CONST               9 ('status')
                BINARY_OP               26 ([])
                LOAD_CONST              15 ('unavailable')
@@ -2487,37 +2519,37 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                POP_JUMP_IF_FALSE       19 (to L7)
                NOT_TAKEN
 
-204            LOAD_FAST_BORROW         6 (notes)
+208            LOAD_FAST_BORROW         6 (notes)
                LOAD_ATTR               17 (append + NULL|self)
                LOAD_CONST              16 ('Saved CPython bytecode analysis could not be loaded; its findings are unknown.')
                CALL                     1
                POP_TOP
                JUMP_FORWARD            17 (to L8)
 
-206    L7:     LOAD_FAST_BORROW         6 (notes)
+210    L7:     LOAD_FAST_BORROW         6 (notes)
                LOAD_ATTR               17 (append + NULL|self)
                LOAD_CONST              17 ('CPython bytecode retains the add call and scalar loop for this benchmark.')
                CALL                     1
                POP_TOP
 
-207    L8:     LOAD_FAST_BORROW         6 (notes)
+211    L8:     LOAD_FAST_BORROW         6 (notes)
                LOAD_ATTR               17 (append + NULL|self)
                LOAD_CONST              18 ('Native interpreter SIMD instructions were not inspected.')
                CALL                     1
                POP_TOP
 
-209            LOAD_CONST              19 ('implementation')
+213            LOAD_CONST              19 ('implementation')
                LOAD_FAST_BORROW         1 (current)
                LOAD_CONST              19 ('implementation')
                BINARY_OP               26 ([])
 
-210            LOAD_CONST              20 ('provenance')
+214            LOAD_CONST              20 ('provenance')
                LOAD_FAST                3 (provenance)
 
-211            LOAD_CONST              21 ('jit')
+215            LOAD_CONST              21 ('jit')
                LOAD_FAST                4 (jit)
 
-212            LOAD_CONST              22 ('inlining')
+216            LOAD_CONST              22 ('inlining')
                LOAD_FAST_BORROW         3 (provenance)
                LOAD_CONST               7 ('matched')
                BINARY_OP               26 ([])
@@ -2545,7 +2577,7 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
       L10:     LOAD_CONST              25 ('not_checked')
       L11:     BUILD_MAP                1
 
-213   L12:     LOAD_CONST              26 ('vectorization')
+217   L12:     LOAD_CONST              26 ('vectorization')
                LOAD_FAST_BORROW         3 (provenance)
                LOAD_CONST               7 ('matched')
                BINARY_OP               26 ([])
@@ -2573,7 +2605,7 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
       L14:     LOAD_CONST              25 ('not_checked')
       L15:     BUILD_MAP                1
 
-214   L16:     LOAD_CONST              27 ('simd')
+218   L16:     LOAD_CONST              27 ('simd')
                LOAD_FAST_BORROW         3 (provenance)
                LOAD_CONST               7 ('matched')
                BINARY_OP               26 ([])
@@ -2615,22 +2647,22 @@ Disassembly of <code object optimization_analysis at 0x000001A0E5D44500, file "b
                BUILD_LIST               0
                BUILD_MAP                2
 
-215   L20:     LOAD_CONST              29 ('other_optimizations')
+219   L20:     LOAD_CONST              29 ('other_optimizations')
                BUILD_LIST               0
 
-216            LOAD_CONST               8 ('evidence')
+220            LOAD_CONST               8 ('evidence')
                LOAD_FAST_BORROW         5 (evidence)
 
-217            LOAD_CONST              30 ('notes')
+221            LOAD_CONST              30 ('notes')
                LOAD_FAST_BORROW         6 (notes)
 
-208            BUILD_MAP                9
+212            BUILD_MAP                9
                RETURN_VALUE
 
-Disassembly of <code object run at 0x000001A0E58E71F0, file "benchmarks/function_call_numeric_sum/python/main.py", line 219>:
-219           RESUME                   0
+Disassembly of <code object run at 0x000002ACD07BEB40, file "benchmarks/function_call_numeric_sum/python/main.py", line 223>:
+223           RESUME                   0
 
-220           LOAD_GLOBAL              1 (now_ms + NULL)
+224           LOAD_GLOBAL              1 (now_ms + NULL)
               CALL                     0
               STORE_FAST               2 (setup_start)
               LOAD_GLOBAL              3 (list + NULL)
@@ -2650,7 +2682,7 @@ Disassembly of <code object run at 0x000001A0E58E71F0, file "benchmarks/function
               CALL                     1
               STORE_FAST               4 (setup_ms)
 
-221           LOAD_GLOBAL             11 (measure + NULL)
+225           LOAD_GLOBAL             11 (measure + NULL)
               LOAD_GLOBAL             12 (direct)
               LOAD_FAST_BORROW         3 (values)
               CALL                     2
@@ -2658,7 +2690,7 @@ Disassembly of <code object run at 0x000001A0E58E71F0, file "benchmarks/function
               STORE_FAST_STORE_FAST   86 (direct_warmup, direct_measurement)
               STORE_FAST_STORE_FAST  120 (direct_sum, direct_results)
 
-222           LOAD_GLOBAL             11 (measure + NULL)
+226           LOAD_GLOBAL             11 (measure + NULL)
               LOAD_GLOBAL             14 (function_call)
               LOAD_FAST_BORROW         3 (values)
               CALL                     2
@@ -2666,7 +2698,7 @@ Disassembly of <code object run at 0x000001A0E58E71F0, file "benchmarks/function
               STORE_FAST_STORE_FAST  154 (call_warmup, call_measurement)
               STORE_FAST_STORE_FAST  188 (call_sum, call_results)
 
-223           LOAD_GLOBAL              9 (rounded + NULL)
+227           LOAD_GLOBAL              9 (rounded + NULL)
               LOAD_FAST_BORROW_LOAD_FAST_BORROW 89 (direct_warmup, call_warmup)
               BINARY_OP                0 (+)
               CALL                     1
@@ -2677,7 +2709,7 @@ Disassembly of <code object run at 0x000001A0E58E71F0, file "benchmarks/function
               CALL                     1
               STORE_FAST              14 (measurement_ms)
 
-224           BUILD_MAP                0
+228           BUILD_MAP                0
               LOAD_GLOBAL             17 (metadata + NULL)
               LOAD_CONST               1 ('success')
               LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (eid, rid)
@@ -2756,18 +2788,18 @@ Disassembly of <code object run at 0x000001A0E58E71F0, file "benchmarks/function
               DICT_UPDATE              1
               RETURN_VALUE
 
-Disassembly of <code object main at 0x000001A0E5933A10, file "benchmarks/function_call_numeric_sum/python/main.py", line 225>:
- 225           RESUME                   0
+Disassembly of <code object main at 0x000002ACD074EA50, file "benchmarks/function_call_numeric_sum/python/main.py", line 229>:
+ 229           RESUME                   0
 
- 226           LOAD_GLOBAL              1 (experiment_id + NULL)
+ 230           LOAD_GLOBAL              1 (experiment_id + NULL)
                CALL                     0
                LOAD_GLOBAL              3 (run_id + NULL)
                CALL                     0
                STORE_FAST_STORE_FAST   16 (rid, eid)
 
- 227           NOP
+ 231           NOP
 
- 228   L1:     LOAD_GLOBAL              5 (run + NULL)
+ 232   L1:     LOAD_GLOBAL              5 (run + NULL)
                LOAD_FAST_BORROW_LOAD_FAST_BORROW 1 (eid, rid)
                CALL                     2
                STORE_FAST               2 (result)
@@ -2781,7 +2813,7 @@ Disassembly of <code object main at 0x000001A0E5933A10, file "benchmarks/functio
                CALL_KW                  1
                POP_TOP
 
- 229           LOAD_GLOBAL              7 (project_root + NULL)
+ 233           LOAD_GLOBAL              7 (project_root + NULL)
                CALL                     0
                LOAD_CONST               0 ('results')
                BINARY_OP               11 (/)
@@ -2803,7 +2835,7 @@ Disassembly of <code object main at 0x000001A0E5933A10, file "benchmarks/functio
                CALL_KW                  2
                POP_TOP
 
- 230           LOAD_GLOBAL             19 (print + NULL)
+ 234           LOAD_GLOBAL             19 (print + NULL)
                LOAD_CONST               8 ('status=success')
                CALL                     1
                POP_TOP
@@ -2812,13 +2844,13 @@ Disassembly of <code object main at 0x000001A0E5933A10, file "benchmarks/functio
 
   --   L3:     PUSH_EXC_INFO
 
- 231           LOAD_GLOBAL             20 (Exception)
+ 235           LOAD_GLOBAL             20 (Exception)
                CHECK_EXC_MATCH
                POP_JUMP_IF_FALSE       69 (to L7)
                NOT_TAKEN
                STORE_FAST               3 (error)
 
- 232   L4:     LOAD_GLOBAL             19 (print + NULL)
+ 236   L4:     LOAD_GLOBAL             19 (print + NULL)
                LOAD_CONST               9 ('status=error')
                LOAD_GLOBAL             22 (sys)
                LOAD_ATTR               24 (stderr)
@@ -2847,7 +2879,7 @@ Disassembly of <code object main at 0x000001A0E5933A10, file "benchmarks/functio
                DELETE_FAST              3 (error)
                RERAISE                  1
 
- 231   L7:     RERAISE                  0
+ 235   L7:     RERAISE                  0
 
   --   L8:     COPY                     3
                POP_EXCEPT

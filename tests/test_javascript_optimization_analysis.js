@@ -20,6 +20,8 @@ test("current JavaScript source hash agrees with the manifest", () => {
   const manifestPath = path.join(__dirname, "..", "artifacts", "function-call-analysis", "manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   assert.equal(currentAnalysisCondition().source_sha256, manifest.languages.javascript.condition.source_sha256);
+  const inheritedOptions = (process.env.NODE_OPTIONS || "").trim().split(/\s+/).filter(Boolean);
+  assert.deepEqual(inheritedOptions, manifest.languages.javascript.condition.options);
 });
 
 function fixture() {
