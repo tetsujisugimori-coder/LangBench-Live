@@ -110,6 +110,36 @@ class CompareArchiveTests(unittest.TestCase):
         self.assertEqual(0, completed.returncode, completed.stderr)
         self.assertEqual("comparable", json.loads(completed.stdout)["verdict"])
 
+    def test_reverse_case_order_is_archived_and_incomparable_to_legacy_order(self) -> None:
+        direct = self.make_archive("20260801_130000")
+        reverse = self.make_archive("20260802_130000", mutate=lambda d: d["execution"].update(
+            measurement_order=["function_call", "direct"]))
+        comparison = compare_archives(load_archive(direct), load_archive(reverse))
+        self.assertEqual("incomparable", comparison["verdict"])
+        self.assertEqual(["measurement_order"], [reason["field"] for reason in comparison["reasons"]])
+        self.assertEqual(["function_call", "direct"], load_archive(reverse)["definition"]["measurement_order"])
+
+    def test_archive_rejects_language_results_with_mixed_case_orders(self) -> None:
+        experiment_id = "20260803_130000_function_call_numeric_sum"
+        sources = []
+        for language in ("c", "javascript", "python"):
+            document = fixture_document(language, experiment_id)
+            if language == "python":
+                document["execution"]["measurement_order"] = ["function_call", "direct"]
+            path = self.root / f"mixed_{language}.json"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            sources.append(path)
+        base = fixture_document("python", experiment_id)
+        definition = {
+            "schema_version": "1.0", "benchmark": "function_call_numeric_sum",
+            "languages": ["c", "javascript", "python"], "config": base["config"],
+            "expected_checksum": base["validation"]["expected_checksum"],
+        }
+        manifest = self.root / "mixed_definition.json"
+        manifest.write_text(json.dumps(definition), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "measurement_order differs"):
+            archive_results(sources, experiment_id, self.root / "mixed-history", manifest)
+
     def test_new_os_versions_compare_but_legacy_null_stays_caution(self) -> None:
         old = self.make_archive("20260801_130000")
         fresh_a = self.make_archive("20260802_130000")

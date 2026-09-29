@@ -62,9 +62,9 @@ def measure(case, values):
         start = now_ms(); checksum = case(values); samples.append(rounded(now_ms() - start))
         if checksum != EXPECTED_CHECKSUM: raise RuntimeError("checksum mismatch")
     return warmup_ms, rounded(sum(samples)), checksum, stats(samples)
-def metadata(status, eid, rid):
+def metadata(status, eid, rid, measurement_order=("direct", "function_call")):
     topology = safe_collect_topology()
-    return {"type":"langbench_result", "schema_version":SCHEMA_VERSION, "project":PROJECT, "benchmark":BENCHMARK, "experiment_id":eid, "run_id":rid, "language":LANGUAGE, "created_at":datetime.now().astimezone().isoformat(timespec="milliseconds"), "status":status, "engine":{"runtime":"python", "runtime_version":platform.python_version(), "compiler":None, "compiler_version":None, "python_implementation":platform.python_implementation()}, "execution":{"runner":"vscode_terminal_powershell", "runner_label":"VSCode Terminal / PowerShell", "cwd":str(Path.cwd()), "argv":[sys.executable, *sys.argv]}, "environment":{"os":platform.system() or None, "os_version":platform.version() or None, "architecture":platform.machine() or None, "cpu":platform.processor() or None, "logical_processors":os.cpu_count(), "cpu_topology":topology, "memory_bytes":None}, "build":None}
+    return {"type":"langbench_result", "schema_version":SCHEMA_VERSION, "project":PROJECT, "benchmark":BENCHMARK, "experiment_id":eid, "run_id":rid, "language":LANGUAGE, "created_at":datetime.now().astimezone().isoformat(timespec="milliseconds"), "status":status, "engine":{"runtime":"python", "runtime_version":platform.python_version(), "compiler":None, "compiler_version":None, "python_implementation":platform.python_implementation()}, "execution":{"runner":"vscode_terminal_powershell", "runner_label":"VSCode Terminal / PowerShell", "cwd":str(Path.cwd()), "argv":[sys.executable, *sys.argv], "measurement_order":list(measurement_order)}, "environment":{"os":platform.system() or None, "os_version":platform.version() or None, "architecture":platform.machine() or None, "cpu":platform.processor() or None, "logical_processors":os.cpu_count(), "cpu_topology":topology, "memory_bytes":None}, "build":None}
 def condition_mismatches(analysis, current):
     mismatches = []
     if analysis.get("source_sha256") != current.get("source_sha256"): mismatches.append("source_sha256")
@@ -173,6 +173,14 @@ def current_analysis_condition(implementation_name=None, implementation_version=
         "architecture": architecture or platform.machine().lower(),
         "options": options if options is not None else [f"optimize={sys.flags.optimize}"],
     }
+def write_result(path: Path, result: dict, exclusive: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    output = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+    if exclusive:
+        with path.open("x", encoding="utf-8") as destination:
+            destination.write(output)
+    else:
+        path.write_text(output, encoding="utf-8")
 def parse_manifest_entry(content):
     try:
         document = json.loads(content)
@@ -220,17 +228,29 @@ def optimization_analysis(manifest_entry=_LOAD_MANIFEST, current=None, jit_info=
         "evidence": evidence,
         "notes": notes,
     }
-def run(eid, rid):
+def ordered_measurements(order, values, measure_case=measure):
+    if order not in ("direct_first", "function_call_first"):
+        raise ValueError("measurement order must be direct_first or function_call_first")
+    cases = {"direct": direct, "function_call": function_call}
+    names = ["direct", "function_call"] if order == "direct_first" else ["function_call", "direct"]
+    return [(name, measure_case(cases[name], values)) for name in names]
+
+def run(eid, rid, order="direct_first"):
     setup_start = now_ms(); values = list(range(1, ITEM_COUNT + 1)); setup_ms = rounded(now_ms() - setup_start)
-    direct_warmup, direct_measurement, direct_sum, direct_results = measure(direct, values)
-    call_warmup, call_measurement, call_sum, call_results = measure(function_call, values)
+    measurements = dict(ordered_measurements(order, values))
+    direct_warmup, direct_measurement, direct_sum, direct_results = measurements["direct"]
+    call_warmup, call_measurement, call_sum, call_results = measurements["function_call"]
     warmup_ms = rounded(direct_warmup + call_warmup); measurement_ms = rounded(direct_measurement + call_measurement)
-    return {**metadata("success", eid, rid), "optimization_analysis":optimization_analysis(), "config":{"item_count":ITEM_COUNT,"warmup_iterations":WARMUP_ITERATIONS,"measurement_iterations":MEASUREMENT_ITERATIONS,"numeric_type":"integer","value_field":"value","cases":["direct","function_call"]}, "timing":{"process_startup_ms":None,"setup_ms":setup_ms,"warmup_ms":warmup_ms,"measurement_ms":measurement_ms,"benchmark_total_ms":rounded(setup_ms + warmup_ms + measurement_ms)}, "results":{"direct":direct_results,"function_call":call_results}, "validation":{"direct_checksum":direct_sum,"function_call_checksum":call_sum,"expected_checksum":EXPECTED_CHECKSUM,"tolerance":0,"passed":direct_sum == call_sum == EXPECTED_CHECKSUM}, "error":None}
+    order_names = ["direct", "function_call"] if order == "direct_first" else ["function_call", "direct"]
+    return {**metadata("success", eid, rid, order_names), "optimization_analysis":optimization_analysis(), "config":{"item_count":ITEM_COUNT,"warmup_iterations":WARMUP_ITERATIONS,"measurement_iterations":MEASUREMENT_ITERATIONS,"numeric_type":"integer","value_field":"value","cases":["direct","function_call"]}, "timing":{"process_startup_ms":None,"setup_ms":setup_ms,"warmup_ms":warmup_ms,"measurement_ms":measurement_ms,"benchmark_total_ms":rounded(setup_ms + warmup_ms + measurement_ms)}, "results":{"direct":direct_results,"function_call":call_results}, "validation":{"direct_checksum":direct_sum,"function_call_checksum":call_sum,"expected_checksum":EXPECTED_CHECKSUM,"tolerance":0,"passed":direct_sum == call_sum == EXPECTED_CHECKSUM}, "error":None}
 def main():
     eid, rid = experiment_id(), run_id()
     try:
-        result = run(eid, rid); (project_root() / "results").mkdir(exist_ok=True)
-        (project_root() / "results" / RESULT_FILE).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        order = arg("--measurement-order") or "direct_first"
+        result = run(eid, rid, order); result_path = arg("--result-path")
+        (project_root() / "results").mkdir(exist_ok=True)
+        path = Path(result_path) if result_path else project_root() / "results" / RESULT_FILE
+        write_result(path, result, exclusive="--exclusive-result" in sys.argv[1:])
         print("status=success"); return 0
     except Exception as error:
         print("status=error", file=sys.stderr); print(f"message={error}", file=sys.stderr); return 1

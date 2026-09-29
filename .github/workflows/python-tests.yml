@@ -21,3 +21,17 @@ jobs:
         with:
           python-version: '3.14'
       - run: python -B -m unittest discover -s tests -q
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: node --test tests/test_javascript_optimization_analysis.js tests/test_javascript_exclusive_result.js
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc
+      - name: Run C/PowerShell measurement-order integration
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_run_all_measurement_order.ps1

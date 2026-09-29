@@ -62,8 +62,10 @@ def check_hash(raw: bytes, recorded: Any, path: Path) -> None:
 
 def check_definition(definition: Any, path: Path) -> None:
     keys = {"schema_version", "benchmark", "languages", "config", "expected_checksum"}
-    if not isinstance(definition, dict) or set(definition) != keys:
+    if not isinstance(definition, dict) or set(definition) not in (keys, keys | {"measurement_order"}):
         raise ArchiveError("INVALID_DEFINITION", f"invalid experiment definition: {path}")
+    if definition.get("measurement_order", ["direct", "function_call"]) not in (["direct", "function_call"], ["function_call", "direct"]):
+        raise ArchiveError("INVALID_DEFINITION", f"invalid measurement order: {path}")
     config = definition["config"]
     config_keys = {"item_count", "warmup_iterations", "measurement_iterations", "numeric_type", "value_field", "cases"}
     if (not isinstance(definition["schema_version"], str) or not definition["schema_version"].strip()
@@ -136,6 +138,12 @@ def load_archive(folder: Path) -> dict:
         for field, (actual, recorded) in expected.items():
             if actual != recorded:
                 raise ArchiveError("RESULT_DEFINITION_MISMATCH", f"{path}: {field} differs from archived experiment or index")
+        execution = document.get("execution")
+        order = execution.get("measurement_order") if isinstance(execution, dict) else None
+        if order is None:
+            order = ["direct", "function_call"]
+        if order != definition.get("measurement_order", ["direct", "function_call"]):
+            raise ArchiveError("RESULT_DEFINITION_MISMATCH", f"{path}: measurement_order differs from archived experiment")
         results[language] = document
     if set(results) != set(LANGUAGES):
         raise ArchiveError("MISSING_LANGUAGE", f"missing language result: {folder}")
@@ -168,6 +176,10 @@ def compare_archives(left: dict, right: dict) -> dict:
     for field in ("benchmark", "schema_version", "config", "expected_checksum"):
         if left["definition"][field] != right["definition"][field]:
             hard.append(reason("CONDITION_DIFFERENT", field, f"実験条件 {field} が異なります。"))
+    left_order = left["definition"].get("measurement_order", ["direct", "function_call"])
+    right_order = right["definition"].get("measurement_order", ["direct", "function_call"])
+    if left_order != right_order:
+        hard.append(reason("CONDITION_DIFFERENT", "measurement_order", "実際のcase測定順序が異なります。"))
     if hard:
         return {"verdict": "incomparable", "reasons": hard}
 
