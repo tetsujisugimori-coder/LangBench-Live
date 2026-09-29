@@ -24,7 +24,17 @@ resultごとにソースSHA-256、処理系、アーキテクチャ、コンパ�
 
 ## 再現性・データ境界
 
-`public-data.json` と `public-data.csv` は独立実験単位の集約値、実行条件、所見、元JSONのSHA-256を公開する。50個のsample値は公開ファイルに含めない。生JSON、計時sample、staging内の生成物はignored `results/diagnostics/issue61-direct-function-call-20260929/results/raw-matched/` に置き、commitしない。公開集計はraw JSONから `tools/analyze_direct_function_call_comparison.py` で再計算できる。
+`public-samples.csv` は採用済みraw JSONの `samples_ms` 値を再実行・補正せず、実験ID・run ID・言語・case・1始まりのsample順とともに公開する。全9 run、各2ケース×50 samples、合計900行。`public-data.json` と `public-data.csv` は独立run集計、実行条件、所見、元JSON全体のSHA-256を記録する。
+
+**公開sample値だけから第三者が再計算できる項目:** 各run/caseのsample数、平均、中央値、標本標準偏差、最小、最大、各実験の中央値差と比、3独立実験の中央値差・比の要約。`python -B -m unittest tests.test_direct_function_call_public_data -v` が公開sampleからJSON/CSV/summaryを再計算し、manifest/source/処理系条件、ID対応、checksumを照合する。sampleの順序は元配列順の1〜50。
+
+丸めは公開集計でhalf-up、msは小数3桁、標本標準偏差は小数6桁、比は小数6桁。丸め差の許容差は公開sampleから公開aggregateを作る比較では0（数値一致必須）。元JSON側に記録済みの平均・中央値との照合には、処理系の元丸め規則差を許容するため最大 `0.001001 ms` を使う。
+
+**元JSONが非公開のため第三者が独立検証できない項目:** 記録された元JSON全体のSHA-256がそのファイルのものか、公開sample値がraw JSONの配列から一字一句同じ値として抽出されたか、sample以外のraw metadata。元JSON全体のSHA-256は記録値として残すが、公開sampleだけからは再計算できない。生JSONはignored `results/diagnostics/issue61-direct-function-call-20260929/results/raw-matched/` に保持しcommitしない。
+
+採用raw JSON 9件は合計81,612 bytesで、sample配列以外に実行時の絶対cwd/argv/compile command、CPUモデル・論理CPU数・メモリ容量、build/setup/warmup等のtiming metadataを含む。統計検算のためにJSON全文を公開する必要はないため、今回はsample値CSVだけを公開し、実行環境やローカルパス等の付帯情報は非公開のままとする。元JSON hashとsamplesを対応させる公開証明にはならない点を上記の限界として明示した。
+
+公開検算コマンドは `python -B -m unittest tests.test_direct_function_call_public_data -v`。集計生成は採用済みraw JSONを持つ環境で `python -B tools/analyze_direct_function_call_comparison.py --raw-dir results/diagnostics/issue61-direct-function-call-20260929/results/raw-matched --manifest artifacts/function-call-analysis/manifest.json --output-dir artifacts/direct-function-call-comparison` を実行する。
 
 既存の未追跡結果は主分析に混ぜず保持した。旧C/Python結果はソースSHAが現manifestと不一致、既存JavaScript結果はベンチマーク起動条件に解析用trace flagを含み不一致のため除外した。
 

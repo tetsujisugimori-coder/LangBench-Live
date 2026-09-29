@@ -46,7 +46,7 @@ def load_manifest(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def analyze(raw_root: Path, manifest_path: Path) -> tuple[dict, list[dict]]:
+def analyze(raw_root: Path, manifest_path: Path) -> tuple[dict, list[dict], list[dict]]:
     manifest = load_manifest(manifest_path)
     repo_root = manifest_path.resolve().parents[2]
     for language, relative_source in SOURCES.items():
@@ -55,6 +55,7 @@ def analyze(raw_root: Path, manifest_path: Path) -> tuple[dict, list[dict]]:
         if actual_sha256 != manifest["languages"][language]["condition"]["source_sha256"]:
             raise ValueError(f"current source SHA-256 differs from PR #60 manifest: {relative_source}")
     rows: list[dict] = []
+    sample_rows: list[dict] = []
     trial_groups: dict[str, dict] = {}
     for trial_dir in sorted(path for path in raw_root.iterdir() if path.is_dir()):
         trial: dict = {"experiment_id": trial_dir.name, "languages": {}}
@@ -96,6 +97,17 @@ def analyze(raw_root: Path, manifest_path: Path) -> tuple[dict, list[dict]]:
                         or abs(calculated["median_ms"] - recorded["median_ms"]) > 0.001001):
                     raise ValueError(f"published mean/median mismatch: {source} {case}")
                 case_stats[case] = calculated
+                sample_rows.extend(
+                    {
+                        "experiment_id": trial_dir.name,
+                        "run_id": result["run_id"],
+                        "language": language,
+                        "case": case,
+                        "sample_order": sample_order,
+                        "elapsed_ms": sample,
+                    }
+                    for sample_order, sample in enumerate(samples, start=1)
+                )
             delta = math.floor((case_stats["function_call"]["median_ms"] - case_stats["direct"]["median_ms"]) * 1000 + 0.5) / 1000
             ratio = math.floor(case_stats["function_call"]["median_ms"] / case_stats["direct"]["median_ms"] * 1_000_000 + 0.5) / 1_000_000
             entry = {
@@ -144,11 +156,15 @@ def analyze(raw_root: Path, manifest_path: Path) -> tuple[dict, list[dict]]:
         "analysis_manifest": "artifacts/function-call-analysis/manifest.json",
         "plan": "artifacts/direct-function-call-comparison/plan.md",
         "data_boundary": {
-            "published_contains_raw_samples": False,
+            "published_contains_sample_values": True,
+            "published_contains_full_raw_json": False,
             "published_contains_per_experiment_aggregates": True,
             "raw_data_location": "results/diagnostics/issue61-direct-function-call-20260929/results/raw-matched/ (ignored; not committed)",
             "experiment_id_semantics": "IDs use a schema-required timestamp-shaped label chosen before the run; use run_id and created_at as the actual execution time because the ID prefix does not match the recorded clock time.",
-            "raw_sha256_published_for_audit": True,
+            "original_json_sha256_recorded": True,
+            "original_json_sha256_independently_recomputable_from_publication": False,
+            "independently_recomputable_from_publication": ["sample_count", "mean", "median", "sample_standard_deviation", "minimum", "maximum", "per_experiment_median_delta", "per_experiment_median_ratio", "cross_experiment_summaries"],
+            "not_independently_recomputable_from_publication": ["full_original_json_sha256", "non_sample_raw_json_metadata", "whether_public_samples_are_byte_for_byte_the_original_json_arrays"],
         },
         "statistical_unit": "independent process experiment; the 50 samples per case are within-run observations, not independent experiments",
         "interpretation_limit": "descriptive association only; runtime evidence does not establish optimization causation; no cross-language speed ranking",
@@ -163,7 +179,7 @@ def analyze(raw_root: Path, manifest_path: Path) -> tuple[dict, list[dict]]:
         "language_summaries": summaries,
         "experiments": list(trial_groups.values()),
     }
-    return payload, rows
+    return payload, rows, sample_rows
 
 
 def main() -> int:
@@ -172,7 +188,7 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-    payload, rows = analyze(args.raw_dir, args.manifest)
+    payload, rows, sample_rows = analyze(args.raw_dir, args.manifest)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "public-data.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -197,7 +213,14 @@ def main() -> int:
             flat["options"] = json.dumps(row["options"], ensure_ascii=False, separators=(",", ":"))
             flat["analysis_findings"] = json.dumps(row["analysis_findings"], ensure_ascii=False, separators=(",", ":"))
             writer.writerow(flat)
-    print(f"experiments={len(payload['experiments'])} language_rows={len(rows)}")
+    with (args.output_dir / "public-samples.csv").open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=["experiment_id", "run_id", "language", "case", "sample_order", "elapsed_ms"],
+        )
+        writer.writeheader()
+        writer.writerows(sample_rows)
+    print(f"experiments={len(payload['experiments'])} language_rows={len(rows)} sample_rows={len(sample_rows)}")
     return 0
 
 

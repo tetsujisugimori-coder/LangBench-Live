@@ -37,3 +37,5 @@ raw保管バッチのメタデータ確認で、stage内のmanifest配置階層�
 最終採用バッチのexperiment IDは、既存validatorのtimestamp形式要件を満たすため事前に与えた一意ラベルであり、その数字部分は実際の開始時刻と一致しない。実際の時刻は各resultの `created_at` と `run_id` に記録されているため、ID prefixを時刻証拠として解釈しない。公開集計はraw JSONに記録されたSHA-256で結び、IDは対応付けだけに使う。
 
 表示値再計算では元実装の丸め差（CPythonのties-to-even、JavaScriptのMath.round、Cのprintf）を考慮し、元JSONの平均・中央値と生sample再計算の差が0.001001 ms以内であることを照合する。公開集計は生sampleから一律half-upで再計算する。
+
+Issue #61の追加要件に従い、採用raw JSONの `samples_ms` を補正せず `public-samples.csv` へ公開する。行識別子はexperiment ID・run ID・language・case・sample_order (1–50)。公開ファイルから統計を独立再計算する検証器・回帰テストを追加する。測定条件・反復数・測定結果は変更しない。元JSON全体の公開は不要と判断した。全9 JSONは合計81,612 bytesで、sample以外にローカル絶対パス、argv/compile command、CPUモデル、CPU数、メモリ容量、その他timing metadataを含む。必要なのはsample値と集約再現であり、全JSONの公開は不要な環境情報を増やすため、samplesのみを公開する。元JSON SHA-256は出所の記録として残すが、第三者は原ファイル非公開のためそのhashを再計算できない。

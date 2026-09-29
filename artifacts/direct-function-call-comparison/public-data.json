@@ -5,11 +5,29 @@
   "analysis_manifest": "artifacts/function-call-analysis/manifest.json",
   "plan": "artifacts/direct-function-call-comparison/plan.md",
   "data_boundary": {
-    "published_contains_raw_samples": false,
+    "published_contains_sample_values": true,
+    "published_contains_full_raw_json": false,
     "published_contains_per_experiment_aggregates": true,
     "raw_data_location": "results/diagnostics/issue61-direct-function-call-20260929/results/raw-matched/ (ignored; not committed)",
     "experiment_id_semantics": "IDs use a schema-required timestamp-shaped label chosen before the run; use run_id and created_at as the actual execution time because the ID prefix does not match the recorded clock time.",
-    "raw_sha256_published_for_audit": true
+    "original_json_sha256_recorded": true,
+    "original_json_sha256_independently_recomputable_from_publication": false,
+    "independently_recomputable_from_publication": [
+      "sample_count",
+      "mean",
+      "median",
+      "sample_standard_deviation",
+      "minimum",
+      "maximum",
+      "per_experiment_median_delta",
+      "per_experiment_median_ratio",
+      "cross_experiment_summaries"
+    ],
+    "not_independently_recomputable_from_publication": [
+      "full_original_json_sha256",
+      "non_sample_raw_json_metadata",
+      "whether_public_samples_are_byte_for_byte_the_original_json_arrays"
+    ]
   },
   "statistical_unit": "independent process experiment; the 50 samples per case are within-run observations, not independent experiments",
   "interpretation_limit": "descriptive association only; runtime evidence does not establish optimization causation; no cross-language speed ranking",
