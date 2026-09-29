@@ -27,14 +27,14 @@ Elapsed r uses each run's start offset from its own experiment start. Early and 
 
 ## New run order, position, outlier and busy summaries
 
-Outlier sensitivity follows the prior artifact method: remove the highest single run median and separately remove the highest ceil(5%) run medians within each CPU/experiment. These are sensitivity values only; primary summaries keep all successful runs.
+Outlier sensitivity follows the prior artifact method: remove the highest single run median and separately remove exactly ceil(5%) run medians within each CPU/experiment, sorting by descending median then ascending run_id to resolve ties. These are sensitivity values only; primary summaries keep all successful runs.
 
 | Experiment | CPU | Order-specific elapsed r (A→B / B→A) | Position median (first / second, ms) | Elapsed r excluding max / top 5% | Busy–median r (n) | Busy median early → late (%) |
 |---|---|---|---|---|---:|---|
 | 20260929_092208_function_call_numeric_sum | A | -0.061 / -0.008 | 0.1110 / 0.1110 | -0.057 / -0.087 | -0.005 (n=119) | 17.46 → 16.20 |
 | 20260929_092208_function_call_numeric_sum | B | +0.054 / +0.073 | 0.1110 / 0.1100 | +0.034 / -0.073 | +0.066 (n=120) | 15.80 → 15.78 |
 | 20260929_092257_function_call_numeric_sum | A | +0.105 / -0.007 | 0.1110 / 0.1085 | -0.010 / -0.111 | +0.050 (n=118) | 12.22 → 15.70 |
-| 20260929_092257_function_call_numeric_sum | B | -0.036 / -0.158 | 0.1110 / 0.1052 | -0.064 / -0.107 | -0.246 (n=119) | 13.17 → 17.58 |
+| 20260929_092257_function_call_numeric_sum | B | -0.036 / -0.158 | 0.1110 / 0.1052 | -0.064 / -0.071 | -0.246 (n=119) | 13.17 → 17.58 |
 | 20260929_092344_function_call_numeric_sum | A | +0.089 / +0.259 | 0.1110 / 0.1050 | +0.148 / +0.126 | +0.121 (n=119) | 13.60 → 13.60 |
 | 20260929_092344_function_call_numeric_sum | B | +0.157 / -0.004 | 0.1110 / 0.1050 | +0.000 / -0.021 | +0.115 (n=120) | 14.01 → 15.53 |
 
@@ -46,4 +46,4 @@ Differences include cycle count (30 vs 120), independent start times, and separa
 
 ## Verification
 
-The existing comparison tool validated and analyzed 8 distinct experiment IDs separately. The published CSV contains 1560 successful run rows. CPU A/B elapsed Pearson r, early/late medians, order/position medians and correlations, max/top-five-percent exclusion sensitivities, and busy–median correlations were recalculated from the CSV and matched public JSON within 1e-12.
+The existing comparison tool validated and analyzed 8 distinct experiment IDs separately. The published CSV contains 1560 successful run rows. CPU A/B elapsed Pearson r, early/late medians, order/position medians and correlations, max/top-five-percent exclusion sensitivities, and busy–median correlations were recalculated from the CSV and matched public JSON within 1e-12. For top-five-percent sensitivity, ties use ascending run_id after descending median; exactly ceil(5%) rows are removed. For top-five-percent sensitivity, ties use ascending run_id after descending median; exactly ceil(5%) rows are removed.

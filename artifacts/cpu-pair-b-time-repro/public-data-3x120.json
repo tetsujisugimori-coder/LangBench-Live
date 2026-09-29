@@ -381,7 +381,9 @@
         "planned": 60,
         "successful": 60,
         "failed_or_missing": 0
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -814,7 +816,7 @@
             "maximum": 0.184
           },
           "elapsed_r_excluding_largest_run_median": -0.11196081566173098,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.05559169278471482,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.05559169278471483,
           "by_order": {
             "A_then_B": {
               "n": 60,
@@ -846,7 +848,9 @@
         "planned": 240,
         "successful": 240,
         "failed_or_missing": 0
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -1244,7 +1248,7 @@
             "maximum": 0.452
           },
           "elapsed_r_excluding_largest_run_median": -0.11904049293183526,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.05677134844814257,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.05677134844814258,
           "by_order": {
             "A_then_B": {
               "n": 60,
@@ -1311,7 +1315,9 @@
         "planned": 240,
         "successful": 240,
         "failed_or_missing": 0
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -1776,7 +1782,9 @@
         "planned": 240,
         "successful": 240,
         "failed_or_missing": 0
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -2093,7 +2101,7 @@
             "maximum": 0.152
           },
           "elapsed_r_excluding_largest_run_median": -0.1863598048871554,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.21696436378892267,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.15147202622801328,
           "largest_run_median_ms": 0.152,
           "largest_5_percent_excluded_run_count": 2,
           "by_order": {
@@ -2130,7 +2138,7 @@
             "maximum": 0.178
           },
           "elapsed_r_excluding_largest_run_median": 0.10722730220085219,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.004148948873017072,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.004148948873017088,
           "largest_run_median_ms": 0.178,
           "largest_5_percent_excluded_run_count": 2,
           "by_order": {
@@ -2159,7 +2167,9 @@
           }
         },
         "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only"
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -2566,7 +2576,7 @@
             "maximum": 0.1605
           },
           "elapsed_r_excluding_largest_run_median": -0.056863042035880024,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.08668160275385628,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.08668160275385625,
           "largest_run_median_ms": 0.1605,
           "largest_5_percent_excluded_run_count": 6,
           "by_order": {
@@ -2603,7 +2613,7 @@
             "maximum": 0.147
           },
           "elapsed_r_excluding_largest_run_median": 0.03443279104940527,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.07343545108035944,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.07343545108035945,
           "largest_run_median_ms": 0.147,
           "largest_5_percent_excluded_run_count": 6,
           "by_order": {
@@ -2632,7 +2642,9 @@
           }
         },
         "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only"
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -3076,7 +3088,7 @@
             "maximum": 0.171
           },
           "elapsed_r_excluding_largest_run_median": -0.06359587577368524,
-          "elapsed_r_excluding_largest_5_percent_run_medians": -0.10737491739522846,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.07066549544274744,
           "largest_run_median_ms": 0.171,
           "largest_5_percent_excluded_run_count": 6,
           "by_order": {
@@ -3105,7 +3117,9 @@
           }
         },
         "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only"
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     },
     {
       "summary": {
@@ -3512,7 +3526,7 @@
             "maximum": 0.167
           },
           "elapsed_r_excluding_largest_run_median": 0.14829721904268814,
-          "elapsed_r_excluding_largest_5_percent_run_medians": 0.1262149959847128,
+          "elapsed_r_excluding_largest_5_percent_run_medians": 0.12621499598471278,
           "largest_run_median_ms": 0.167,
           "largest_5_percent_excluded_run_count": 6,
           "by_order": {
@@ -3578,7 +3592,9 @@
           }
         },
         "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only"
-      }
+      },
+      "outlier_sensitivity_method": "exclude largest run median once and largest ceil(5%) run medians per CPU; sensitivity only",
+      "outlier_sensitivity_tie_break": "descending median_ms, then ascending run_id; exclude exactly ceil(5%) rows"
     }
   ],
   "public_scope": "Run medians, timestamps, CPU labels, elapsed offsets and monitor overlap medians; raw 50 samples, full monitor samples, local paths, binaries and logs remain local."
