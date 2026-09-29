@@ -208,6 +208,10 @@ class ResultSchemaTests(unittest.TestCase):
             PYTHON_BENCHMARK.current_analysis_condition()["source_sha256"],
             manifest["languages"]["python"]["condition"]["source_sha256"],
         )
+        self.assertEqual(
+            PYTHON_BENCHMARK.current_analysis_condition()["options"],
+            manifest["languages"]["python"]["condition"]["options"],
+        )
         artifacts = path.parent
         findings = {
             "c": analyze_c_artifacts(

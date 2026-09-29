@@ -79,13 +79,16 @@ $cOptions = @("-O2", "-std=c11", "-Wall", "-Wextra")
 Remove-Item -LiteralPath $gccReport, $assembly -Force -ErrorAction SilentlyContinue
 $gccArgs = @($cRelativeSource) + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=$gccReport", "-o", $assembly)
 Invoke-CapturedProcess "gcc" $gccArgs $projectRoot | Out-Null
+$gccReportContent = [System.IO.File]::ReadAllText($gccReport)
+$gccReportContent = [regex]::Replace($gccReportContent, '(?m)[\t ]+(?=\r?$)', '')
+Write-Utf8 $gccReport $gccReportContent
 
-$pythonInfo = (Invoke-CapturedProcess "python" @("-c", "import json,platform; print(json.dumps({'name': platform.python_implementation(), 'version': platform.python_version(), 'architecture': platform.machine().lower()}))") $projectRoot).stdout | ConvertFrom-Json
+$pythonInfo = (Invoke-CapturedProcess "python" @("-c", "import json,platform,sys; print(json.dumps({'name': platform.python_implementation(), 'version': platform.python_version(), 'architecture': platform.machine().lower(), 'optimize': sys.flags.optimize}))") $projectRoot).stdout | ConvertFrom-Json
 $pythonDis = Invoke-CapturedProcess "python" @("-m", "dis", $pythonRelativeSource) $projectRoot
 if (-not [string]::IsNullOrWhiteSpace($pythonDis.stderr)) { throw "Python disassembly wrote to stderr: $($pythonDis.stderr)" }
 Write-Utf8 $pythonBytecode $pythonDis.stdout
 
-$nodeInfo = (Invoke-CapturedProcess "node" @("-p", "JSON.stringify({node:process.version,v8:process.versions.v8,architecture:require('os').arch()})") $projectRoot).stdout | ConvertFrom-Json
+$nodeInfo = (Invoke-CapturedProcess "node" @("-p", "JSON.stringify({node:process.version,v8:process.versions.v8,architecture:require('os').arch(),options:(process.env.NODE_OPTIONS||'').trim().split(/\s+/).filter(Boolean)})") $projectRoot).stdout | ConvertFrom-Json
 $traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", $javascriptRelativeSource, "--experiment-id=20000101_000000_function_call_numeric_sum", "--run-id=20000101_000000_javascript_function_call_numeric_sum")
 $nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot
 $traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ -and $_ -notmatch '^status=' }) -join "`n"
@@ -137,7 +140,7 @@ $manifest = [ordered]@{
                 source_sha256 = $sourceHashes.python
                 implementation = [ordered]@{ name = $pythonInfo.name; version = $pythonInfo.version }
                 architecture = $pythonInfo.architecture
-                options = @("optimize=0")
+                options = @("optimize=$($pythonInfo.optimize)")
             }
             generation_commands = @(@("python", "-m", "dis", "benchmarks/function_call_numeric_sum/python/main.py"))
             findings = $pythonFindings
@@ -151,7 +154,7 @@ $manifest = [ordered]@{
                 source_sha256 = $sourceHashes.javascript
                 implementation = [ordered]@{ name = "V8"; version = $nodeInfo.v8 }
                 architecture = $nodeInfo.architecture
-                options = @()
+                options = @($nodeInfo.options)
             }
             generation_commands = @(@("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "benchmarks/function_call_numeric_sum/javascript/main.js"))
             findings = $javascriptFindings

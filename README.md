@@ -501,6 +501,8 @@ SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を
 
 `source_sha256` は、解析時と実行時それぞれの実ファイルのバイト列について、CRLFペアだけをLFへ変換した後のSHA-256です。単独のCRや改行以外のバイトは変更しません。`.gitattributes` は新規チェックアウトをLFにしますが、既存のWindows作業ツリーではmainから通常更新しても変更のないソースがCRLFのまま残るため、生成スクリプト、各ランナー、照合テストで同じ定義を使います。生成スクリプトは解析前後のソースハッシュが同じことを確認し、リポジトリを作業ディレクトリにして各処理系を実行します。再生成後はmanifestの構造に加え、3ソースの正規化SHA-256と、保存されたGCC・Python・V8資料から再抽出した `findings` を照合してください。ソース内容、処理系の版、アーキテクチャ、実行オプションが異なる環境の測定では、保存済みの解析結果を条件一致として扱いません。
 
+Pythonの解析条件は実行中の `sys.flags.optimize` を記録します。JavaScriptはベンチマーク実行時の `process.execArgv` と `NODE_OPTIONS` を記録します。解析生成コマンド自身のトレース用フラグ（`--trace-opt` 等）は、ベンチマーク起動オプションと区別します。固定資料の更新履歴と各判定の根拠・未確認範囲は `artifacts/function-call-analysis/review-2026-09-29.md` を参照してください。
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/generate_function_call_analysis.ps1
 python tools/validate_result_json.py --manifest artifacts/function-call-analysis/manifest.json
