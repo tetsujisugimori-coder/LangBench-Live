@@ -1,0 +1,1756 @@
+{
+  "schema_version": "1.0",
+  "method": "analyze each experiment separately; never concatenate elapsed observations",
+  "experiments": [
+    {
+      "summary": {
+        "experiment_id": "20260928_054539_function_call_numeric_sum",
+        "repeat_experiment_id": null,
+        "source_file": "results\\diagnostics\\cpu-pair-same-core-30-20260928-pr49-temp\\runs.json",
+        "started_at": "2026-09-28T05:45:39.554266+09:00",
+        "compiler": "gcc (Rev5, Built by MSYS2 project) 16.1.0",
+        "binary_sha256": "2a66c4e66fe148cf6269d9da2683332ccdddb03a0644946e4d374dfe5858523d",
+        "cycles": 30,
+        "elapsed_seconds": 13.455949,
+        "cpu_a": {
+          "group_id": 0,
+          "processor_number": 0,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "cpu_b": {
+          "group_id": 0,
+          "processor_number": 1,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "order_counts": {
+          "A_then_B": 15,
+          "B_then_A": 15
+        },
+        "cpu_a_median_ms": 0.105,
+        "cpu_b_median_ms": 0.111,
+        "elapsed_correlation": {
+          "A": {
+            "sample_count": 30,
+            "pearson_r": 0.007251170109845874
+          },
+          "B": {
+            "sample_count": 30,
+            "pearson_r": 0.4596791396493619
+          }
+        },
+        "early_late": {
+          "status": "available",
+          "reason": null,
+          "split_method": "first and last halves of complete cycles",
+          "early_cycles": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "late_cycles": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30
+          ],
+          "by_cpu": {
+            "A": {
+              "early_run_count": 15,
+              "late_run_count": 15,
+              "early_median_ms": 0.105,
+              "late_median_ms": 0.105,
+              "late_minus_early_ms": 0.0
+            },
+            "B": {
+              "early_run_count": 15,
+              "late_run_count": 15,
+              "early_median_ms": 0.105,
+              "late_median_ms": 0.1135,
+              "late_minus_early_ms": 0.008500000000000008
+            }
+          },
+          "order_counts": {
+            "early": {
+              "A_then_B": 7,
+              "B_then_A": 8
+            },
+            "late": {
+              "A_then_B": 8,
+              "B_then_A": 7
+            }
+          }
+        },
+        "order_effect": {
+          "status": "available",
+          "a_first_pair_count": 15,
+          "b_first_pair_count": 15,
+          "b_first_minus_a_first_b_minus_a_ms": 0.0005000000000000004,
+          "comparison_direction": "same_direction",
+          "comparison_reversal": false,
+          "magnitude_change": "expanded"
+        },
+        "position_effect": {
+          "status": "available",
+          "complete_pair_count": 30,
+          "a_first_pair_count": 15,
+          "b_first_pair_count": 15,
+          "a_first_median_second_minus_first_ms": 0.006000000000000005,
+          "b_first_median_second_minus_first_ms": -0.006500000000000006,
+          "median_second_minus_first_ms": -0.0002500000000000002,
+          "sign_convention": "positive means second is slower; negative means second is faster"
+        },
+        "cpu_position": {
+          "A": {
+            "1": {
+              "sample_count": 15,
+              "median_ms": 0.105,
+              "mean_ms": 0.10439999999999999,
+              "minimum_ms": 0.101,
+              "maximum_ms": 0.1055
+            },
+            "2": {
+              "sample_count": 15,
+              "median_ms": 0.103,
+              "mean_ms": 0.10423333333333333,
+              "minimum_ms": 0.101,
+              "maximum_ms": 0.11
+            }
+          },
+          "B": {
+            "1": {
+              "sample_count": 15,
+              "median_ms": 0.111,
+              "mean_ms": 0.11193333333333333,
+              "minimum_ms": 0.1015,
+              "maximum_ms": 0.147
+            },
+            "2": {
+              "sample_count": 15,
+              "median_ms": 0.111,
+              "mean_ms": 0.11006666666666667,
+              "minimum_ms": 0.101,
+              "maximum_ms": 0.1195
+            }
+          }
+        },
+        "busy_correlation": {
+          "A": {
+            "sample_count": 29,
+            "pearson_r": 0.1588084369511508
+          },
+          "B": {
+            "sample_count": 30,
+            "pearson_r": -0.234797323319976
+          }
+        },
+        "busy_coverage": {
+          "covered_runs": 59,
+          "successful_runs": 60,
+          "covered_cycles": 29
+        },
+        "busy_bands": {
+          "low": {
+            "status": "available",
+            "cycle_count": 9,
+            "cycle_mean_busy_percent_range": [
+              14.110017889087658,
+              22.6984126984127
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 9,
+                "median_ms": 0.103,
+                "mean_ms": 0.10394444444444444,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.1095
+              },
+              "B": {
+                "sample_count": 9,
+                "median_ms": 0.113,
+                "mean_ms": 0.11294444444444444,
+                "minimum_ms": 0.103,
+                "maximum_ms": 0.127
+              }
+            }
+          },
+          "middle": {
+            "status": "available",
+            "cycle_count": 10,
+            "cycle_mean_busy_percent_range": [
+              22.893772893772894,
+              27.646396396396398
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 10,
+                "median_ms": 0.104,
+                "mean_ms": 0.10335,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.105
+              },
+              "B": {
+                "sample_count": 10,
+                "median_ms": 0.105,
+                "mean_ms": 0.1087,
+                "minimum_ms": 0.1015,
+                "maximum_ms": 0.1195
+              }
+            }
+          },
+          "high": {
+            "status": "available",
+            "cycle_count": 10,
+            "cycle_mean_busy_percent_range": [
+              27.73402255639098,
+              48.53786416286417
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 10,
+                "median_ms": 0.105,
+                "mean_ms": 0.10555,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.11
+              },
+              "B": {
+                "sample_count": 10,
+                "median_ms": 0.105,
+                "mean_ms": 0.1111,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.147
+              }
+            }
+          }
+        },
+        "busy_by_elapsed_half": {
+          "early": {
+            "A": {
+              "sample_count": 15,
+              "median_percent": 21.026072329688816
+            },
+            "B": {
+              "sample_count": 15,
+              "median_percent": 27.67857142857143
+            }
+          },
+          "late": {
+            "A": {
+              "sample_count": 14,
+              "median_percent": 26.33897858897859
+            },
+            "B": {
+              "sample_count": 15,
+              "median_percent": 26.821983273596175
+            }
+          }
+        }
+      },
+      "runs_json_sha256": "bc27562ec8aeb5f4c6342c83640ab34cd618673bc73532aa0de06417d2eb6e16",
+      "c_source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+      "environment": {
+        "os": "Windows",
+        "os_version": "10.0.26200",
+        "logical_processors": 24,
+        "cpu_model": "Intel(R) Core(TM) i7-14650HX"
+      },
+      "measurement_settings": {
+        "benchmark_identifier": "function_call_numeric_sum",
+        "language": "C",
+        "case": "C/direct",
+        "item_count": 1000000,
+        "warmup_iterations": 5,
+        "measurement_iterations": 50,
+        "measurement_order": [
+          "direct",
+          "function_call"
+        ],
+        "runs_per_cpu": 30,
+        "pair_run_order": "balanced ABBA rounds",
+        "compiler_options": [
+          "-O2",
+          "-std=c11",
+          "-Wall",
+          "-Wextra"
+        ],
+        "affinity_is_the_only_configured_run_difference": true
+      },
+      "distribution_and_strata": {
+        "A": {
+          "run_median_distribution_ms": {
+            "minimum": 0.101,
+            "q1": 0.102875,
+            "median": 0.105,
+            "q3": 0.105,
+            "maximum": 0.11
+          },
+          "elapsed_r_excluding_largest_run_median": 0.06380185049402616,
+          "elapsed_r_excluding_largest_5_percent_run_medians": 0.22278003308479996,
+          "by_order": {
+            "A_then_B": {
+              "n": 15,
+              "elapsed_r": 0.13163028562329418,
+              "median_ms": 0.105
+            },
+            "B_then_A": {
+              "n": 15,
+              "elapsed_r": -0.05089435417419375,
+              "median_ms": 0.103
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 15,
+              "elapsed_r": 0.13163028562329418,
+              "median_ms": 0.105
+            },
+            "2": {
+              "n": 15,
+              "elapsed_r": -0.05089435417419375,
+              "median_ms": 0.103
+            }
+          }
+        },
+        "B": {
+          "run_median_distribution_ms": {
+            "minimum": 0.101,
+            "q1": 0.1045,
+            "median": 0.111,
+            "q3": 0.116,
+            "maximum": 0.147
+          },
+          "elapsed_r_excluding_largest_run_median": 0.36138113528931837,
+          "elapsed_r_excluding_largest_5_percent_run_medians": 0.3218558509659529,
+          "by_order": {
+            "A_then_B": {
+              "n": 15,
+              "elapsed_r": 0.39895881053072213,
+              "median_ms": 0.111
+            },
+            "B_then_A": {
+              "n": 15,
+              "elapsed_r": 0.5304696891849192,
+              "median_ms": 0.111
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 15,
+              "elapsed_r": 0.5304696891849192,
+              "median_ms": 0.111
+            },
+            "2": {
+              "n": 15,
+              "elapsed_r": 0.39895881053072213,
+              "median_ms": 0.111
+            }
+          }
+        }
+      }
+    },
+    {
+      "summary": {
+        "experiment_id": "20260928_063153_function_call_numeric_sum",
+        "repeat_experiment_id": null,
+        "source_file": "results\\diagnostics\\cpu-pair-independent-long-120-20260928\\runs.json",
+        "started_at": "2026-09-28T06:31:53.840104+09:00",
+        "compiler": "gcc (Rev5, Built by MSYS2 project) 16.1.0",
+        "binary_sha256": "053b8b13640ffa04bdda3a34f5aad56a929fa6b12f349cc99e2811cd26e979b0",
+        "cycles": 120,
+        "elapsed_seconds": 65.725738,
+        "cpu_a": {
+          "group_id": 0,
+          "processor_number": 0,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "cpu_b": {
+          "group_id": 0,
+          "processor_number": 1,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "order_counts": {
+          "A_then_B": 60,
+          "B_then_A": 60
+        },
+        "cpu_a_median_ms": 0.11025,
+        "cpu_b_median_ms": 0.111,
+        "elapsed_correlation": {
+          "A": {
+            "sample_count": 120,
+            "pearson_r": 0.09801185766863033
+          },
+          "B": {
+            "sample_count": 120,
+            "pearson_r": -0.12730012287726414
+          }
+        },
+        "early_late": {
+          "status": "available",
+          "reason": null,
+          "split_method": "first and last halves of complete cycles",
+          "early_cycles": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60
+          ],
+          "late_cycles": [
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120
+          ],
+          "by_cpu": {
+            "A": {
+              "early_run_count": 60,
+              "late_run_count": 60,
+              "early_median_ms": 0.107,
+              "late_median_ms": 0.111,
+              "late_minus_early_ms": 0.0040000000000000036
+            },
+            "B": {
+              "early_run_count": 60,
+              "late_run_count": 60,
+              "early_median_ms": 0.111,
+              "late_median_ms": 0.111,
+              "late_minus_early_ms": 0.0
+            }
+          },
+          "order_counts": {
+            "early": {
+              "A_then_B": 30,
+              "B_then_A": 30
+            },
+            "late": {
+              "A_then_B": 30,
+              "B_then_A": 30
+            }
+          }
+        },
+        "order_effect": {
+          "status": "available",
+          "a_first_pair_count": 60,
+          "b_first_pair_count": 60,
+          "b_first_minus_a_first_b_minus_a_ms": 0.0010000000000000009,
+          "comparison_direction": "tie_in_one_order",
+          "comparison_reversal": false,
+          "magnitude_change": "expanded"
+        },
+        "position_effect": {
+          "status": "available",
+          "complete_pair_count": 120,
+          "a_first_pair_count": 60,
+          "b_first_pair_count": 60,
+          "a_first_median_second_minus_first_ms": 0.0,
+          "b_first_median_second_minus_first_ms": -0.0010000000000000009,
+          "median_second_minus_first_ms": -0.0005000000000000004,
+          "sign_convention": "positive means second is slower; negative means second is faster"
+        },
+        "cpu_position": {
+          "A": {
+            "1": {
+              "sample_count": 60,
+              "median_ms": 0.111,
+              "mean_ms": 0.11404166666666667,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.154
+            },
+            "2": {
+              "sample_count": 60,
+              "median_ms": 0.10825,
+              "mean_ms": 0.11285,
+              "minimum_ms": 0.101,
+              "maximum_ms": 0.1605
+            }
+          },
+          "B": {
+            "1": {
+              "sample_count": 60,
+              "median_ms": 0.111,
+              "mean_ms": 0.11225833333333333,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.184
+            },
+            "2": {
+              "sample_count": 60,
+              "median_ms": 0.111,
+              "mean_ms": 0.11435000000000001,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.1655
+            }
+          }
+        },
+        "busy_correlation": {
+          "A": {
+            "sample_count": 120,
+            "pearson_r": 0.03717615978643922
+          },
+          "B": {
+            "sample_count": 119,
+            "pearson_r": -0.06365686457222439
+          }
+        },
+        "busy_coverage": {
+          "covered_runs": 239,
+          "successful_runs": 240,
+          "covered_cycles": 119
+        },
+        "busy_bands": {
+          "low": {
+            "status": "available",
+            "cycle_count": 39,
+            "cycle_mean_busy_percent_range": [
+              3.708483694199412,
+              10.692640692640692
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 39,
+                "median_ms": 0.1105,
+                "mean_ms": 0.11343589743589744,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.149
+              },
+              "B": {
+                "sample_count": 39,
+                "median_ms": 0.111,
+                "mean_ms": 0.11453846153846153,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.184
+              }
+            }
+          },
+          "middle": {
+            "status": "available",
+            "cycle_count": 40,
+            "cycle_mean_busy_percent_range": [
+              10.714285714285715,
+              14.16256157635468
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 40,
+                "median_ms": 0.11,
+                "mean_ms": 0.11305,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.1605
+              },
+              "B": {
+                "sample_count": 40,
+                "median_ms": 0.111,
+                "mean_ms": 0.1128625,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.1655
+              }
+            }
+          },
+          "high": {
+            "status": "available",
+            "cycle_count": 40,
+            "cycle_mean_busy_percent_range": [
+              14.916982603318008,
+              38.452088452088454
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 40,
+                "median_ms": 0.111,
+                "mean_ms": 0.1140625,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.156
+              },
+              "B": {
+                "sample_count": 40,
+                "median_ms": 0.111,
+                "mean_ms": 0.112525,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.161
+              }
+            }
+          }
+        },
+        "busy_by_elapsed_half": {
+          "early": {
+            "A": {
+              "sample_count": 60,
+              "median_percent": 10.272727272727273
+            },
+            "B": {
+              "sample_count": 59,
+              "median_percent": 13.333333333333334
+            }
+          },
+          "late": {
+            "A": {
+              "sample_count": 60,
+              "median_percent": 11.651583710407241
+            },
+            "B": {
+              "sample_count": 60,
+              "median_percent": 12.25
+            }
+          }
+        }
+      },
+      "runs_json_sha256": "e807aeb65d48796bd3c2e51c9375318f9096aef66282b4a87ca6ed6cb52ea20f",
+      "c_source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+      "environment": {
+        "os": "Windows",
+        "os_version": "10.0.26200",
+        "logical_processors": 24,
+        "cpu_model": "Intel(R) Core(TM) i7-14650HX"
+      },
+      "measurement_settings": {
+        "benchmark_identifier": "function_call_numeric_sum",
+        "language": "C",
+        "case": "C/direct",
+        "item_count": 1000000,
+        "warmup_iterations": 5,
+        "measurement_iterations": 50,
+        "measurement_order": [
+          "direct",
+          "function_call"
+        ],
+        "runs_per_cpu": 120,
+        "pair_run_order": "balanced ABBA rounds",
+        "compiler_options": [
+          "-O2",
+          "-std=c11",
+          "-Wall",
+          "-Wextra"
+        ],
+        "affinity_is_the_only_configured_run_difference": true
+      },
+      "distribution_and_strata": {
+        "A": {
+          "run_median_distribution_ms": {
+            "minimum": 0.1,
+            "q1": 0.103,
+            "median": 0.11025,
+            "q3": 0.113375,
+            "maximum": 0.1605
+          },
+          "elapsed_r_excluding_largest_run_median": 0.0688649429700753,
+          "elapsed_r_excluding_largest_5_percent_run_medians": 0.03251929377581131,
+          "by_order": {
+            "A_then_B": {
+              "n": 60,
+              "elapsed_r": 0.00807273629640503,
+              "median_ms": 0.111
+            },
+            "B_then_A": {
+              "n": 60,
+              "elapsed_r": 0.1847004355465182,
+              "median_ms": 0.10825
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 60,
+              "elapsed_r": 0.00807273629640503,
+              "median_ms": 0.111
+            },
+            "2": {
+              "n": 60,
+              "elapsed_r": 0.1847004355465182,
+              "median_ms": 0.10825
+            }
+          }
+        },
+        "B": {
+          "run_median_distribution_ms": {
+            "minimum": 0.1,
+            "q1": 0.105,
+            "median": 0.111,
+            "q3": 0.114875,
+            "maximum": 0.184
+          },
+          "elapsed_r_excluding_largest_run_median": -0.11196081566173098,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.05559169278471482,
+          "by_order": {
+            "A_then_B": {
+              "n": 60,
+              "elapsed_r": -0.16075000388905877,
+              "median_ms": 0.111
+            },
+            "B_then_A": {
+              "n": 60,
+              "elapsed_r": -0.09396432903790672,
+              "median_ms": 0.111
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 60,
+              "elapsed_r": -0.09396432903790672,
+              "median_ms": 0.111
+            },
+            "2": {
+              "n": 60,
+              "elapsed_r": -0.16075000388905877,
+              "median_ms": 0.111
+            }
+          }
+        }
+      }
+    },
+    {
+      "summary": {
+        "experiment_id": "20260929_033048_function_call_numeric_sum",
+        "repeat_experiment_id": "repeat-20260929_033047-7549188e",
+        "source_file": "results\\diagnostics\\cpu-pair-b-time-repro-120x2-20260929-escalated\\run-001\\runs.json",
+        "started_at": "2026-09-29T03:30:48.236148+09:00",
+        "compiler": "gcc (Rev5, Built by MSYS2 project) 16.1.0",
+        "binary_sha256": "abf446d14fcd874e86b2c85ddf72306c017817a5379bb70f09f344f858838c65",
+        "cycles": 120,
+        "elapsed_seconds": 76.709061,
+        "cpu_a": {
+          "group_id": 0,
+          "processor_number": 0,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "cpu_b": {
+          "group_id": 0,
+          "processor_number": 1,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "order_counts": {
+          "A_then_B": 60,
+          "B_then_A": 60
+        },
+        "cpu_a_median_ms": 0.105,
+        "cpu_b_median_ms": 0.105,
+        "elapsed_correlation": {
+          "A": {
+            "sample_count": 120,
+            "pearson_r": 0.017816315798444886
+          },
+          "B": {
+            "sample_count": 120,
+            "pearson_r": 0.09953663218528315
+          }
+        },
+        "early_late": {
+          "status": "available",
+          "reason": null,
+          "split_method": "first and last halves of complete cycles",
+          "early_cycles": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60
+          ],
+          "late_cycles": [
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120
+          ],
+          "by_cpu": {
+            "A": {
+              "early_run_count": 60,
+              "late_run_count": 60,
+              "early_median_ms": 0.105,
+              "late_median_ms": 0.1055,
+              "late_minus_early_ms": 0.0005000000000000004
+            },
+            "B": {
+              "early_run_count": 60,
+              "late_run_count": 60,
+              "early_median_ms": 0.105,
+              "late_median_ms": 0.105,
+              "late_minus_early_ms": 0.0
+            }
+          },
+          "order_counts": {
+            "early": {
+              "A_then_B": 30,
+              "B_then_A": 30
+            },
+            "late": {
+              "A_then_B": 30,
+              "B_then_A": 30
+            }
+          }
+        },
+        "order_effect": {
+          "status": "available",
+          "a_first_pair_count": 60,
+          "b_first_pair_count": 60,
+          "b_first_minus_a_first_b_minus_a_ms": -0.0002500000000000002,
+          "comparison_direction": "same_direction",
+          "comparison_reversal": false,
+          "magnitude_change": "contracted"
+        },
+        "position_effect": {
+          "status": "available",
+          "complete_pair_count": 120,
+          "a_first_pair_count": 60,
+          "b_first_pair_count": 60,
+          "a_first_median_second_minus_first_ms": 0.0005000000000000004,
+          "b_first_median_second_minus_first_ms": -0.0002500000000000002,
+          "median_second_minus_first_ms": 0.0001250000000000001,
+          "sign_convention": "positive means second is slower; negative means second is faster"
+        },
+        "cpu_position": {
+          "A": {
+            "1": {
+              "sample_count": 60,
+              "median_ms": 0.10875,
+              "mean_ms": 0.10921666666666667,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.189
+            },
+            "2": {
+              "sample_count": 60,
+              "median_ms": 0.105,
+              "mean_ms": 0.11219166666666666,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.452
+            }
+          },
+          "B": {
+            "1": {
+              "sample_count": 60,
+              "median_ms": 0.1055,
+              "mean_ms": 0.10661666666666667,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.116
+            },
+            "2": {
+              "sample_count": 60,
+              "median_ms": 0.105,
+              "mean_ms": 0.116675,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.3875
+            }
+          }
+        },
+        "busy_correlation": {
+          "A": {
+            "sample_count": 120,
+            "pearson_r": 0.2285638935673048
+          },
+          "B": {
+            "sample_count": 118,
+            "pearson_r": 0.27071422068413736
+          }
+        },
+        "busy_coverage": {
+          "covered_runs": 238,
+          "successful_runs": 240,
+          "covered_cycles": 118
+        },
+        "busy_bands": {
+          "low": {
+            "status": "available",
+            "cycle_count": 39,
+            "cycle_mean_busy_percent_range": [
+              4.701702386380909,
+              11.805555555555555
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 39,
+                "median_ms": 0.1055,
+                "mean_ms": 0.10765384615384616,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.136
+              },
+              "B": {
+                "sample_count": 39,
+                "median_ms": 0.1035,
+                "mean_ms": 0.10597435897435897,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.139
+              }
+            }
+          },
+          "middle": {
+            "status": "available",
+            "cycle_count": 39,
+            "cycle_mean_busy_percent_range": [
+              11.979166666666668,
+              16.93452380952381
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 39,
+                "median_ms": 0.105,
+                "mean_ms": 0.10732051282051282,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.14
+              },
+              "B": {
+                "sample_count": 39,
+                "median_ms": 0.1035,
+                "mean_ms": 0.1066923076923077,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.16649999999999998
+              }
+            }
+          },
+          "high": {
+            "status": "available",
+            "cycle_count": 40,
+            "cycle_mean_busy_percent_range": [
+              17.07498383968972,
+              39.79061479061479
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 40,
+                "median_ms": 0.10525,
+                "mean_ms": 0.1172,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.452
+              },
+              "B": {
+                "sample_count": 40,
+                "median_ms": 0.111,
+                "mean_ms": 0.12228750000000001,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.3875
+              }
+            }
+          }
+        },
+        "busy_by_elapsed_half": {
+          "early": {
+            "A": {
+              "sample_count": 60,
+              "median_percent": 12.81413814369411
+            },
+            "B": {
+              "sample_count": 59,
+              "median_percent": 14.285714285714286
+            }
+          },
+          "late": {
+            "A": {
+              "sample_count": 60,
+              "median_percent": 14.983164983164983
+            },
+            "B": {
+              "sample_count": 59,
+              "median_percent": 13.72549019607843
+            }
+          }
+        }
+      },
+      "runs_json_sha256": "7c3eb837926c85b25f0fb9850b98ae8c74f494920300e8daba7af6e55cbffbaa",
+      "c_source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+      "environment": {
+        "os": "Windows",
+        "os_version": "10.0.26200",
+        "logical_processors": 24,
+        "cpu_model": "Intel(R) Core(TM) i7-14650HX"
+      },
+      "measurement_settings": {
+        "benchmark_identifier": "function_call_numeric_sum",
+        "language": "C",
+        "case": "C/direct",
+        "item_count": 1000000,
+        "warmup_iterations": 5,
+        "measurement_iterations": 50,
+        "measurement_order": [
+          "direct",
+          "function_call"
+        ],
+        "runs_per_cpu": 120,
+        "pair_run_order": "balanced ABBA rounds",
+        "compiler_options": [
+          "-O2",
+          "-std=c11",
+          "-Wall",
+          "-Wextra"
+        ],
+        "affinity_is_the_only_configured_run_difference": true
+      },
+      "distribution_and_strata": {
+        "A": {
+          "run_median_distribution_ms": {
+            "minimum": 0.1,
+            "q1": 0.101,
+            "median": 0.105,
+            "q3": 0.111,
+            "maximum": 0.452
+          },
+          "elapsed_r_excluding_largest_run_median": -0.11904049293183526,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.05677134844814257,
+          "by_order": {
+            "A_then_B": {
+              "n": 60,
+              "elapsed_r": -0.15885699316363094,
+              "median_ms": 0.10875
+            },
+            "B_then_A": {
+              "n": 60,
+              "elapsed_r": 0.07085240834435191,
+              "median_ms": 0.105
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 60,
+              "elapsed_r": -0.15885699316363094,
+              "median_ms": 0.10875
+            },
+            "2": {
+              "n": 60,
+              "elapsed_r": 0.07085240834435191,
+              "median_ms": 0.105
+            }
+          }
+        },
+        "B": {
+          "run_median_distribution_ms": {
+            "minimum": 0.1,
+            "q1": 0.101,
+            "median": 0.105,
+            "q3": 0.111,
+            "maximum": 0.3875
+          },
+          "elapsed_r_excluding_largest_run_median": 0.054542800086567055,
+          "elapsed_r_excluding_largest_5_percent_run_medians": -0.03674476387312149,
+          "by_order": {
+            "A_then_B": {
+              "n": 60,
+              "elapsed_r": 0.1303886196787918,
+              "median_ms": 0.105
+            },
+            "B_then_A": {
+              "n": 60,
+              "elapsed_r": 0.11421878166228225,
+              "median_ms": 0.1055
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 60,
+              "elapsed_r": 0.11421878166228225,
+              "median_ms": 0.1055
+            },
+            "2": {
+              "n": 60,
+              "elapsed_r": 0.1303886196787918,
+              "median_ms": 0.105
+            }
+          }
+        }
+      }
+    },
+    {
+      "summary": {
+        "experiment_id": "20260929_033205_function_call_numeric_sum",
+        "repeat_experiment_id": "repeat-20260929_033047-7549188e",
+        "source_file": "results\\diagnostics\\cpu-pair-b-time-repro-120x2-20260929-escalated\\run-002\\runs.json",
+        "started_at": "2026-09-29T03:32:05.400878+09:00",
+        "compiler": "gcc (Rev5, Built by MSYS2 project) 16.1.0",
+        "binary_sha256": "4b7ed387df3dda5840c7ae820f9176b42b5d8f4560541825cb950559ea1322fc",
+        "cycles": 120,
+        "elapsed_seconds": 66.424107,
+        "cpu_a": {
+          "group_id": 0,
+          "processor_number": 0,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "cpu_b": {
+          "group_id": 0,
+          "processor_number": 1,
+          "physical_core_id": 0,
+          "efficiency_class": 1
+        },
+        "order_counts": {
+          "A_then_B": 60,
+          "B_then_A": 60
+        },
+        "cpu_a_median_ms": 0.11,
+        "cpu_b_median_ms": 0.111,
+        "elapsed_correlation": {
+          "A": {
+            "sample_count": 120,
+            "pearson_r": 0.05286968136419006
+          },
+          "B": {
+            "sample_count": 120,
+            "pearson_r": -0.061497358145192124
+          }
+        },
+        "early_late": {
+          "status": "available",
+          "reason": null,
+          "split_method": "first and last halves of complete cycles",
+          "early_cycles": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60
+          ],
+          "late_cycles": [
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            81,
+            82,
+            83,
+            84,
+            85,
+            86,
+            87,
+            88,
+            89,
+            90,
+            91,
+            92,
+            93,
+            94,
+            95,
+            96,
+            97,
+            98,
+            99,
+            100,
+            101,
+            102,
+            103,
+            104,
+            105,
+            106,
+            107,
+            108,
+            109,
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117,
+            118,
+            119,
+            120
+          ],
+          "by_cpu": {
+            "A": {
+              "early_run_count": 60,
+              "late_run_count": 60,
+              "early_median_ms": 0.105,
+              "late_median_ms": 0.111,
+              "late_minus_early_ms": 0.006000000000000005
+            },
+            "B": {
+              "early_run_count": 60,
+              "late_run_count": 60,
+              "early_median_ms": 0.108,
+              "late_median_ms": 0.111,
+              "late_minus_early_ms": 0.0030000000000000027
+            }
+          },
+          "order_counts": {
+            "early": {
+              "A_then_B": 30,
+              "B_then_A": 30
+            },
+            "late": {
+              "A_then_B": 30,
+              "B_then_A": 30
+            }
+          }
+        },
+        "order_effect": {
+          "status": "available",
+          "a_first_pair_count": 60,
+          "b_first_pair_count": 60,
+          "b_first_minus_a_first_b_minus_a_ms": 0.0,
+          "comparison_direction": "both_tied",
+          "comparison_reversal": false,
+          "magnitude_change": "unchanged"
+        },
+        "position_effect": {
+          "status": "available",
+          "complete_pair_count": 120,
+          "a_first_pair_count": 60,
+          "b_first_pair_count": 60,
+          "a_first_median_second_minus_first_ms": 0.0,
+          "b_first_median_second_minus_first_ms": 0.0,
+          "median_second_minus_first_ms": 0.0,
+          "sign_convention": "positive means second is slower; negative means second is faster"
+        },
+        "cpu_position": {
+          "A": {
+            "1": {
+              "sample_count": 60,
+              "median_ms": 0.11025,
+              "mean_ms": 0.10878333333333333,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.13
+            },
+            "2": {
+              "sample_count": 60,
+              "median_ms": 0.109,
+              "mean_ms": 0.11055833333333334,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.216
+            }
+          },
+          "B": {
+            "1": {
+              "sample_count": 60,
+              "median_ms": 0.111,
+              "mean_ms": 0.121425,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.4965
+            },
+            "2": {
+              "sample_count": 60,
+              "median_ms": 0.108,
+              "mean_ms": 0.107175,
+              "minimum_ms": 0.1,
+              "maximum_ms": 0.126
+            }
+          }
+        },
+        "busy_correlation": {
+          "A": {
+            "sample_count": 120,
+            "pearson_r": 0.03497307497549657
+          },
+          "B": {
+            "sample_count": 119,
+            "pearson_r": 0.2859475064597447
+          }
+        },
+        "busy_coverage": {
+          "covered_runs": 239,
+          "successful_runs": 240,
+          "covered_cycles": 119
+        },
+        "busy_bands": {
+          "low": {
+            "status": "available",
+            "cycle_count": 39,
+            "cycle_mean_busy_percent_range": [
+              6.189903846153847,
+              11.49891774891775
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 39,
+                "median_ms": 0.111,
+                "mean_ms": 0.11047435897435898,
+                "minimum_ms": 0.101,
+                "maximum_ms": 0.131
+              },
+              "B": {
+                "sample_count": 39,
+                "median_ms": 0.111,
+                "mean_ms": 0.10894871794871795,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.1465
+              }
+            }
+          },
+          "middle": {
+            "status": "available",
+            "cycle_count": 40,
+            "cycle_mean_busy_percent_range": [
+              11.500582750582751,
+              15.290803645401823
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 40,
+                "median_ms": 0.1075,
+                "mean_ms": 0.108025,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.13
+              },
+              "B": {
+                "sample_count": 40,
+                "median_ms": 0.109,
+                "mean_ms": 0.10715,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.1235
+              }
+            }
+          },
+          "high": {
+            "status": "available",
+            "cycle_count": 40,
+            "cycle_mean_busy_percent_range": [
+              15.522875816993464,
+              39.0625
+            ],
+            "by_cpu": {
+              "A": {
+                "sample_count": 40,
+                "median_ms": 0.10575,
+                "mean_ms": 0.1105125,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.216
+              },
+              "B": {
+                "sample_count": 40,
+                "median_ms": 0.111,
+                "mean_ms": 0.127,
+                "minimum_ms": 0.1,
+                "maximum_ms": 0.4965
+              }
+            }
+          }
+        },
+        "busy_by_elapsed_half": {
+          "early": {
+            "A": {
+              "sample_count": 60,
+              "median_percent": 10.6203007518797
+            },
+            "B": {
+              "sample_count": 60,
+              "median_percent": 13.851679929266137
+            }
+          },
+          "late": {
+            "A": {
+              "sample_count": 60,
+              "median_percent": 11.76923076923077
+            },
+            "B": {
+              "sample_count": 59,
+              "median_percent": 14.285714285714286
+            }
+          }
+        }
+      },
+      "runs_json_sha256": "dee295dd30d5be943a8a42106477cd184b28e8c1bb476f96eba051c9ade0b1e9",
+      "c_source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+      "environment": {
+        "os": "Windows",
+        "os_version": "10.0.26200",
+        "logical_processors": 24,
+        "cpu_model": "Intel(R) Core(TM) i7-14650HX"
+      },
+      "measurement_settings": {
+        "benchmark_identifier": "function_call_numeric_sum",
+        "language": "C",
+        "case": "C/direct",
+        "item_count": 1000000,
+        "warmup_iterations": 5,
+        "measurement_iterations": 50,
+        "measurement_order": [
+          "direct",
+          "function_call"
+        ],
+        "runs_per_cpu": 120,
+        "pair_run_order": "balanced ABBA rounds",
+        "compiler_options": [
+          "-O2",
+          "-std=c11",
+          "-Wall",
+          "-Wextra"
+        ],
+        "affinity_is_the_only_configured_run_difference": true
+      },
+      "distribution_and_strata": {
+        "A": {
+          "run_median_distribution_ms": {
+            "minimum": 0.1,
+            "q1": 0.102,
+            "median": 0.11,
+            "q3": 0.111,
+            "maximum": 0.216
+          },
+          "elapsed_r_excluding_largest_run_median": 0.261588547291889,
+          "elapsed_r_excluding_largest_5_percent_run_medians": 0.3745950631515368,
+          "by_order": {
+            "A_then_B": {
+              "n": 60,
+              "elapsed_r": 0.2521490161395924,
+              "median_ms": 0.11025
+            },
+            "B_then_A": {
+              "n": 60,
+              "elapsed_r": -0.009227860257775533,
+              "median_ms": 0.109
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 60,
+              "elapsed_r": 0.2521490161395924,
+              "median_ms": 0.11025
+            },
+            "2": {
+              "n": 60,
+              "elapsed_r": -0.009227860257775533,
+              "median_ms": 0.109
+            }
+          }
+        },
+        "B": {
+          "run_median_distribution_ms": {
+            "minimum": 0.1,
+            "q1": 0.101,
+            "median": 0.111,
+            "q3": 0.111,
+            "maximum": 0.4965
+          },
+          "elapsed_r_excluding_largest_run_median": -0.05816920390725814,
+          "elapsed_r_excluding_largest_5_percent_run_medians": 0.24061968193209202,
+          "by_order": {
+            "A_then_B": {
+              "n": 60,
+              "elapsed_r": 0.32146429700498547,
+              "median_ms": 0.108
+            },
+            "B_then_A": {
+              "n": 60,
+              "elapsed_r": -0.1150609508009052,
+              "median_ms": 0.111
+            }
+          },
+          "by_position": {
+            "1": {
+              "n": 60,
+              "elapsed_r": -0.1150609508009052,
+              "median_ms": 0.111
+            },
+            "2": {
+              "n": 60,
+              "elapsed_r": 0.32146429700498547,
+              "median_ms": 0.108
+            }
+          }
+        }
+      }
+    }
+  ]
+}
