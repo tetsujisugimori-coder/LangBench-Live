@@ -22,12 +22,16 @@ def save_new(path, document):
                     encoding="utf-8")
 
 
-def repeat(output, repetitions, cycles, candidate_type):
+def repeat(output, repetitions, cycles, candidate_type, repeat_experiment_id=None):
     if repetitions < 2 or cycles < 1:
         raise ValueError("--repetitions must be at least 2 and --cycles at least 1")
+    if repeat_experiment_id is not None and (
+            not isinstance(repeat_experiment_id, str) or not repeat_experiment_id.strip()):
+        raise ValueError("repeat experiment ID must be a non-empty string")
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    repeat_id = f"repeat-{datetime.now():%Y%m%d_%H%M%S}-{uuid.uuid4().hex[:8]}"
+    repeat_id = (repeat_experiment_id if repeat_experiment_id is not None else
+                 f"repeat-{datetime.now():%Y%m%d_%H%M%S}-{uuid.uuid4().hex[:8]}")
     manifest = {"schema_version": "1.0", "repeat_experiment_id": repeat_id,
                 "started_at": datetime.now().astimezone().isoformat(),
                 "candidate_type": candidate_type, "cycles_per_run": cycles,
@@ -84,11 +88,13 @@ def main(argv=None):
                                                      "different_efficiency_class"), required=True)
     parser.add_argument("--cycles", type=int, required=True)
     parser.add_argument("--repetitions", type=int, required=True)
+    parser.add_argument("--repeat-experiment-id", help="use a precommitted ID for this independent repeat group")
     parser.add_argument("--output", type=Path, required=True,
                         help="new directory for the manifest and separate run directories")
     args = parser.parse_args(argv)
     try:
-        return repeat(args.output, args.repetitions, args.cycles, args.candidate_type)
+        return repeat(args.output, args.repetitions, args.cycles, args.candidate_type,
+                      args.repeat_experiment_id)
     except Exception as error:
         parser.exit(2, f"Repeat error: {error}\n")
 

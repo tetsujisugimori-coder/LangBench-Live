@@ -32,7 +32,7 @@ class RepeatCpuPairTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, "ok", "")
 
             with patch("tools.repeat_cpu_pair.subprocess.run", side_effect=fake_run):
-                self.assertEqual(0, repeat(output, 2, 2, "same_core_siblings"))
+                self.assertEqual(0, repeat(output, 2, 2, "same_core_siblings", "fixed-repeat-id"))
             first = (output / "run-001" / "runs.json").read_bytes()
             second = (output / "run-002" / "runs.json").read_bytes()
             manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
@@ -40,6 +40,7 @@ class RepeatCpuPairTests(unittest.TestCase):
             self.assertEqual(["independent-1", "independent-2"],
                              [row["experiment_id"] for row in manifest["runs"]])
             self.assertEqual(manifest["repeat_experiment_id"], comparison["repeat_experiment_id"])
+            self.assertEqual("fixed-repeat-id", manifest["repeat_experiment_id"])
             self.assertNotEqual(first, second)
             self.assertEqual(first, (output / "run-001" / "runs.json").read_bytes())
             with self.assertRaises(FileExistsError):
