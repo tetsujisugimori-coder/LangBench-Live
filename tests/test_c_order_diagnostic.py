@@ -68,11 +68,16 @@ class COrderDiagnosticTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot be compared"):
             monitor_summary(trace, bad_monitor)
 
-    def test_reverse_result_is_excluded_from_normal_validation(self):
+    def test_case_order_metadata_is_valid_for_all_languages_and_rejects_invalid_order(self):
         document = function_call_document("c")
         document["execution"]["measurement_order"] = ["function_call", "direct"]
-        self.assertTrue(validate(document, Path("reverse.json")))
-        self.assertFalse(validate(document, Path("reverse.json"), allow_diagnostic_order=True))
+        self.assertFalse(validate(document, Path("reverse.json")))
+        python_document = function_call_document("python")
+        python_document["execution"]["measurement_order"] = ["function_call", "direct"]
+        self.assertFalse(validate(python_document, Path("reverse-python.json")))
+        document["execution"]["measurement_order"] = ["function_call", "direct", "direct"]
+        self.assertTrue(any("measurement order is invalid" in error for error in validate(document, Path("invalid.json"))))
+        document["language"] = "c"
         document["execution"]["measurement_order"] = ["direct", "function_call"]
         self.assertFalse(validate(document, Path("direct.json")))
 

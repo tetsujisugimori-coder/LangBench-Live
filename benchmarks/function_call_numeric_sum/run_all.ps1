@@ -1,5 +1,6 @@
 param(
-    [string]$ExperimentId
+    [string]$ExperimentId,
+    [ValidateSet('direct_first', 'function_call_first')][string]$MeasurementOrder = 'direct_first'
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,27 +29,35 @@ try {
         [System.IO.FileShare]::None
     )
     $pythonRunId = "$(New-TimestampId)_python_$benchmark"
-    & python "benchmarks/function_call_numeric_sum/python/main.py" "--experiment-id=$ExperimentId" "--run-id=$pythonRunId"
+    $resultPaths = @(
+        'results/function_call_numeric_sum_python_result.json',
+        'results/function_call_numeric_sum_javascript_result.json',
+        'results/function_call_numeric_sum_c_result.json'
+    )
+    if ($MeasurementOrder -eq 'function_call_first') {
+        $diagnosticDirectory = Join-Path $projectRoot "results/diagnostics/$ExperimentId"
+        [System.IO.Directory]::CreateDirectory($diagnosticDirectory) | Out-Null
+        $resultPaths = @('python', 'javascript', 'c') | ForEach-Object { Join-Path $diagnosticDirectory "$_.json" }
+    }
+    & python "benchmarks/function_call_numeric_sum/python/main.py" "--experiment-id=$ExperimentId" "--run-id=$pythonRunId" "--measurement-order=$MeasurementOrder" "--result-path=$($resultPaths[0])"
     if ($LASTEXITCODE -ne 0) { throw "Python benchmark failed with exit code $LASTEXITCODE" }
 
     $javascriptRunId = "$(New-TimestampId)_javascript_$benchmark"
-    & node "benchmarks/function_call_numeric_sum/javascript/main.js" "--experiment-id=$ExperimentId" "--run-id=$javascriptRunId"
+    & node "benchmarks/function_call_numeric_sum/javascript/main.js" "--experiment-id=$ExperimentId" "--run-id=$javascriptRunId" "--measurement-order=$MeasurementOrder" "--result-path=$($resultPaths[1])"
     if ($LASTEXITCODE -ne 0) { throw "JavaScript benchmark failed with exit code $LASTEXITCODE" }
 
     $cRunId = "$(New-TimestampId)_c_$benchmark"
-    & "benchmarks/function_call_numeric_sum/c/run_c.ps1" -ExperimentId $ExperimentId -RunId $cRunId
+    $cArguments = @{ ExperimentId = $ExperimentId; RunId = $cRunId; MeasurementOrder = $MeasurementOrder }
+    if ($MeasurementOrder -eq 'function_call_first') { $cArguments.DiagnosticResultPath = $resultPaths[2] }
+    & "benchmarks/function_call_numeric_sum/c/run_c.ps1" @cArguments
     if ($LASTEXITCODE -ne 0) { throw "C benchmark failed with exit code $LASTEXITCODE" }
 
     & python tools/validate_result_json.py `
-        results/function_call_numeric_sum_python_result.json `
-        results/function_call_numeric_sum_javascript_result.json `
-        results/function_call_numeric_sum_c_result.json
+        $resultPaths[0] $resultPaths[1] $resultPaths[2]
     if ($LASTEXITCODE -ne 0) { throw "Result validation failed with exit code $LASTEXITCODE" }
 
     & python tools/archive_results.py --experiment-id $ExperimentId `
-        results/function_call_numeric_sum_python_result.json `
-        results/function_call_numeric_sum_javascript_result.json `
-        results/function_call_numeric_sum_c_result.json
+        $resultPaths[0] $resultPaths[1] $resultPaths[2]
     if ($LASTEXITCODE -ne 0) { throw "Result archival failed with exit code $LASTEXITCODE" }
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }

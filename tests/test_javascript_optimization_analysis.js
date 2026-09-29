@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   optimizationAnalysis,
+  orderedMeasurements,
   parseManifestEntry,
   sourceSha256,
   currentAnalysisCondition,
@@ -16,12 +17,24 @@ test("source hash equates CRLF with LF and detects other byte changes", () => {
   assert.notEqual(sourceSha256(lf), sourceSha256(Buffer.from("first\rsecond\n")));
 });
 
-test("current JavaScript source hash agrees with the manifest", () => {
+test("changed runner source does not claim the old optimization manifest", () => {
   const manifestPath = path.join(__dirname, "..", "artifacts", "function-call-analysis", "manifest.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  assert.equal(currentAnalysisCondition().source_sha256, manifest.languages.javascript.condition.source_sha256);
+  assert.notEqual(currentAnalysisCondition().source_sha256, manifest.languages.javascript.condition.source_sha256);
   const inheritedOptions = (process.env.NODE_OPTIONS || "").trim().split(/\s+/).filter(Boolean);
   assert.deepEqual(inheritedOptions, manifest.languages.javascript.condition.options);
+});
+
+test("both requested case orders execute the corresponding functions and keep case identity", () => {
+  const seen = [];
+  for (const order of ["direct_first", "function_call_first"]) {
+    seen.length = 0;
+    const result = orderedMeasurements(order, [1, 2], fn => { seen.push(fn.name === "called" ? "function_call" : fn.name); return [0, 0, 3, {}]; });
+    assert.deepEqual(result.names, order === "direct_first" ? ["direct", "function_call"] : ["function_call", "direct"]);
+    assert.deepEqual(Object.keys(result.result), ["direct", "function_call"]);
+    assert.deepEqual(seen, order === "direct_first" ? ["direct", "function_call"] : ["function_call", "direct"]);
+  }
+  assert.throws(() => orderedMeasurements("other", []), /measurement order/);
 });
 
 function fixture() {

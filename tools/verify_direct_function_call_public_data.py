@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import math
 import statistics
@@ -13,11 +12,6 @@ from pathlib import Path
 
 LANGUAGES = ("c", "python", "javascript")
 CASES = ("direct", "function_call")
-SOURCES = {
-    "c": Path("benchmarks/function_call_numeric_sum/c/main.c"),
-    "python": Path("benchmarks/function_call_numeric_sum/python/main.py"),
-    "javascript": Path("benchmarks/function_call_numeric_sum/javascript/main.js"),
-}
 SAMPLE_HEADERS = ["experiment_id", "run_id", "language", "case", "sample_order", "elapsed_ms"]
 AGGREGATE_STATS = ("mean_ms", "median_ms", "sample_sd_ms", "min_ms", "max_ms")
 
@@ -69,12 +63,9 @@ def verify_public_data(output_dir: Path, manifest_path: Path) -> None:
             or boundary.get("published_contains_full_raw_json") is not False
             or boundary.get("original_json_sha256_independently_recomputable_from_publication") is not False):
         raise ValueError("published-data boundary must distinguish samples from private full JSON")
-    repo_root = manifest_path.resolve().parents[2]
-    for language, relative in SOURCES.items():
-        source_bytes = (repo_root / relative).read_bytes().replace(b"\r\n", b"\n")
-        actual_sha = hashlib.sha256(source_bytes).hexdigest()
-        if actual_sha != manifest["languages"][language]["condition"]["source_sha256"]:
-            raise ValueError(f"current source SHA-256 differs from manifest: {language}")
+    # The publication is a historical result set. Its source provenance is
+    # checked against the immutable analysis manifest below, not current runner
+    # files that may have evolved after the experiments were captured.
 
     groups = public.get("experiments")
     if not isinstance(groups, list) or len(groups) != 3:

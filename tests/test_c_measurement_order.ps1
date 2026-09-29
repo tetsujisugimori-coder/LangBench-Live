@@ -27,8 +27,7 @@ try {
             Assert-True ($document.validation."${case}_checksum" -eq 500000500000) "$order $case checksum differed"
         }
         & python -B $validator $path *> $null
-        if ($order -eq 'direct_first') { Assert-True ($LASTEXITCODE -eq 0) 'A was rejected by normal validator' }
-        else { Assert-True ($LASTEXITCODE -ne 0) 'B entered normal validator' }
+        Assert-True ($LASTEXITCODE -eq 0) "$order was rejected by the result validator"
     }
     $normalHashAfter = if (Test-Path -LiteralPath $normalPath) { (Get-FileHash -LiteralPath $normalPath -Algorithm SHA256).Hash } else { $null }
     $historyAfter = if (Test-Path -LiteralPath $historyPath) { @((Get-ChildItem -LiteralPath $historyPath -Recurse -File | ForEach-Object FullName) | Sort-Object) } else { @() }

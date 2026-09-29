@@ -142,6 +142,23 @@ def function_call_document(language: str) -> dict:
 
 
 class ResultSchemaTests(unittest.TestCase):
+    def test_python_runner_executes_both_orders_and_keeps_case_identity(self) -> None:
+        values = [1, 2, 3]
+        for order, expected in (
+            ("direct_first", ["direct", "function_call"]),
+            ("function_call_first", ["function_call", "direct"]),
+        ):
+            called = []
+            def measure_case(case, data):
+                called.append("function_call" if case is PYTHON_BENCHMARK.function_call else "direct")
+                return (0, 0, case(data), {"samples_ms": []})
+            measurements = PYTHON_BENCHMARK.ordered_measurements(order, values, measure_case)
+            self.assertEqual(expected, called)
+            self.assertEqual(expected, [name for name, _ in measurements])
+            self.assertEqual({"direct", "function_call"}, {name for name, _ in measurements})
+        with self.assertRaisesRegex(ValueError, "measurement order"):
+            PYTHON_BENCHMARK.ordered_measurements("invalid", values)
+
     def test_affinity_run_id_requires_explicit_diagnostic_validation(self) -> None:
         document = function_call_document("c")
         document["run_id"] = "20260801_130000_c_function_call_numeric_sum_run_001"
@@ -191,7 +208,7 @@ class ResultSchemaTests(unittest.TestCase):
         document = json.loads(match.group(1))
         self.assertEqual(ROOT_KEYS, list(document))
 
-    def test_analysis_manifest_is_valid_and_matches_sources(self) -> None:
+    def test_analysis_manifest_keeps_original_sources_and_marks_changed_runner_as_stale(self) -> None:
         path = PROJECT_ROOT / "artifacts" / "function-call-analysis" / "manifest.json"
         manifest = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual([], validate_analysis_manifest(manifest, path))
@@ -203,8 +220,11 @@ class ResultSchemaTests(unittest.TestCase):
         for language, source in sources.items():
             with self.subTest(language=language):
                 actual = hashlib.sha256(source.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
-                self.assertEqual(actual, manifest["languages"][language]["condition"]["source_sha256"])
-        self.assertEqual(
+                if language == "c":
+                    self.assertEqual(actual, manifest["languages"][language]["condition"]["source_sha256"])
+                else:
+                    self.assertNotEqual(actual, manifest["languages"][language]["condition"]["source_sha256"])
+        self.assertNotEqual(
             PYTHON_BENCHMARK.current_analysis_condition()["source_sha256"],
             manifest["languages"]["python"]["condition"]["source_sha256"],
         )
@@ -716,8 +736,9 @@ class ArchiveResultsTests(unittest.TestCase):
             self.assertNotEqual(first_bytes, (second / "python.json").read_bytes())
             for folder in (first, second):
                 index = json.loads((folder / "archive.json").read_text(encoding="utf-8"))
-                self.assertEqual(manifest_path.read_bytes(), (folder / "experiment.json").read_bytes())
-                self.assertEqual(hashlib.sha256(manifest_path.read_bytes()).hexdigest(), index["experiment_manifest"]["sha256"])
+                archived_manifest = json.loads((folder / "experiment.json").read_text(encoding="utf-8"))
+                self.assertEqual(["direct", "function_call"], archived_manifest["measurement_order"])
+                self.assertEqual(hashlib.sha256((folder / "experiment.json").read_bytes()).hexdigest(), index["experiment_manifest"]["sha256"])
                 self.assertEqual({"c", "python", "javascript"}, {entry["language"] for entry in index["results"]})
                 for entry in index["results"]:
                     raw = (folder / entry["file"]).read_bytes()

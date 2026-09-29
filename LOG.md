@@ -1,5 +1,12 @@
 # LOG
 
+## 2026-09-29 Issue #63 case測定順の切替
+
+* `run_all.ps1 -MeasurementOrder direct_first|function_call_first` を追加し、Python・JavaScriptにもC既存診断と同じcase実行順選択を実装した。指定なしはdirect→function_call。各新resultは `execution.measurement_order` に実際のcase順を書き、`results.direct` / `results.function_call` は常にcase identity順で保存する。逆順runは `results/diagnostics/<experiment_id>/` に分け、通常の固定名resultを上書きしない。
+* `archive_results.py` は3言語で測定順が揃っていることを検証し、その順をarchive内 `experiment.json` に記録する。`compare_archives.py` は旧manifestで未記録の順をlegacy direct先行として解釈し、順序違いを `incomparable` にする。結果Validatorは全言語で有効な順序metadataを検証し、旧metadataなしresultも読める。
+* `tools/remeasure_function_call.ps1` に順序引数と記録を追加。READMEにコマンド・比較条件・互換性を追記。PR #62の公開sample、summary、JSON、CSVと解析manifestは書き換えていない。Python/JavaScriptのrunner source SHAは既存解析manifestと異なるため保存済み解析所見は新runに適用されない。公開sample verifierは現在ソースで過去の測定条件を上書き検査せず、公開したsource provenanceとmanifestの対応・公開集計を検算する。
+* 計測値を取得する本測定は未実施。検証: `python -B -m unittest discover -s tests -q` 162件成功、3件skip; `node --test tests/test_javascript_optimization_analysis.js` 23件成功; `python -B tools/verify_direct_function_call_public_data.py` 成功; manifest validator成功; `git diff --check` 成功。Windows実機PowerShell/GCCはこの環境にないため未実行。必須Linux/Windows CI結果はPR作成後に記録する。
+
 ## 2026-09-27 CPU pair保存データの分析
 
 * PR #40の `runs.json` を読み取り専用で扱う `tools/analyze_cpu_pair.py` とfixture unit testを追加。成功runの `median_ms` からCPU別の件数・中央値・最小/最大・範囲・平均・標本標準偏差を計算し、1 run未満では標準偏差をnullにする。cycle別にB−A、B/A、A基準百分率差を出し、完全な成功pairのみ集約する。Aが0の場合ratioと百分率差はnull。

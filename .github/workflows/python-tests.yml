@@ -21,3 +21,4 @@ jobs:
         with:
           python-version: '3.14'
       - run: python -B -m unittest discover -s tests -q
+      - run: node --test tests/test_javascript_optimization_analysis.js

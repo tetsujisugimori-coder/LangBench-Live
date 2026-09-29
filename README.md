@@ -261,7 +261,7 @@ python tools/compare_archives.py --json "results/history/<experiment_id>/<archiv
 
 * **比較可能** (`comparable`): 保存された実験条件と、点検対象の環境・処理系・ソース情報が一致します。
 * **注意付き** (`caution`): 実験条件は一致しますが、同じ言語同士のOS・OS版・CPU名・アーキテクチャ、処理系・版、Cコンパイラ・版、記録された起動／コンパイルオプション、利用可能なソースSHA-256に差または情報不足があります。
-* **比較不可** (`incomparable`): 保存された定義のbenchmark、schema_version、config、expected_checksumのいずれかが異なります。
+* **比較不可** (`incomparable`): 保存された定義のbenchmark、schema_version、config、expected_checksum、実際のcase測定順序のいずれかが異なります。
 
 異なる言語同士の処理系の違いは注意理由にしません。Cの `compile_command` には毎回異なる一時ファイルパスが含まれるため、コンパイルオプションには結果の `optimization_analysis.provenance.current.options` を使います。これが無ければ情報不足とします。`run_id`、`experiment_id`、`archive_id`、保存日時は実験条件に含めません。`experiment.json` のSHA-256は改変検出だけに使い、JSONの空白やキー順の違いは条件差としません。
 
@@ -294,6 +294,13 @@ JSONレポートの `schema_version` は `"1.0"` です。`left` / `right` は�
 保存結果の `median_ms` は既存Validatorが `samples_ms` から中央値を再計算し、`math.isclose` の相対許容誤差 `1e-9` と絶対許容誤差 `0.001` ms で照合した値です。保存値とサンプル由来の中央値の厳密な一致は保証されません。このCLIは検証済みサンプルから求めた中央値の記述的な差を示すだけです。50サンプルは1回の実行内の反復であり、50回の独立した実験、統計的有意差、最適化の因果関係、異なる言語間の総合順位を示しません。未記録の負荷・電源状態なども判定できません。
 
 ### 独立した複数回の履歴で中央値の揺れを確認する
+
+通常の `run_all.ps1` は従来どおり `direct → function_call` です。順序を明示して逆にする場合は `-MeasurementOrder function_call_first` を指定します。両順序は3言語それぞれの `execution.measurement_order` と履歴の `experiment.json.measurement_order` に保存され、case名による結果の識別とfirst/second位置は分けて記録します。逆順時の生結果は `results/diagnostics/<experiment_id>/` に出力し、通常の固定名結果を上書きしません。比較CLIは旧manifestに記録された順序を従来のdirect先行として扱い、逆順とdirect先行を `incomparable` にします。順序切替は新しい独立実験の計画を自動で均衡化しません。
+
+```powershell
+pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1 -MeasurementOrder direct_first
+pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1 -MeasurementOrder function_call_first
+```
 
 Windowsで同じチェックアウト、同じソースと設定のまま `run_all.ps1` を順番に5回実行します。各回の出力にある `archive_path` を1件ずつ控えてください。スクリプトは各回の最新結果も出力しますが、下記の閲覧CLIは履歴と最新結果を変更しません。
 
@@ -500,6 +507,8 @@ SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を
 解析資料とmanifestは次のコマンドで最終ソースから再生成します。`tools/extract_function_call_findings.py` の純粋関数が生成済み資料を読み、manifestの `findings` を構成します。V8の標準出力と標準エラーは別々に収集してから、区切り付きでトレースへ保存します。
 
 `source_sha256` は、解析時と実行時それぞれの実ファイルのバイト列について、CRLFペアだけをLFへ変換した後のSHA-256です。単独のCRや改行以外のバイトは変更しません。`.gitattributes` は新規チェックアウトをLFにしますが、既存のWindows作業ツリーではmainから通常更新しても変更のないソースがCRLFのまま残るため、生成スクリプト、各ランナー、照合テストで同じ定義を使います。生成スクリプトは解析前後のソースハッシュが同じことを確認し、リポジトリを作業ディレクトリにして各処理系を実行します。再生成後はmanifestの構造に加え、3ソースの正規化SHA-256と、保存されたGCC・Python・V8資料から再抽出した `findings` を照合してください。ソース内容、処理系の版、アーキテクチャ、実行オプションが異なる環境の測定では、保存済みの解析結果を条件一致として扱いません。
+
+測定順切替の実装に伴い、Python/JavaScript runner source SHAは保存済み解析manifestと一致しません。manifestと解析資料はこのIssueでは再生成していないため、同runnerから得る新しいresultは当該保存済み所見を適用せず、manifest上の観測根拠を更新するまで不一致として記録します。
 
 Pythonの解析条件は実行中の `sys.flags.optimize` を記録します。JavaScriptはベンチマーク実行時の `process.execArgv` と `NODE_OPTIONS` を記録します。解析生成コマンド自身のトレース用フラグ（`--trace-opt` 等）は、ベンチマーク起動オプションと区別します。固定資料の更新履歴と各判定の根拠・未確認範囲は `artifacts/function-call-analysis/review-2026-09-29.md` を参照してください。
 

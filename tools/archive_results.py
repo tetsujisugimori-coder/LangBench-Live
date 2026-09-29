@@ -57,6 +57,7 @@ def archive_results(
 
     source_files: dict[str, tuple[bytes, dict]] = {}
     configs: set[str] = set()
+    measurement_orders: set[tuple[str, ...]] = set()
     for path in paths:
         raw = path.read_bytes()
         document = json.loads(raw)
@@ -69,6 +70,13 @@ def archive_results(
             raise ValueError(f"{path}: only successful results can be archived")
         if document["config"] != manifest["config"]:
             raise ValueError(f"{path}: config differs from experiment manifest")
+        execution = document.get("execution")
+        order = execution.get("measurement_order") if isinstance(execution, dict) else None
+        if order is None:
+            order = ["direct", "function_call"]  # Legacy result files used this fixed order.
+        if order not in (["direct", "function_call"], ["function_call", "direct"]):
+            raise ValueError(f"{path}: invalid measurement_order")
+        measurement_orders.add(tuple(order))
         if document["validation"]["expected_checksum"] != manifest["expected_checksum"]:
             raise ValueError(f"{path}: expected_checksum differs from experiment manifest")
         configs.add(json.dumps(document["config"], sort_keys=True))
@@ -80,6 +88,14 @@ def archive_results(
         raise ValueError("results must contain c, python, and javascript")
     if len(configs) != 1:
         raise ValueError("experiment config differs between language results")
+    if len(measurement_orders) != 1:
+        raise ValueError("measurement_order differs between language results")
+
+    # Store the actual case order as part of the hashed experiment definition.
+    # Older archives omit this field and therefore retain their known direct-first meaning.
+    archived_manifest = dict(manifest)
+    archived_manifest["measurement_order"] = list(next(iter(measurement_orders)))
+    archived_manifest_raw = (json.dumps(archived_manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
     # validate() constrains experiment_id to a timestamp and a known benchmark.
     parent = history_root / experiment_id
@@ -89,7 +105,7 @@ def archive_results(
     staging = Path(tempfile.mkdtemp(prefix=".pending-", dir=parent))
     try:
         entries = []
-        (staging / "experiment.json").write_bytes(manifest_raw)
+        (staging / "experiment.json").write_bytes(archived_manifest_raw)
         for language in sorted(source_files):
             raw, document = source_files[language]
             name = f"{language}.json"
@@ -107,7 +123,7 @@ def archive_results(
             "experiment_id": experiment_id,
             "experiment_manifest": {
                 "file": "experiment.json",
-                "sha256": hashlib.sha256(manifest_raw).hexdigest(),
+                "sha256": hashlib.sha256(archived_manifest_raw).hexdigest(),
             },
             "results": entries,
         }

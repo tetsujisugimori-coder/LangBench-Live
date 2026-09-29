@@ -1,5 +1,6 @@
 param(
     [ValidateRange(1, 100)][int]$Count = 10,
+    [ValidateSet('direct_first', 'function_call_first')][string]$MeasurementOrder = 'direct_first',
     [string]$OutputDirectory = "results/diagnostics/function-call-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
 )
 
@@ -34,7 +35,8 @@ try {
     }
 
     $record = [ordered]@{ schema_version = '1.0'; benchmark = 'function_call_numeric_sum';
-        git_head = $head; execution_order = @('python', 'javascript', 'c/direct', 'c/function_call');
+        git_head = $head; execution_order = @('python', 'javascript', 'c');
+        case_measurement_order = if ($MeasurementOrder -eq 'direct_first') { @('direct', 'function_call') } else { @('function_call', 'direct') };
         requested_runs = $Count; successful_runs = 0; runs = @() }
     $recordPath = Join-Path $output 'runs.json'
     for ($number = 1; $number -le $Count; $number++) {
@@ -46,7 +48,7 @@ try {
             archive_id = $null; archive_path = $null; log_path = $logPath;
             terminal_before = (Get-TerminalState); terminal_after = $null }
         try {
-            & pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1 -ExperimentId $experimentId *> $logPath
+            & pwsh -NoProfile -File benchmarks/function_call_numeric_sum/run_all.ps1 -ExperimentId $experimentId -MeasurementOrder $MeasurementOrder *> $logPath
             $run.exit_code = $LASTEXITCODE
             if ($run.exit_code -ne 0) { throw "run_all.ps1 exited $($run.exit_code)" }
             $content = Get-Content -LiteralPath $logPath
