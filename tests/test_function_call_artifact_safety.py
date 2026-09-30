@@ -42,7 +42,10 @@ class ArtifactSafetyTests(unittest.TestCase):
         paths = [r"\\server\share\private\file.txt", r"\\?\C:\private\file.txt",
                  r"\\?\UNC\server\share\file.txt", r"\root\file.txt",
                  r"C:\private\file.txt", "D:/a/private/file.txt",
-                 "/srv/private/file.txt", "/workspace/private/file.txt"]
+                 "/srv/private/file.txt", "/workspace/private/file.txt",
+                 "/tmp", "/etc", r"\secret", "C:\\", "D:/",
+                 "file:///C:/Users/alice/private", "file:///home/alice/private",
+                 "/ユーザー/秘密"]
         for path in paths:
             with self.subTest(path=path):
                 self.assertIn("absolute path", issues(path))

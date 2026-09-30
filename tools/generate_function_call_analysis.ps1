@@ -58,8 +58,7 @@ function Protect-ArtifactText([string]$Value) {
         if ($pair[0]) { $safe = [regex]::Replace($safe, [regex]::Escape([string]$pair[0]), [string]$pair[1], 'IgnoreCase') }
     }
     $safe = [regex]::Replace($safe, '(?i)(gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|Bearer\s+\S+|(?:token|password|secret|authorization)\s*[:=]\s*\S+)', '<redacted>')
-    $safe = [regex]::Replace($safe, '(?i)(?<![\w:/\\>])(?:\\\\\?\\|\\\\\.\\|\\\\|//)[^\s"''<>/\\]+[\\/][^\s"''<>]+', '<absolute-path>')
-    $safe = [regex]::Replace($safe, '(?i)(?<![\w:/\\>])(?:[A-Z]:[\\/]|\\(?!\\)[A-Za-z0-9._~-]+\\|/(?!/)[A-Za-z0-9._~-]+/)[^\s"''<>]+', '<absolute-path>')
+    $safe = [regex]::Replace($safe, '(?i)(?<![\w:/\\>])(?:file:///(?:[A-Z]:[\\/])?[^\s"''<>]+|(?:\\\\\?\\|\\\\\.\\|\\\\|//)[^\s"''<>/\\]+[\\/][^\s"''<>]+|[A-Z]:[\\/][^\s"''<>]*|\\(?!\\)[\w.~-][^\s"''<>/\\]*(?:\\[^\s"''<>/\\]+)*|/(?!/)[\w.~-][^\s"''<>/\\]*(?:/[^\s"''<>/\\]+)*)', '<absolute-path>')
     return $safe
 }
 
