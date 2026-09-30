@@ -7,7 +7,7 @@ param(
     [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git')
 )
 $ErrorActionPreference = 'Stop'
-function Git { $value = & git -c core.hooksPath=NUL -c core.fsmonitor=false -c filter.lfs.smudge= -c filter.lfs.required=false @args; if ($LASTEXITCODE) { throw "git failed: $($args -join ' ')" }; $value }
+function Git { $value = & git -c core.hooksPath=NUL -c core.fsmonitor=false -c submodule.recurse=false -c fetch.recurseSubmodules=false -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false @args; if ($LASTEXITCODE) { throw "git failed: $($args -join ' ')" }; $value }
 function Git-One { $lines = @(Git @args); if ($lines.Count -ne 1) { throw "Expected one line from git $($args -join ' ')" }; return [string]$lines[0] }
 function Normalize([string]$Path) { $Path.Replace('\','/').TrimStart([char[]]'./').TrimEnd('/').ToLowerInvariant() }
 
@@ -17,9 +17,13 @@ Push-Location -LiteralPath $root
 try {
 if ([IO.Path]::GetFullPath((Git-One rev-parse --show-toplevel)).TrimEnd('\') -ine $root) { throw 'Configured path is not the repository root.' }
 if ($AllowedRemote -inotcontains (Git-One remote get-url origin)) { throw 'Unexpected origin.' }
-$localFilters = @(& git -c core.fsmonitor=false config --local --get-regexp '^filter\..*\.(clean|smudge|process|required)$' 2>$null)
-if ($LASTEXITCODE -notin @(0, 1)) { throw 'Cannot inspect repository-local filters.' }
-if ($localFilters.Count) { throw 'Repository-local Git filters are refused during automatic sync.' }
+# LFS is inert here: command scope disables smudge/process and target filter attributes are rejected below.
+$effectiveFilters = @(& git -c core.hooksPath=NUL -c core.fsmonitor=false -c submodule.recurse=false -c fetch.recurseSubmodules=false `
+    -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false `
+    config --show-origin --show-scope --get-regexp '^filter\..*\.(clean|smudge|process|required)$' 2>$null |
+    Where-Object { $_ -notmatch '\sfilter\.lfs\.(?:clean|smudge|process|required)\s' })
+if ($LASTEXITCODE -notin @(0, 1)) { throw 'Cannot inspect effective Git filters.' }
+if ($effectiveFilters.Count) { throw 'Effective Git filters are refused during automatic sync.' }
 if (@(Git status --porcelain --untracked-files=no).Count) { throw 'Tracked changes are present.' }
 foreach ($marker in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply')) {
     if (Test-Path -LiteralPath (Git-One rev-parse --git-path $marker)) { throw "Git operation in progress: $marker" }
@@ -40,10 +44,8 @@ $lockPath = Join-Path (Git-One rev-parse --git-common-dir) 'langbench-operation.
 $lock = $null
 try {
     $lock = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
-    $untracked = ((@(& git ls-files --others --exclude-standard -z) -join '') -split "`0") | Where-Object { $_ }
-    if ($LASTEXITCODE) { throw 'Cannot enumerate untracked files.' }
-    $ignored = ((@(& git ls-files --others --ignored --exclude-standard -z) -join '') -split "`0") | Where-Object { $_ }
-    if ($LASTEXITCODE) { throw 'Cannot enumerate ignored files.' }
+    $untracked = ((@(Git ls-files --others --exclude-standard -z) -join '') -split "`0") | Where-Object { $_ }
+    $ignored = ((@(Git ls-files --others --ignored --exclude-standard -z) -join '') -split "`0") | Where-Object { $_ }
     $protected = @($untracked + $ignored | Sort-Object -Unique)
     $before = @{}
     foreach ($relative in $protected) {
@@ -55,10 +57,30 @@ try {
             $before[$key] = @{ path=$relative; size=$item.Length; hash=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
         }
     }
-    Git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main" | Out-Null
+    Git fetch --no-tags --no-recurse-submodules origin "+refs/heads/main:refs/remotes/origin/main" | Out-Null
     if ((Git-One rev-parse origin/main) -ne $TargetSha) { throw 'Fetched main differs from the validated event SHA.' }
-    & git merge-base --is-ancestor refs/heads/main $TargetSha; if ($LASTEXITCODE) { throw 'Local main cannot fast-forward.' }
-    & git merge-base --is-ancestor $MergeSha $TargetSha; if ($LASTEXITCODE) { throw 'Validated merge result is not in target history.' }
+    Write-Host "phase=target-validated sha=$TargetSha"
+    if ($env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY) {
+        $phaseDirectory = [IO.Path]::GetFullPath($env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY)
+        [IO.Directory]::CreateDirectory($phaseDirectory) | Out-Null
+        Set-Content -LiteralPath (Join-Path $phaseDirectory 'target-validated') -Value $TargetSha -Encoding ascii
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        while (-not (Test-Path -LiteralPath (Join-Path $phaseDirectory 'continue'))) {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'Timed out waiting at the fixed synchronization test phase.' }
+            Start-Sleep -Milliseconds 50
+        }
+    }
+    Git merge-base --is-ancestor refs/heads/main $TargetSha | Out-Null
+    Git merge-base --is-ancestor $MergeSha $TargetSha | Out-Null
+    $gitlinks = @(Git ls-tree -r $TargetSha | Where-Object { $_ -match '^160000\s' })
+    if ($gitlinks.Count) { throw 'Target contains a gitlink; automatic sync refuses submodules.' }
+    $attributeFiles = @(Git ls-tree -r --name-only $TargetSha | Where-Object { $_ -eq '.gitattributes' -or $_ -like '*/.gitattributes' })
+    foreach ($attributeFile in $attributeFiles) {
+        $attributes = @(Git show "${TargetSha}:$attributeFile")
+        if (@($attributes | Where-Object { $_ -match '(?:^|\s)(?:-?filter|filter=)(?:\s|$|\S+)' }).Count) {
+            throw "Target .gitattributes contains a filter attribute: $attributeFile"
+        }
+    }
     $targetFiles = @(Git ls-tree -r --name-only $TargetSha | ForEach-Object { Normalize $_ })
     foreach ($protectedName in $before.Keys) {
         foreach ($targetName in $targetFiles) {
@@ -74,6 +96,11 @@ try {
         $path = Join-Path $root $item.path
         if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -ne $item.size -or
                 (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $item.hash) { throw "Protected file changed: $($item.path)" }
+    }
+    Git fetch --no-tags --no-recurse-submodules origin "+refs/heads/main:refs/remotes/origin/main" | Out-Null
+    $latestRemote = Git-One rev-parse origin/main
+    if ($latestRemote -ne $TargetSha) {
+        throw "main advanced during sync: validated=$TargetSha latest=$latestRemote"
     }
     Write-Host "status=success pr=$PullRequestNumber pr_head=$PullRequestHeadSha merge=$MergeSha target=$TargetSha before=$headBefore after=$TargetSha protected_files=$($before.Count)"
 } finally { if ($lock) { $lock.Dispose() } }
