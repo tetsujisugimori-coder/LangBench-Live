@@ -20,6 +20,10 @@ jobs:
       pr_number: ${{ steps.verify.outputs.pr_number }}
       pr_head_sha: ${{ steps.verify.outputs.pr_head_sha }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Verify that the main update belongs to a merged PR
         id: verify
         env:
@@ -27,19 +31,18 @@ jobs:
           TARGET_SHA: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          test '${{ github.repository }}' = 'tetsujisugimori-coder/LangBench-Live'
-          test '${{ github.ref }}' = 'refs/heads/main'
-          prs=$(gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/commits/$TARGET_SHA/pulls")
-          matched=$(jq -c '[.[] | select(.merged_at != null and .base.ref == "main" and .base.repo.full_name == "${{ github.repository }}" and .merge_commit_sha != null)] | if length == 1 then .[0] else empty end' <<<"$prs")
-          merge_sha=$(jq -r '.merge_commit_sha // empty' <<<"$matched")
+          set -euo pipefail
+          gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/commits/$TARGET_SHA/pulls" > "$RUNNER_TEMP/pulls.json"
+          merge_sha=$(jq -r '[.[] | select(.merged_at != null and .base.ref == "main" and .base.repo.full_name == "${{ github.repository }}" and .merge_commit_sha != null)] | if length == 1 then .[0].merge_commit_sha else empty end' "$RUNNER_TEMP/pulls.json")
           test -n "$merge_sha" || { echo 'No unique merged PR corresponds to this update.'; exit 1; }
-          gh api "/repos/${{ github.repository }}/compare/$merge_sha...$TARGET_SHA" --jq 'select(.status == "ahead" or .status == "identical")' >/dev/null
-          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
-          echo "pr_number=$(jq -r '.number' <<<"$matched")" >> "$GITHUB_OUTPUT"
-          echo "pr_head_sha=$(jq -r '.head.sha' <<<"$matched")" >> "$GITHUB_OUTPUT"
+          compare_status=$(gh api "/repos/${{ github.repository }}/compare/$merge_sha...$TARGET_SHA" --jq '.status')
+          result=$(python -B tools/verify_merge_gate.py --repository '${{ github.repository }}' --ref '${{ github.ref }}' --target-sha "$TARGET_SHA" --pulls "$RUNNER_TEMP/pulls.json" --compare-status "$compare_status")
+          echo "merge_sha=$(jq -r '.merge_sha' <<<"$result")" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$(jq -r '.pr_number' <<<"$result")" >> "$GITHUB_OUTPUT"
+          echo "pr_head_sha=$(jq -r '.pr_head_sha' <<<"$result")" >> "$GITHUB_OUTPUT"
   pull-main:
     needs: verify-merge
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: [self-hosted, Windows, X64, langbench-live-tetsu-windows]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7

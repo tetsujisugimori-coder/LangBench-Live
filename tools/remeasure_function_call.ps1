@@ -53,15 +53,34 @@ try {
         return $state
     }
 
+    function Get-HostProvenance {
+        $hostInfo = [ordered]@{
+            os = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+            architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+            cpu_model = '未取得'; logical_processors = '未取得'; cpu_topology = '未取得'
+            python = ((& python --version) -join ' ').Trim(); node = ((& node --version) -join ' ').Trim()
+            gcc = ((& gcc --version | Select-Object -First 1) -join ' ').Trim(); affinity = 'not_requested'
+            launch = [ordered]@{ orchestrator = 'pwsh -NoProfile'; language_order = @('python','javascript','c'); parallel = $false }
+            compile = [ordered]@{ c = @('-O2','-std=c11','-Wall','-Wextra'); python = @(); javascript = @() }
+        }
+        try {
+            $processors = @(Get-CimInstance Win32_Processor -ErrorAction Stop)
+            if ($processors.Count -gt 0) {
+                $hostInfo.cpu_model = (@($processors | ForEach-Object Name) -join ' | ')
+                $hostInfo.logical_processors = [int](($processors | Measure-Object NumberOfLogicalProcessors -Sum).Sum)
+                $hostInfo.cpu_topology = @($processors | ForEach-Object {
+                    [ordered]@{ device_id = $_.DeviceID; cores = $_.NumberOfCores; logical_processors = $_.NumberOfLogicalProcessors }
+                })
+            }
+        } catch { }
+        return $hostInfo
+    }
+
     $orders = if ($BalancedOrder) { @('direct_first','function_call_first','function_call_first','direct_first') * 3 } else { @($MeasurementOrder) * $Count }
     $record = [ordered]@{ schema_version = '2.0'; benchmark = 'function_call_numeric_sum';
         series_id = $SeriesId; mode = if ($BalancedOrder) { 'balanced_order' } else { 'single_order' };
         git_head = $head; execution_order = @('python', 'javascript', 'c');
-        input_sha256 = @(Get-InputHashes); host = [ordered]@{
-            os = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
-            architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-            python = ((& python --version) -join ' ').Trim(); node = ((& node --version) -join ' ').Trim()
-            gcc = ((& gcc --version | Select-Object -First 1) -join ' ').Trim(); affinity = 'not_requested' }
+        input_sha256 = @(Get-InputHashes); host = Get-HostProvenance
         planned_orders = $orders;
         requested_runs = $Count; successful_runs = 0; runs = @() }
     $recordPath = Join-Path $output 'runs.json'

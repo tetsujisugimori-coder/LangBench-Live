@@ -164,6 +164,11 @@ main更新後のWindows同期は、GitHub APIでmerged PRを確認したpushだ�
 untracked/ignored衝突では変更前に停止します。`reset --hard`、clean、stash、rebase、branch削除・作成は行いません。
 本番self-hosted runnerでの初回確認は、この変更が人間によりmergeされた後に行います。
 
+同期先Windows PCのself-hosted runnerには専用custom label
+`langbench-live-tetsu-windows`を付与してください。workflowは`self-hosted`、`Windows`、`X64`に加えて
+このlabelを必須とし、別のWindows runnerへ配送しません。runner交換時も、固定作業フォルダーの所有者である
+対象PCだけにこのlabelを移し、同時に複数台へ付与しないでください。
+
 複数のプログラミング言語で同じベンチマーク処理を実行し、コード・ログ・実測結果を比較する学習用アプリです。
 
 ## v0.1 の目的
