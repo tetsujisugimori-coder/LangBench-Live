@@ -37,6 +37,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tests/test_prepare_function_call_fixture_clone.ps1
+      - name: Test artifact text sanitization
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_function_call_artifact_text.ps1
       - name: Run hosted Windows analysis fixture without publishing it
         if: runner.os == 'Windows'
         shell: pwsh
