@@ -1,24 +1,17 @@
 name: Prepare Windows function-call analysis artifact
 
+# workflow_run loads this workflow from the default branch. PR code cannot dispatch
+# a self-hosted job before the PR has been merged and the sync workflow succeeded.
 on:
-  workflow_dispatch:
-    inputs:
-      merged_pr_number:
-        description: Merged PR-A number whose main SHA will be analyzed
-        required: true
-        type: string
-      sync_run_id:
-        description: Successful Pull local main workflow run for that SHA
-        required: true
-        type: string
-      analysis_id:
-        description: Unique analysis identifier
-        required: true
-        type: string
+  workflow_run:
+    workflows: [Pull local main after verified merge]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
   actions: read
+  pull-requests: read
 
 concurrency:
   group: function-call-analysis-windows
@@ -26,40 +19,35 @@ concurrency:
 
 jobs:
   authorize:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       code_sha: ${{ steps.gate.outputs.code_sha }}
       analysis_id: ${{ steps.gate.outputs.analysis_id }}
     steps:
-      - name: Reject dispatches from branches and tags
-        env:
-          TRUSTED_REF: ${{ github.ref }}
-        run: test "$TRUSTED_REF" = refs/heads/main
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Verify merged PR, fixed main SHA, synchronization, and identifier
+      - name: Verify PR-A, fixed main SHA, and completed synchronization
         id: gate
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.merged_pr_number }}
-          SYNC_RUN_ID: ${{ inputs.sync_run_id }}
-          ANALYSIS_ID: ${{ inputs.analysis_id }}
+          SYNC_RUN_ID: ${{ github.event.workflow_run.id }}
+          SYNC_SHA: ${{ github.event.workflow_run.head_sha }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
           [[ "$SYNC_RUN_ID" =~ ^[1-9][0-9]*$ ]]
-          [[ "$ANALYSIS_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]]
-          gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
+          [[ "$SYNC_SHA" =~ ^[0-9a-f]{40}$ ]]
+          gh api "/repos/${{ github.repository }}/pulls/69" > "$RUNNER_TEMP/pull.json"
           gh api "/repos/${{ github.repository }}/actions/runs/$SYNC_RUN_ID" > "$RUNNER_TEMP/run.json"
-          sha=$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')
-          test "$sha" = '${{ github.sha }}'
+          main_sha=$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')
           python -B tools/verify_function_call_analysis_gate.py --repository '${{ github.repository }}' \
-            --ref '${{ github.ref }}' --main-sha "$sha" --pull "$RUNNER_TEMP/pull.json" --run "$RUNNER_TEMP/run.json"
-          echo "code_sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "analysis_id=$ANALYSIS_ID" >> "$GITHUB_OUTPUT"
+            --ref '${{ github.ref }}' --main-sha "$main_sha" --sync-sha "$SYNC_SHA" \
+            --sync-run-id "$SYNC_RUN_ID" --pull "$RUNNER_TEMP/pull.json" --run "$RUNNER_TEMP/run.json"
+          echo "code_sha=$SYNC_SHA" >> "$GITHUB_OUTPUT"
+          echo "analysis_id=issue68-pra-69-$SYNC_RUN_ID" >> "$GITHUB_OUTPUT"
 
   analyze:
     needs: authorize
@@ -88,13 +76,12 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ((git rev-parse HEAD).Trim() -ne $env:CODE_SHA) { throw 'checkout SHA changed' }
-          ./tools/generate_function_call_analysis.ps1 -AnalysisId $env:ANALYSIS_ID -OutputDirectory $env:DESTINATION -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live'
-          python -B ./tools/validate_function_call_analysis.py $env:DESTINATION --expected-sha $env:CODE_SHA
+          ./tools/generate_function_call_analysis.ps1 -AnalysisId $env:ANALYSIS_ID -OutputDirectory $env:DESTINATION -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live' -ExpectedSha $env:CODE_SHA
       - name: Upload unpublished analysis package even when generation fails
         if: ${{ always() && steps.destination.outputs.destination != '' }}
         uses: actions/upload-artifact@v6
         with:
           name: function-call-analysis-${{ needs.authorize.outputs.analysis_id }}
           path: ${{ steps.destination.outputs.destination }}
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14

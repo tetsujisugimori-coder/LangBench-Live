@@ -68,6 +68,14 @@ try {
     Assert-True ($firstTrace -match '# exit_code=0') 'successful first trace was not retained'
     Assert-True ($secondTrace -match '# exit_code=23' -and $secondTrace -match 'partial stdout' -and $secondTrace -match 'fixture failure') 'failed trace diagnostics were not retained'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $partialOutput 'manifest.json'))) 'partial analysis produced a success manifest'
+    $partialState = Get-Content -LiteralPath (Join-Path $partialOutput 'run-state.json') -Raw | ConvertFrom-Json
+    $partialValidation = Get-Content -LiteralPath (Join-Path $partialOutput 'validation.json') -Raw | ConvertFrom-Json
+    Assert-True ($partialState.status -eq 'failed' -and $partialState.stages.'node-trace-direct_first'.status -eq 'success' -and $partialState.stages.'node-trace-function_call_first'.status -eq 'failed') 'partial stage state was not retained'
+    Assert-True ($partialState.stages.'node-trace-function_call_first'.exit_code -eq 23) 'failed stage exit code was not recorded'
+    Assert-True ($partialValidation.status -eq 'not_completed') 'partial validation state was not retained'
+    Assert-True (Test-Path -LiteralPath (Join-Path $partialOutput 'stage-logs/node-trace-function_call_first.stderr.txt')) 'failed stage stderr log was not retained'
+    & python -B (Join-Path $projectRoot 'tools/check_function_call_artifact_safety.py') $partialOutput
+    Assert-True ($LASTEXITCODE -eq 0) 'partial artifact contains a secret or local absolute path'
     $releasedAgain = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
     $releasedAgain.Dispose()
     Write-Host 'tests=5 passed=5'

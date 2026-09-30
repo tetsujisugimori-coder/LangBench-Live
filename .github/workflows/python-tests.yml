@@ -54,6 +54,11 @@ jobs:
             if ($LASTEXITCODE -ne 0 -or $sharedBranch.Count -ne 1 -or $sharedBranch[0] -ne 'main') { throw 'fixture clone is not on main' }
             ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output -SharedRepositoryPath $shared -AllowedRemote $sourceRoot
             python -B ./tools/validate_function_call_analysis.py $output --expected-sha $sourceSha
+            python -B ./tools/check_function_call_artifact_safety.py $output
+            if ($LASTEXITCODE -ne 0) { throw 'hosted artifact safety scan failed' }
+            $state = Get-Content -LiteralPath (Join-Path $output 'run-state.json') -Raw | ConvertFrom-Json
+            $validation = Get-Content -LiteralPath (Join-Path $output 'validation.json') -Raw | ConvertFrom-Json
+            if ($state.status -ne 'success' -or $state.stages.validator.status -ne 'success' -or $validation.status -ne 'valid') { throw 'hosted artifact state is incomplete' }
           } finally {
             if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
             if (Test-Path -LiteralPath $shared) { Remove-Item -LiteralPath $shared -Recurse -Force }
