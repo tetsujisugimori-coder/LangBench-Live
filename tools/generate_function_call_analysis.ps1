@@ -94,15 +94,15 @@ if (-not [string]::IsNullOrWhiteSpace($pythonDis.stderr)) { throw "Python disass
 Write-Utf8 $pythonBytecode $pythonDis.stdout
 
 $nodeInfo = (Invoke-CapturedProcess "node" @("-p", "JSON.stringify({node:process.version,v8:process.versions.v8,architecture:require('os').arch(),options:(process.env.NODE_OPTIONS||'').trim().split(/\s+/).filter(Boolean)})") $projectRoot).stdout | ConvertFrom-Json
-$traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", $javascriptRelativeSource, "--experiment-id=20000101_000000_function_call_numeric_sum", "--run-id=20000101_000000_javascript_function_call_numeric_sum")
-$nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot
-$traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ -and $_ -notmatch '^status=' }) -join "`n"
-$traceStderr = (($nodeTrace.stderr -split "`r?`n") | Where-Object { $_ }) -join "`n"
-$traceContent = "# stdout`n$traceStdout`n# stderr"
-if ($traceStderr) {
-    $traceContent += "`n$traceStderr"
+$traceContent = ""
+foreach ($order in @("direct_first", "function_call_first")) {
+    $traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", $order)
+    $nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot
+    $traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ }) -join "`n"
+    $traceStderr = (($nodeTrace.stderr -split "`r?`n") | Where-Object { $_ }) -join "`n"
+    $traceContent += "# order=$order`n# stdout`n$traceStdout`n# stderr`n$traceStderr`n"
 }
-Write-Utf8 $v8Trace ("$traceContent`n")
+Write-Utf8 $v8Trace $traceContent
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 $cFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "c", "--report", $gccReport, "--assembly", $assembly, "--architecture", $architecture) $projectRoot).stdout | ConvertFrom-Json
@@ -161,7 +161,7 @@ $manifest = [ordered]@{
                 architecture = $nodeInfo.architecture
                 options = @($nodeInfo.options)
             }
-            generation_commands = @(@("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "benchmarks/function_call_numeric_sum/javascript/main.js"))
+            generation_commands = @(@("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", "<measurement-order>"))
             findings = $javascriptFindings
             runtime = [ordered]@{ name = "Node.js"; version = $nodeInfo.node }
             evidence = @([ordered]@{ type = "jit_trace"; path = "artifacts/function-call-analysis/v8-optimization.txt" })
@@ -180,7 +180,12 @@ $provenance = [ordered]@{
     generated_at = $analyzedAt
     operating_system = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
     architecture = $architecture
-    measurement_orders = @("direct_first", "function_call_first")
+    trace_options = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining")
+    order_coverage = [ordered]@{
+        c = [ordered]@{ basis = "static_analysis"; confirmed = @("direct_first", "function_call_first"); unconfirmed = @() }
+        python = [ordered]@{ basis = "static_analysis"; confirmed = @("direct_first", "function_call_first"); unconfirmed = @() }
+        javascript = [ordered]@{ basis = "trace_observed"; confirmed = @("direct_first", "function_call_first"); unconfirmed = @() }
+    }
     trace_is_benchmark = $false
     evidence_sha256 = $evidenceHashes
 }

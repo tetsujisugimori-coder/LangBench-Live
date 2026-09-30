@@ -31,6 +31,14 @@ jobs:
       code_sha: ${{ steps.gate.outputs.code_sha }}
       analysis_id: ${{ steps.gate.outputs.analysis_id }}
     steps:
+      - name: Reject dispatches from branches and tags
+        env:
+          TRUSTED_REF: ${{ github.ref }}
+        run: test "$TRUSTED_REF" = refs/heads/main
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Verify merged PR, fixed main SHA, synchronization, and identifier
         id: gate
         env:
@@ -44,18 +52,12 @@ jobs:
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
           [[ "$SYNC_RUN_ID" =~ ^[1-9][0-9]*$ ]]
           [[ "$ANALYSIS_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]]
-          pr=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER")
-          test "$(jq -r '.merged' <<<"$pr")" = true
-          test "$(jq -r '.base.ref' <<<"$pr")" = main
-          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = '${{ github.repository }}'
-          sha=$(jq -r '.merge_commit_sha' <<<"$pr")
-          test "$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')" = "$sha"
-          run=$(gh api "/repos/${{ github.repository }}/actions/runs/$SYNC_RUN_ID")
-          test "$(jq -r '.name' <<<"$run")" = 'Pull local main after verified merge'
-          test "$(jq -r '.event' <<<"$run")" = push
-          test "$(jq -r '.head_branch' <<<"$run")" = main
-          test "$(jq -r '.head_sha' <<<"$run")" = "$sha"
-          test "$(jq -r '.status + "/" + .conclusion' <<<"$run")" = completed/success
+          gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER" > "$RUNNER_TEMP/pull.json"
+          gh api "/repos/${{ github.repository }}/actions/runs/$SYNC_RUN_ID" > "$RUNNER_TEMP/run.json"
+          sha=$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')
+          test "$sha" = '${{ github.sha }}'
+          python -B tools/verify_function_call_analysis_gate.py --repository '${{ github.repository }}' \
+            --ref '${{ github.ref }}' --main-sha "$sha" --pull "$RUNNER_TEMP/pull.json" --run "$RUNNER_TEMP/run.json"
           echo "code_sha=$sha" >> "$GITHUB_OUTPUT"
           echo "analysis_id=$ANALYSIS_ID" >> "$GITHUB_OUTPUT"
 

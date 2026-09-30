@@ -12,11 +12,16 @@
    `merged_pr_number` はマージ済み PR-A、`sync_run_id` は同じ SHA の成功した同期 run、
    `analysis_id` は新規の Issue #68 専用 ID とする。任意 ref や shell command は入力できない。
 3. `authorize` が PR の base/repository、merge 状態、最新 main の固定 SHA、同期 workflow の
-   name/event/branch/SHA/status を GitHub API で照合する。照合失敗時は実機 job を起動しない。
+   name/event/branch/SHA/status に加え、Issue #68 と PR-A の本文参照を GitHub API で照合する。
+   workflow 自体も `refs/heads/main` からの dispatch に限定し、照合失敗時は実機 job を起動しない。
 4. 実機 job は専用四 label の runner で固定 SHA を checkout し、`RUNNER_TEMP` の未使用先へ
    C/Python/JavaScript 解析を生成する。既存成果物やユーザー作業フォルダーは上書きしない。
 5. validator が manifest、解析 SHA、両測定順序の適用範囲、trace と本測定の分離、および全根拠
    SHA-256 を検証する。失敗時を含め、生成できた package は 14 日 artifact として保持する。
+
+JavaScript は通常 benchmark entry point を trace flags 付きで起動せず、専用 harness が時間計測・sample
+集計・result JSON 保存を行わずに対象関数だけを両順序で刺激する。C/Python は静的根拠のため順序独立、
+JavaScript は trace で実際に観測した順序だけを `confirmed` とし、それ以外は `unconfirmed` として残す。
 
 artifact は未公開の検査対象であり、それだけで Windows 実機成果物の公開、解析判定の更新、
 PR #67 条件との一致、または最適化の因果効果を意味しない。内容とローカル path/秘密情報を検査し、

@@ -22,7 +22,7 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return [f"analysis package cannot be read: {exc}"]
     required = {"schema_version", "analysis_id", "code_sha", "generated_at", "operating_system",
-                "architecture", "measurement_orders", "trace_is_benchmark", "evidence_sha256"}
+                "architecture", "trace_options", "order_coverage", "trace_is_benchmark", "evidence_sha256"}
     if not isinstance(provenance, dict) or set(provenance) != required:
         return ["provenance fields are invalid"]
     if provenance["schema_version"] != "1.0" or provenance["analysis_id"] != manifest.get("analysis_id"):
@@ -32,10 +32,26 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
         errors.append("code_sha is invalid")
     elif expected_sha is not None and code_sha != expected_sha.lower():
         errors.append("code_sha does not match the trusted main SHA")
-    if provenance["measurement_orders"] != ["direct_first", "function_call_first"]:
-        errors.append("both measurement orders must be recorded")
+    coverage = provenance["order_coverage"]
+    expected_basis = {"c": "static_analysis", "python": "static_analysis", "javascript": "trace_observed"}
+    if not isinstance(coverage, dict) or set(coverage) != set(expected_basis):
+        errors.append("order coverage is invalid")
+    else:
+        allowed = {"direct_first", "function_call_first"}
+        for language, basis in expected_basis.items():
+            item = coverage[language]
+            if (not isinstance(item, dict) or set(item) != {"basis", "confirmed", "unconfirmed"}
+                    or item.get("basis") != basis or not isinstance(item.get("confirmed"), list)
+                    or not isinstance(item.get("unconfirmed"), list)
+                    or set(item["confirmed"]) | set(item["unconfirmed"]) != allowed
+                    or set(item["confirmed"]) & set(item["unconfirmed"])
+                    or len(item["confirmed"]) != len(set(item["confirmed"]))
+                    or len(item["unconfirmed"]) != len(set(item["unconfirmed"]))):
+                errors.append(f"order coverage is invalid for {language}")
     if provenance["trace_is_benchmark"] is not False:
         errors.append("trace execution must not be represented as a benchmark")
+    if provenance["trace_options"] != ["--trace-opt", "--trace-deopt", "--trace-turbo-inlining"]:
+        errors.append("trace options are not separated from normal benchmark options")
     hashes = provenance["evidence_sha256"]
     if not isinstance(hashes, dict) or set(hashes) != FILES:
         errors.append("evidence hash inventory is invalid")

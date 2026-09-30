@@ -33,6 +33,14 @@ jobs:
           msystem: MINGW64
           update: true
           install: mingw-w64-x86_64-gcc
+      - name: Run hosted Windows analysis fixture without publishing it
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'function-call-analysis-hosted-fixture'
+          ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output
+          python -B ./tools/validate_function_call_analysis.py $output --expected-sha '${{ github.sha }}'
+          Remove-Item -LiteralPath $output -Recurse -Force
       - name: Run C/PowerShell measurement-order integration
         if: runner.os == 'Windows'
         shell: pwsh
