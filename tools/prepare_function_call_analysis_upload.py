@@ -8,7 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from check_function_call_artifact_safety import issues, redact, scan
+from check_function_call_artifact_safety import DuplicateJsonKey, issues, redact, scan
 
 
 def prepare(raw: Path, bundle: Path) -> dict:
@@ -45,7 +45,11 @@ def prepare(raw: Path, bundle: Path) -> dict:
             except UnicodeError:
                 excluded.append({"file": name, "reason": "non-UTF-8", "raw_sha256": raw_hash})
                 continue
-            content, counts = redact(content)
+            try:
+                content, counts = redact(content)
+            except DuplicateJsonKey:
+                excluded.append({"file": name, "reason": "duplicate JSON key", "raw_sha256": raw_hash})
+                continue
             problems = issues(content)
             if problems:
                 excluded.append({"file": name, "reason": ", ".join(problems), "raw_sha256": raw_hash})

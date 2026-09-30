@@ -55,6 +55,24 @@ function Get-TextHash([string]$Value) {
 function Protect-ArtifactText([string]$Value) {
     if ($Value.TrimStart() -match '^[{\[]') {
         try {
+            function Test-ArtifactJsonDuplicate($Element) {
+                if ($Element.ValueKind -eq [Text.Json.JsonValueKind]::Object) {
+                    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+                    foreach ($property in $Element.EnumerateObject()) {
+                        if (-not $seen.Add($property.Name)) { return $true }
+                        if (Test-ArtifactJsonDuplicate $property.Value) { return $true }
+                    }
+                } elseif ($Element.ValueKind -eq [Text.Json.JsonValueKind]::Array) {
+                    foreach ($child in $Element.EnumerateArray()) {
+                        if (Test-ArtifactJsonDuplicate $child) { return $true }
+                    }
+                }
+                return $false
+            }
+            $document = [Text.Json.JsonDocument]::Parse($Value)
+            if (Test-ArtifactJsonDuplicate $document.RootElement) {
+                return '<invalid-json-duplicate-keys>'
+            }
             $decoded = ConvertFrom-Json -InputObject $Value -AsHashtable -ErrorAction Stop
             function Protect-ArtifactJsonNode($Node) {
                 if ($Node -is [string]) { return Protect-ArtifactText $Node }

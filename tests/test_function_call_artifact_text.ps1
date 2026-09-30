@@ -44,4 +44,13 @@ $json = '{"cwd":"\/\u0068ome\/alice","nested":[{"path":"C:\\Users\\alice\\privat
 $cleaned = (Protect-ArtifactText $json) | ConvertFrom-Json -AsHashtable
 if ($cleaned.cwd -ne '<absolute-path>' -or $cleaned.nested[0].path -ne '<absolute-path>' -or
     $cleaned.nested[1].url -ne 'https://example.com/srv/private') { throw 'JSON decoded path was not safely redacted' }
-Write-Host 'tests=42 passed=42'
+foreach ($value in @('{"cwd":"/home/alice","cwd":"safe"}',
+                     '{"cwd":"safe","cwd":"/home/alice"}',
+                     '{"nested":{"cwd":"\/\u0068ome\/alice","cwd":"safe"}}',
+                     '{"credential":"ghp_abcdefghijklmnop","credential":"safe"}',
+                     '{"CWD":"/tmp","cwd":"safe"}')) {
+    if ((Protect-ArtifactText $value) -ne '<invalid-json-duplicate-keys>') {
+        throw 'duplicate JSON key was not rejected'
+    }
+}
+Write-Host 'tests=47 passed=47'

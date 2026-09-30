@@ -36,6 +36,10 @@ PLACEHOLDER_PREFIX = re.compile(
 )
 
 
+class DuplicateJsonKey(ValueError):
+    """JSON object contains a key that would disappear during parsing."""
+
+
 def _safe_slash(content: str, match: re.Match[str]) -> bool:
     if not match.group().startswith("/"):
         return False
@@ -71,8 +75,21 @@ def _redact_text(content: str) -> tuple[str, dict[str, int]]:
 
 
 def _parsed_json(content: str) -> tuple[bool, object]:
+    def reject_duplicate(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        value: dict[str, object] = {}
+        seen: set[str] = set()
+        for key, child in pairs:
+            folded = key.casefold()
+            if folded in seen:
+                raise DuplicateJsonKey("duplicate JSON key")
+            seen.add(folded)
+            value[key] = child
+        return value
+
     try:
-        return True, json.loads(content)
+        return True, json.loads(content, object_pairs_hook=reject_duplicate)
+    except DuplicateJsonKey:
+        raise
     except (ValueError, TypeError):
         return False, None
 
@@ -90,7 +107,10 @@ def _strings(value: object):
 
 
 def issues(content: str) -> list[str]:
-    parsed, value = _parsed_json(content)
+    try:
+        parsed, value = _parsed_json(content)
+    except DuplicateJsonKey:
+        return ["duplicate JSON key"]
     if not parsed:
         return _text_issues(content)
     found = {kind for item in _strings(value) for kind in _text_issues(item)}

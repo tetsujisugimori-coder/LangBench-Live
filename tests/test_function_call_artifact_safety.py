@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from check_function_call_artifact_safety import issues, redact, scan
+from check_function_call_artifact_safety import DuplicateJsonKey, issues, redact, scan
 from prepare_function_call_analysis_upload import prepare
 
 
@@ -87,6 +87,15 @@ class ArtifactSafetyTests(unittest.TestCase):
         unsafe_key = r'{"\/\u0068ome\/alice":"safe"}'
         self.assertIn("absolute path", issues(unsafe_key))
         self.assertEqual({"<redacted-absolute-path>": "safe"}, json.loads(redact(unsafe_key)[0]))
+        for duplicate in (r'{"cwd":"/home/alice","cwd":"safe"}',
+                          r'{"cwd":"safe","cwd":"/home/alice"}',
+                          r'{"nested":{"cwd":"\/\u0068ome\/alice","cwd":"safe"}}',
+                          r'{"credential":"ghp_abcdefghijklmnop","credential":"safe"}',
+                          r'{"CWD":"/tmp","cwd":"safe"}'):
+            with self.subTest(duplicate=duplicate):
+                self.assertEqual(["duplicate JSON key"], issues(duplicate))
+                with self.assertRaises(DuplicateJsonKey):
+                    redact(duplicate)
         for unsafe in ("return /etc/gg;", "return /etc/uv;", "if (/home/gg)",
                        "const r = /foo/;", "const r = /foo/",
                        "return /foo/g", "return /etc/"):
@@ -148,9 +157,15 @@ class ArtifactSafetyTests(unittest.TestCase):
                 "safe validation reason\nlate \\\\server\\share\\private\\path\n"
                 "stderr >/tmp/private.log\nsafe exit code 23\n", encoding="utf-8")
             (raw / "main.s").write_text("secret=dummyvalue", encoding="utf-8")
+            duplicate = r'{"cwd":"/home/alice","cwd":"safe"}'
+            (raw / "duplicate.json").write_text(duplicate, encoding="utf-8")
             self.assertTrue(scan(raw))
             report = prepare(raw, bundle)
             self.assertEqual("partial", report["bundle_status"])
+            self.assertFalse((bundle / "duplicate.json").exists())
+            excluded = next(item for item in report["excluded_files"] if item["file"] == "duplicate.json")
+            self.assertEqual("duplicate JSON key", excluded["reason"])
+            self.assertEqual(hashlib.sha256(duplicate.encode()).hexdigest(), excluded["raw_sha256"])
             self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["cwd"])
             self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["paths"][0])
             self.assertIn("<redacted-credential>", (bundle / "main.s").read_text())
