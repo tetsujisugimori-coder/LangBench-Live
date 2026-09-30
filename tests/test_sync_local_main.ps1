@@ -148,6 +148,16 @@ try {
         $old=$env:GIT_CONFIG_GLOBAL; $env:GIT_CONFIG_GLOBAL=$config
         try { Invoke-Sync $f; if (Test-Path $sentinel) { throw 'LFS filter unexpectedly executed' } } finally { $env:GIT_CONFIG_GLOBAL=$old }
     }
+    Run-Case 'system external attributes and LFS commands shadowed without execution' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder system.gitconfig; $attributes=Join-Path $f.Folder system.attributes
+        $sentinel=Join-Path $f.Folder sentinel; $command=Join-Path $f.Folder filter.sh
+        Set-Content $attributes '*.txt filter=lfs'
+        Set-Content $command "#!/bin/sh`necho executed > '$($sentinel.Replace('\','/'))'`ncat"
+        Set-Content $config @('[core]'," attributesFile = $($attributes.Replace('\','/'))",'[filter "lfs"]'," clean = sh $($command.Replace('\','/'))", " smudge = sh $($command.Replace('\','/'))", " process = sh $($command.Replace('\','/'))", ' required = true')
+        $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$config; $env:GIT_CONFIG_NOSYSTEM='0'
+        try { Invoke-Sync $f; if (Test-Path $sentinel) { throw 'System attributes activated an LFS filter' } } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
     foreach ($scope in @('local','worktree')) {
         Run-Case "$scope LFS commands shadowed" {
             param($scope)
