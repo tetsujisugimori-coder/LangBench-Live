@@ -68,6 +68,7 @@ jobs:
           if (Test-Path -LiteralPath $destination) { throw 'analysis destination already exists' }
           "destination=$destination" >> $env:GITHUB_OUTPUT
       - name: Generate and validate the analysis package
+        id: generate
         shell: pwsh
         env:
           CODE_SHA: ${{ needs.authorize.outputs.code_sha }}
@@ -77,11 +78,28 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if ((git rev-parse HEAD).Trim() -ne $env:CODE_SHA) { throw 'checkout SHA changed' }
           ./tools/generate_function_call_analysis.ps1 -AnalysisId $env:ANALYSIS_ID -OutputDirectory $env:DESTINATION -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live' -ExpectedSha $env:CODE_SHA
-      - name: Upload unpublished analysis package even when generation fails
+      - name: Prepare inspected upload bundle even when generation fails
         if: ${{ always() && steps.destination.outputs.destination != '' }}
+        id: publish
+        shell: pwsh
+        env:
+          RAW_DESTINATION: ${{ steps.destination.outputs.destination }}
+          GENERATION_OUTCOME: ${{ steps.generate.outcome }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundle = "$env:RAW_DESTINATION-upload"
+          python -B ./tools/prepare_function_call_analysis_upload.py $env:RAW_DESTINATION $bundle
+          if ($LASTEXITCODE -ne 0) { throw 'upload bundle safety preparation failed' }
+          "bundle=$bundle" >> $env:GITHUB_OUTPUT
+          $report = Get-Content -LiteralPath (Join-Path $bundle 'upload-manifest.json') -Raw | ConvertFrom-Json
+          if ($env:GENERATION_OUTCOME -eq 'success' -and $report.bundle_status -ne 'complete') {
+            throw 'successful generation did not produce a complete inspected bundle'
+          }
+      - name: Upload inspected analysis bundle
+        if: ${{ always() && steps.publish.outputs.bundle != '' }}
         uses: actions/upload-artifact@v6
         with:
           name: function-call-analysis-${{ needs.authorize.outputs.analysis_id }}
-          path: ${{ steps.destination.outputs.destination }}
-          if-no-files-found: warn
+          path: ${{ steps.publish.outputs.bundle }}
+          if-no-files-found: error
           retention-days: 14

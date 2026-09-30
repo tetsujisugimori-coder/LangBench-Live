@@ -76,9 +76,51 @@ try {
     Assert-True (Test-Path -LiteralPath (Join-Path $partialOutput 'stage-logs/node-trace-function_call_first.stderr.txt')) 'failed stage stderr log was not retained'
     & python -B (Join-Path $projectRoot 'tools/check_function_call_artifact_safety.py') $partialOutput
     Assert-True ($LASTEXITCODE -eq 0) 'partial artifact contains a secret or local absolute path'
+    $dummySource = Join-Path $tempRoot 'dummy-gcc.c'
+    $dummyExe = Join-Path $tempRoot 'dummy-gcc.exe'
+    [IO.File]::WriteAllText($dummySource, @'
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+int main(int argc, char **argv) {
+    if (argc > 1 && strcmp(argv[1], "--version") == 0) { puts("gcc fixture 1.0"); return 0; }
+    const char *report = NULL, *assembly = NULL;
+    for (int i = 1; i < argc; ++i) {
+        if (strncmp(argv[i], "-fopt-info-all=", 15) == 0) report = argv[i] + 15;
+        if (strcmp(argv[i], "-o") == 0 && i + 1 < argc) assembly = argv[++i];
+    }
+    if (!report || !assembly) return 24;
+    FILE *file = fopen(report, "wb");
+    if (!file) return 25;
+    fputs("D:/a/private ghp_abcdefghijklmnopqrst\n", file); fclose(file);
+    file = fopen(assembly, "wb");
+    if (!file) return 26;
+    fputs("secret=dummyvalue\n", file); fclose(file);
+    fputs("fixture compiler stopped\n", stderr);
+    return 23;
+}
+'@, [Text.UTF8Encoding]::new($false))
+    & gcc -x c $dummySource -o $dummyExe
+    if ($LASTEXITCODE -ne 0) { throw 'dummy GCC fixture compile failed' }
+    $gccFailureOutput = Join-Path $tempRoot 'gcc-failure-output'
+    try { & $generator -AnalysisId gcc-failure -OutputDirectory $gccFailureOutput -SharedRepositoryPath $sharedRoot -AllowedRemote $script:fixtureAllowedRemote -GccExecutable $dummyExe; $gccFailed = $false }
+    catch { $gccFailed = $true }
+    Assert-True $gccFailed 'dummy GCC failure unexpectedly succeeded'
+    $gccState = Get-Content -LiteralPath (Join-Path $gccFailureOutput 'run-state.json') -Raw | ConvertFrom-Json
+    Assert-True ($gccState.status -eq 'failed' -and $gccState.stages.gcc.exit_code -eq 23) 'GCC failure state or exit code was lost'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $gccFailureOutput 'gcc-optimization.txt') -Raw) -match 'ghp_') 'raw GCC failure evidence was not retained locally'
+    $gccBundle = Join-Path $tempRoot 'gcc-failure-upload'
+    & python -B (Join-Path $projectRoot 'tools/prepare_function_call_analysis_upload.py') $gccFailureOutput $gccBundle
+    Assert-True ($LASTEXITCODE -eq 0) 'GCC failure upload bundle preparation failed'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $gccBundle 'gcc-optimization.txt'))) 'unsafe GCC report entered upload bundle'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $gccBundle 'main.s'))) 'unsafe GCC assembly entered upload bundle'
+    Assert-True (Test-Path -LiteralPath (Join-Path $gccBundle 'run-state.json')) 'safe GCC failure state was not retained'
+    Assert-True (Test-Path -LiteralPath (Join-Path $gccBundle 'stage-logs/gcc.stderr.txt')) 'safe GCC failure log was not retained'
+    & python -B (Join-Path $projectRoot 'tools/check_function_call_artifact_safety.py') $gccBundle
+    Assert-True ($LASTEXITCODE -eq 0) 'GCC failure bundle was not safe'
     $releasedAgain = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
     $releasedAgain.Dispose()
-    Write-Host 'tests=5 passed=5'
+    Write-Host 'tests=6 passed=6'
 } finally {
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
 }

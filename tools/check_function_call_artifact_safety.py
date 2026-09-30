@@ -12,8 +12,15 @@ SENSITIVE = {
         r"(?i)(?:gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|"
         r"Bearer\s+\S+|(?:token|password|secret|authorization)\s*[:=]\s*[^\s\"']+)"
     ),
-    "absolute path": re.compile(r"(?i)(?:[A-Z]:\\|/(?:home|Users|tmp|var)/)[^\s\"'<>]+"),
+    "absolute path": re.compile(
+        r"(?i)(?:[A-Z]:[\\/]|/(?:home|Users|tmp|var|workspace|work|opt|mnt|root|runner|__w)/)"
+        r"[^\s\"'<>]+"
+    ),
 }
+
+
+def issues(content: str) -> list[str]:
+    return [kind for kind, pattern in SENSITIVE.items() if pattern.search(content)]
 
 
 def scan(root: Path) -> list[str]:
@@ -26,9 +33,8 @@ def scan(root: Path) -> list[str]:
         except UnicodeError:
             errors.append(f"{path.relative_to(root).as_posix()}: non-UTF-8 artifact")
             continue
-        for kind, pattern in SENSITIVE.items():
-            if pattern.search(content):
-                errors.append(f"{path.relative_to(root).as_posix()}: {kind}")
+        for kind in issues(content):
+            errors.append(f"{path.relative_to(root).as_posix()}: {kind}")
     return errors
 
 

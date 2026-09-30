@@ -532,8 +532,12 @@ SIMDが `detected` の場合、`isa` は重複のない1件以上の文字列を
 
 Pythonの解析条件は実行中の `sys.flags.optimize` を記録します。JavaScriptはベンチマーク実行時の `process.execArgv` と `NODE_OPTIONS` を記録します。解析生成コマンド自身のトレース用フラグ（`--trace-opt` 等）は、ベンチマーク起動オプションと区別します。固定資料の更新履歴と各判定の根拠・未確認範囲は `artifacts/function-call-analysis/review-2026-09-29.md` を参照してください。
 
+解析生成器は PowerShell 7.2 以降（.NET 6 以降）が必要です。Windows PowerShell 5.1 の
+`powershell.exe` では実行しません。Issue #68 の PR-A では下記の実機コマンドを実行せず、
+人間によるマージと同期成功後に固定 main SHA から workflow が実行します。
+
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/generate_function_call_analysis.ps1 `
+pwsh -NoProfile -File tools/generate_function_call_analysis.ps1 `
   -AnalysisId <new-analysis-id> -OutputDirectory <new-output-directory> `
   -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live'
 python tools/validate_function_call_analysis.py <new-output-directory> --expected-sha <trusted-main-sha>

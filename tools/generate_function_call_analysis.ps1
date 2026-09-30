@@ -3,11 +3,17 @@ param(
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [Parameter(Mandatory = $true)][string]$SharedRepositoryPath,
     [string]$ExpectedSha,
+    [string]$GccExecutable = 'gcc',
     [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git'),
     [ValidateSet("direct_first", "function_call_first")][string]$TestFailTraceOrder
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 7 -or
+    ($PSVersionTable.PSVersion.Major -eq 7 -and $PSVersionTable.PSVersion.Minor -lt 2) -or
+    [Environment]::Version.Major -lt 6) {
+    throw 'analysis generation requires PowerShell 7.2 or later on .NET 6 or later'
+}
 
 function ConvertTo-ProcessArgument {
     param([string]$Value)
@@ -193,14 +199,14 @@ if ($ExpectedSha -and $gitSha -ne $ExpectedSha) { throw 'checkout SHA differs fr
 $script:runState.code_sha = $gitSha
 Write-RunState
 
-$gccVersionOutput = Invoke-RecordedStage 'gcc-version' 'gcc' @('--version') 'c'
+$gccVersionOutput = Invoke-RecordedStage 'gcc-version' $GccExecutable @('--version') 'c'
 $gccVersion = ($gccVersionOutput.stdout -split "`r?`n")[0]
 if ([string]::IsNullOrWhiteSpace($gccVersion)) { throw "failed to obtain GCC version" }
 $gccVersion = $gccVersion -replace '^gcc\.exe ', 'gcc '
 $cOptions = @("-O2", "-std=c11", "-Wall", "-Wextra")
 Remove-Item -LiteralPath $gccReport, $assembly -Force -ErrorAction SilentlyContinue
 $gccArgs = @($cRelativeSource) + $cOptions + @("-S", "-masm=intel", "-fopt-info-all=$gccReport", "-o", $assembly)
-Invoke-RecordedStage 'gcc' 'gcc' $gccArgs 'c' @($gccReport, $assembly) | Out-Null
+Invoke-RecordedStage 'gcc' $GccExecutable $gccArgs 'c' @($gccReport, $assembly) | Out-Null
 $gccReportContent = [System.IO.File]::ReadAllText($gccReport)
 $gccReportContent = [regex]::Replace($gccReportContent, '(?m)[\t ]+(?=\r?$)', '')
 Write-Utf8 $gccReport (Protect-ArtifactText $gccReportContent)

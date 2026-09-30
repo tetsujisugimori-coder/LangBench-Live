@@ -19,8 +19,10 @@
    origin、main、固定 SHA、tracked 状態を確認し、競合時は出力作成前に停止する。実行コードと出力はそれぞれ
    固定 SHA の runner checkout と `RUNNER_TEMP` に置き、ユーザー作業フォルダーの成果物は上書きしない。
 5. 生成直後から `run-state.json` を atomic 更新し、stage ごとの sanitized command、exit code、
-   stdout/stderr log、source/condition/evidence hash を残す。秘密情報・ローカル絶対 path の検査と
-   validator の結果を `validation.json` に保存する。失敗時も生成できた package を 14 日 artifact として保持する。
+   stdout/stderr log、source/condition/evidence hash を残す。validator の結果を `validation.json` に保存する。
+   成否を問わず raw package は runner の一時領域に残し、upload 前に別の検査済み bundle を作る。
+   秘密情報や絶対 path を含む原本は bundle に入れず、安全な state/log/先行 trace を保持する。
+   最終 bundle 全体の scan に成功した場合だけ 14 日 artifact として upload する。
 
 JavaScript は通常 benchmark entry point を trace flags 付きで起動せず、専用 harness が時間計測・sample
 集計・result JSON 保存を行わずに対象関数だけを両順序で刺激する。C/Python は静的根拠のため順序独立、
