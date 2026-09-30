@@ -151,6 +151,19 @@ python -B tools/summarize_c_order_diagnostic.py results/diagnostics/c-order-2026
 
 ## 概要
 
+## direct／function_call 均衡順序系列
+
+Issue #66 の均衡モードは `tools/remeasure_function_call.ps1 -BalancedOrder` で、固定した
+D,F,F,D×3 の12回を Python → JavaScript → C の逐次プロセスとして実行します。series IDと専用保存先は
+再利用せず、途中失敗も同じseriesのまま記録して停止します。事前計画、Windows本測定コマンド、公開境界は
+[`artifacts/direct-function-call-balanced-order/plan.md`](artifacts/direct-function-call-balanced-order/plan.md)を参照してください。
+従来の `-Count` / `-MeasurementOrder` モードは引き続き利用できます。
+
+main更新後のWindows同期は、GitHub APIでmerged PRを確認したpushだけを対象にします。信頼済みmainから
+`tools/sync_local_main.ps1`を実行し、tracked変更、別branch、進行中Git操作、非fast-forward、lock競合、
+untracked/ignored衝突では変更前に停止します。`reset --hard`、clean、stash、rebase、branch削除・作成は行いません。
+本番self-hosted runnerでの初回確認は、この変更が人間によりmergeされた後に行います。
+
 複数のプログラミング言語で同じベンチマーク処理を実行し、コード・ログ・実測結果を比較する学習用アプリです。
 
 ## v0.1 の目的

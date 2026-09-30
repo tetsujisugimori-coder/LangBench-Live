@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "issue": 66,
+  "benchmark": "function_call_numeric_sum",
+  "status": "windows_measurement_pending",
+  "plan": ["direct_first", "function_call_first", "function_call_first", "direct_first", "direct_first", "function_call_first", "function_call_first", "direct_first", "direct_first", "function_call_first", "function_call_first", "direct_first"],
+  "blocks": 3,
+  "runs_per_language": 12,
+  "samples_per_case": 50,
+  "expected_public_samples": 3600,
+  "language_execution_order": ["python", "javascript", "c"],
+  "measurement_git_sha": null,
+  "series_id": null
+}
