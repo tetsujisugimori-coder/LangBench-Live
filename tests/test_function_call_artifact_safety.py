@@ -74,6 +74,19 @@ class ArtifactSafetyTests(unittest.TestCase):
         cleaned, counts = redact(escaped_json)
         self.assertEqual({"absolute path": 1}, counts)
         self.assertEqual("<redacted-absolute-path>", json.loads(cleaned)["cwd"])
+        nested_json = (r'{"cwd":"\/\u0068ome\/alice","nested":[{"path":"C:\\Users\\alice\\private"},'
+                       r'{"url":"https:\/\/example.com\/srv\/private"}]}')
+        self.assertIn("absolute path", issues(nested_json))
+        cleaned, counts = redact(nested_json)
+        nested = json.loads(cleaned)
+        self.assertEqual({"absolute path": 2}, counts)
+        self.assertEqual("<redacted-absolute-path>", nested["cwd"])
+        self.assertEqual("<redacted-absolute-path>", nested["nested"][0]["path"])
+        self.assertEqual("https://example.com/srv/private", nested["nested"][1]["url"])
+        self.assertEqual([], issues(cleaned))
+        unsafe_key = r'{"\/\u0068ome\/alice":"safe"}'
+        self.assertIn("absolute path", issues(unsafe_key))
+        self.assertEqual({"<redacted-absolute-path>": "safe"}, json.loads(redact(unsafe_key)[0]))
         for unsafe in ("return /etc/gg;", "return /etc/uv;", "if (/home/gg)",
                        "const r = /foo/;", "const r = /foo/",
                        "return /foo/g", "return /etc/"):
@@ -127,7 +140,9 @@ class ArtifactSafetyTests(unittest.TestCase):
             root = Path(directory)
             raw, bundle = root / "raw", root / "upload"
             (raw / "stage-logs").mkdir(parents=True)
-            (raw / "run-state.json").write_text(r'{"status":"success","cwd":"\/home\/alice"}', encoding="utf-8")
+            (raw / "run-state.json").write_text(
+                r'{"status":"success","cwd":"\/\u0068ome\/alice","paths":["\/tmp","safe"]}',
+                encoding="utf-8")
             (raw / "validation.json").write_text('{"status":"valid"}', encoding="utf-8")
             (raw / "stage-logs" / "validator.stderr.txt").write_text(
                 "safe validation reason\nlate \\\\server\\share\\private\\path\n"
@@ -137,6 +152,7 @@ class ArtifactSafetyTests(unittest.TestCase):
             report = prepare(raw, bundle)
             self.assertEqual("partial", report["bundle_status"])
             self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["cwd"])
+            self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["paths"][0])
             self.assertIn("<redacted-credential>", (bundle / "main.s").read_text())
             validator_log = (bundle / "stage-logs" / "validator.stderr.txt").read_text()
             self.assertIn("safe validation reason", validator_log)

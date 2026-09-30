@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -53,11 +54,11 @@ def _matches(content: str, kind: str) -> list[re.Match[str]]:
             if kind != "absolute path" or not _safe_slash(content, match)]
 
 
-def issues(content: str) -> list[str]:
+def _text_issues(content: str) -> list[str]:
     return [kind for kind in SENSITIVE if _matches(content, kind)]
 
 
-def redact(content: str) -> tuple[str, dict[str, int]]:
+def _redact_text(content: str) -> tuple[str, dict[str, int]]:
     counts: dict[str, int] = {}
     for kind in SENSITIVE:
         matches = _matches(content, kind)
@@ -67,6 +68,63 @@ def redact(content: str) -> tuple[str, dict[str, int]]:
         if count:
             counts[kind] = count
     return content, counts
+
+
+def _parsed_json(content: str) -> tuple[bool, object]:
+    try:
+        return True, json.loads(content)
+    except (ValueError, TypeError):
+        return False, None
+
+
+def _strings(value: object):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, child in value.items():
+            yield from _strings(key)
+            yield from _strings(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _strings(child)
+
+
+def issues(content: str) -> list[str]:
+    parsed, value = _parsed_json(content)
+    if not parsed:
+        return _text_issues(content)
+    found = {kind for item in _strings(value) for kind in _text_issues(item)}
+    return [kind for kind in SENSITIVE if kind in found]
+
+
+def redact(content: str) -> tuple[str, dict[str, int]]:
+    parsed, value = _parsed_json(content)
+    if not parsed:
+        return _redact_text(content)
+    counts: dict[str, int] = {}
+
+    def sanitize(item: object) -> object:
+        if isinstance(item, str):
+            result, local = _redact_text(item)
+            for kind, count in local.items():
+                counts[kind] = counts.get(kind, 0) + count
+            return result
+        if isinstance(item, list):
+            return [sanitize(child) for child in item]
+        if isinstance(item, dict):
+            cleaned: dict[str, object] = {}
+            for key, child in item.items():
+                safe_key = sanitize(key)
+                if safe_key in cleaned:
+                    safe_key = f"{safe_key}-{len(cleaned)}"
+                cleaned[safe_key] = sanitize(child)
+            return cleaned
+        return item
+
+    cleaned = sanitize(value)
+    if not counts:
+        return content, {}
+    return json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n", counts
 
 
 def scan(root: Path) -> list[str]:

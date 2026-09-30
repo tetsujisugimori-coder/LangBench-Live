@@ -40,4 +40,8 @@ foreach ($value in @('return /etc/gg;', 'return /etc/uv;', 'if (/home/gg)',
                      'const r = /foo/;', 'const r = /foo/', 'return /foo/g')) {
     if ((Protect-ArtifactText $value) -notmatch '<absolute-path>') { throw "trace path was retained: $value" }
 }
-Write-Host 'tests=41 passed=41'
+$json = '{"cwd":"\/\u0068ome\/alice","nested":[{"path":"C:\\Users\\alice\\private"},{"url":"https:\/\/example.com\/srv\/private"}]}'
+$cleaned = (Protect-ArtifactText $json) | ConvertFrom-Json -AsHashtable
+if ($cleaned.cwd -ne '<absolute-path>' -or $cleaned.nested[0].path -ne '<absolute-path>' -or
+    $cleaned.nested[1].url -ne 'https://example.com/srv/private') { throw 'JSON decoded path was not safely redacted' }
+Write-Host 'tests=42 passed=42'

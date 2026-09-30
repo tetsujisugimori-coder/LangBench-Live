@@ -53,6 +53,30 @@ function Get-TextHash([string]$Value) {
 }
 
 function Protect-ArtifactText([string]$Value) {
+    if ($Value.TrimStart() -match '^[{\[]') {
+        try {
+            $decoded = ConvertFrom-Json -InputObject $Value -AsHashtable -ErrorAction Stop
+            function Protect-ArtifactJsonNode($Node) {
+                if ($Node -is [string]) { return Protect-ArtifactText $Node }
+                if ($Node -is [System.Collections.IDictionary]) {
+                    $cleaned = [ordered]@{}
+                    foreach ($key in $Node.Keys) {
+                        $safeKey = Protect-ArtifactText ([string]$key)
+                        $cleaned[$safeKey] = Protect-ArtifactJsonNode $Node[$key]
+                    }
+                    return $cleaned
+                }
+                if ($Node -is [array]) {
+                    $cleaned = @($Node | ForEach-Object { Protect-ArtifactJsonNode $_ })
+                    return ,$cleaned
+                }
+                return $Node
+            }
+            return (ConvertTo-Json -InputObject (Protect-ArtifactJsonNode $decoded) -Depth 50 -Compress)
+        } catch {
+            # Non-JSON diagnostics still use the raw text path rules below.
+        }
+    }
     $safe = $Value
     foreach ($pair in @(@($artifactDir, '<analysis-package>'), @($projectRoot, '<checkout>'), @($sharedRoot, '<shared-repository>'))) {
         if ($pair[0]) { $safe = [regex]::Replace($safe, [regex]::Escape([string]$pair[0]), [string]$pair[1], 'IgnoreCase') }
