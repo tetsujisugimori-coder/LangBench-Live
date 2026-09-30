@@ -5,19 +5,39 @@ $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("langbench-analysis-lock-test-
 
 function Assert-True([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 function Invoke-ExpectedFailure([string]$AnalysisId, [string]$Output) {
-    try { & $generator -AnalysisId $AnalysisId -OutputDirectory $Output -SharedRepositoryPath $sharedRoot -AllowedRemote $projectRoot 2>$null; return $false }
+    try { & $generator -AnalysisId $AnalysisId -OutputDirectory $Output -SharedRepositoryPath $sharedRoot -AllowedRemote $script:fixtureAllowedRemote 2>$null; return $false }
     catch { return $true }
 }
 
 try {
     [IO.Directory]::CreateDirectory($tempRoot) | Out-Null
+    $sourceSha = (& git -C $projectRoot rev-parse HEAD).Trim()
+    $detachedSource = Join-Path $tempRoot 'detached-source-checkout'
+    & git clone --quiet --no-local $projectRoot $detachedSource
+    if ($LASTEXITCODE -ne 0) { throw 'failed to create detached source fixture' }
+    & git -C $detachedSource switch --quiet --detach $sourceSha
+    if ($LASTEXITCODE -ne 0 -or (& git -C $detachedSource symbolic-ref --quiet --short HEAD)) { throw 'source fixture is not detached' }
     $sharedRoot = Join-Path $tempRoot 'user-working-copy'
-    & git clone --quiet --no-local $projectRoot $sharedRoot
+    & git clone --quiet --no-local --no-checkout $detachedSource $sharedRoot
     if ($LASTEXITCODE -ne 0) { throw 'failed to create independent shared-lock fixture clone' }
-    & git -C $sharedRoot branch -M main
+    $existingMain = @(& git -C $sharedRoot show-ref --verify --quiet refs/heads/main)
+    if ($LASTEXITCODE -eq 0) { & git -C $sharedRoot switch --quiet main }
+    else { & git -C $sharedRoot switch --quiet -c main $sourceSha }
     if ($LASTEXITCODE -ne 0) { throw 'failed to prepare shared main fixture' }
+    if ((& git -C $sharedRoot rev-parse HEAD).Trim() -ne $sourceSha) { throw 'shared fixture SHA differs from source checkout' }
+    $sharedBranch = @(& git -C $sharedRoot symbolic-ref --quiet --short HEAD)
+    if ($LASTEXITCODE -ne 0 -or $sharedBranch.Count -ne 1 -or $sharedBranch[0] -ne 'main') { throw 'shared fixture is not on main' }
+    $script:fixtureAllowedRemote = $detachedSource
     $gitDirectory = (& git -C $sharedRoot rev-parse --path-format=absolute --git-common-dir).Trim()
     $lockPath = Join-Path $gitDirectory 'langbench-operation.lock'
+    & git -C $sharedRoot switch --quiet --detach $sourceSha
+    $detachedOutput = Join-Path $tempRoot 'detached-shared-output'
+    Assert-True (Invoke-ExpectedFailure 'detached-shared' $detachedOutput) 'detached shared repository unexpectedly succeeded'
+    Assert-True (-not (Test-Path -LiteralPath $detachedOutput)) 'detached shared repository created output'
+    & git -C $sharedRoot switch --quiet main
+    if ($LASTEXITCODE -ne 0) { throw 'failed to restore shared fixture main' }
+    $releasedAfterDetached = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
+    $releasedAfterDetached.Dispose()
     $blockedOutput = Join-Path $tempRoot 'blocked-output'
     $lock = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
     try {
@@ -40,7 +60,7 @@ try {
     $released.Dispose()
 
     $partialOutput = Join-Path $tempRoot 'partial-output'
-    try { & $generator -AnalysisId partial-failure -OutputDirectory $partialOutput -SharedRepositoryPath $sharedRoot -AllowedRemote $projectRoot -TestFailTraceOrder function_call_first; $failed = $false }
+    try { & $generator -AnalysisId partial-failure -OutputDirectory $partialOutput -SharedRepositoryPath $sharedRoot -AllowedRemote $script:fixtureAllowedRemote -TestFailTraceOrder function_call_first; $failed = $false }
     catch { $failed = $true }
     Assert-True $failed 'second trace fixture unexpectedly succeeded'
     $firstTrace = Get-Content -LiteralPath (Join-Path $partialOutput 'v8-optimization-direct_first.txt') -Raw
@@ -50,7 +70,7 @@ try {
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $partialOutput 'manifest.json'))) 'partial analysis produced a success manifest'
     $releasedAgain = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
     $releasedAgain.Dispose()
-    Write-Host 'tests=4 passed=4'
+    Write-Host 'tests=5 passed=5'
 } finally {
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
 }

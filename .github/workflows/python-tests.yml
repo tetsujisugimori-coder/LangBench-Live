@@ -37,10 +37,27 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceRoot = (Resolve-Path '.').Path
+          $sourceSha = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceSha -notmatch '^[0-9a-f]{40}$') { throw 'cannot identify fixture source SHA' }
+          $shared = Join-Path $env:RUNNER_TEMP 'function-call-analysis-shared-clone'
           $output = Join-Path $env:RUNNER_TEMP 'function-call-analysis-hosted-fixture'
-          ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output -SharedRepositoryPath $PWD
-          python -B ./tools/validate_function_call_analysis.py $output --expected-sha '${{ github.sha }}'
-          Remove-Item -LiteralPath $output -Recurse -Force
+          if ((Test-Path -LiteralPath $shared) -or (Test-Path -LiteralPath $output)) { throw 'fixture path already exists' }
+          try {
+            git clone --quiet --no-local --no-checkout $sourceRoot $shared
+            if ($LASTEXITCODE -ne 0) { throw 'failed to create hosted shared fixture clone' }
+            git -C $shared switch --quiet -c main $sourceSha
+            if ($LASTEXITCODE -ne 0) { throw 'failed to create fixture main branch' }
+            if ((git -C $shared rev-parse HEAD).Trim() -ne $sourceSha) { throw 'fixture clone SHA differs' }
+            $sharedBranch = @(git -C $shared symbolic-ref --quiet --short HEAD)
+            if ($LASTEXITCODE -ne 0 -or $sharedBranch.Count -ne 1 -or $sharedBranch[0] -ne 'main') { throw 'fixture clone is not on main' }
+            ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output -SharedRepositoryPath $shared -AllowedRemote $sourceRoot
+            python -B ./tools/validate_function_call_analysis.py $output --expected-sha $sourceSha
+          } finally {
+            if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
+            if (Test-Path -LiteralPath $shared) { Remove-Item -LiteralPath $shared -Recurse -Force }
+          }
       - name: Test analysis shared-operation lock
         if: runner.os == 'Windows'
         shell: pwsh

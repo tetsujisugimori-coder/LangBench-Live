@@ -71,7 +71,12 @@ if ($AllowedRemote -inotcontains ((& git -C $sharedRoot remote get-url origin).T
 $codeHead = (& git -C $projectRoot rev-parse HEAD).Trim()
 $sharedHead = (& git -C $sharedRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0 -or $sharedHead -ne $codeHead) { throw "shared repository is not synchronized to the analyzed SHA" }
-if ((& git -C $sharedRoot branch --show-current).Trim() -ne "main") { throw "shared repository is not on main" }
+$branchOutput = @(& git -C $sharedRoot symbolic-ref --quiet --short HEAD)
+$branchExitCode = $LASTEXITCODE
+if ($branchExitCode -ne 0 -or $branchOutput.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string]$branchOutput[0])) {
+    throw "shared repository is detached; main is required"
+}
+if ([string]$branchOutput[0] -ne "main") { throw "shared repository branch is not main: $($branchOutput[0])" }
 if (@(& git -C $sharedRoot status --porcelain --untracked-files=no).Count) { throw "shared repository has tracked changes" }
 try {
     $measurementLock = [IO.File]::Open((Join-Path $sharedRoot "results/function_call_numeric_sum.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
