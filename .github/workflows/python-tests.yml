@@ -50,7 +50,13 @@ jobs:
           if ((Test-Path -LiteralPath $shared) -or (Test-Path -LiteralPath $output)) { throw 'fixture path already exists' }
           try {
             ./tools/prepare_function_call_fixture_clone.ps1 -SourceRepository $sourceRoot -Destination $shared -SourceSha $sourceSha
-            ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output -SharedRepositoryPath $shared -AllowedRemote $sourceRoot
+            try {
+              ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output -SharedRepositoryPath $shared -AllowedRemote $sourceRoot
+            } catch {
+              $safetyLog = Join-Path $output 'stage-logs/artifact-safety.stdout.txt'
+              if (Test-Path -LiteralPath $safetyLog) { Get-Content -LiteralPath $safetyLog }
+              throw
+            }
             python -B ./tools/validate_function_call_analysis.py $output --expected-sha $sourceSha
             python -B ./tools/check_function_call_artifact_safety.py $output
             if ($LASTEXITCODE -ne 0) { throw 'hosted artifact safety scan failed' }
