@@ -168,6 +168,8 @@ untracked/ignored衝突では変更前に停止します。`reset --hard`、clea
 `langbench-live-tetsu-windows`を付与してください。workflowは`self-hosted`、`Windows`、`X64`に加えて
 このlabelを必須とし、別のWindows runnerへ配送しません。runner交換時も、固定作業フォルダーの所有者である
 対象PCだけにこのlabelを移し、同時に複数台へ付与しないでください。
+このPRはrunnerへのlabel登録自体を実行しません。管理者がself-hosted runner設定でlabelを実際に登録し、
+Actions画面で対象PCにだけ表示されることを確認するまでは、本番同期jobは待機または未検証として扱います。
 
 複数のプログラミング言語で同じベンチマーク処理を実行し、コード・ログ・実測結果を比較する学習用アプリです。
 

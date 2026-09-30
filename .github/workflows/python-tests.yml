@@ -38,4 +38,8 @@ jobs:
       - name: Run local-main synchronization safety tests
         if: runner.os == 'Windows'
         shell: pwsh
+        timeout-minutes: 10
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+          GCM_INTERACTIVE: Never
         run: ./tests/test_sync_local_main.ps1

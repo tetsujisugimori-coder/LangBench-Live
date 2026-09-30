@@ -7,15 +7,19 @@ param(
     [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git')
 )
 $ErrorActionPreference = 'Stop'
-function Git { $value = & git -c core.hooksPath=NUL -c filter.lfs.smudge= -c filter.lfs.required=false @args; if ($LASTEXITCODE) { throw "git failed: $($args -join ' ')" }; $value }
+function Git { $value = & git -c core.hooksPath=NUL -c core.fsmonitor=false -c filter.lfs.smudge= -c filter.lfs.required=false @args; if ($LASTEXITCODE) { throw "git failed: $($args -join ' ')" }; $value }
 function Git-One { $lines = @(Git @args); if ($lines.Count -ne 1) { throw "Expected one line from git $($args -join ' ')" }; return [string]$lines[0] }
 function Normalize([string]$Path) { $Path.Replace('\','/').TrimStart([char[]]'./').TrimEnd('/').ToLowerInvariant() }
 
 $root = [IO.Path]::GetFullPath($RepositoryPath).TrimEnd('\')
 if (-not (Test-Path -LiteralPath $root -PathType Container)) { throw 'Repository folder does not exist.' }
-Set-Location -LiteralPath $root
+Push-Location -LiteralPath $root
+try {
 if ([IO.Path]::GetFullPath((Git-One rev-parse --show-toplevel)).TrimEnd('\') -ine $root) { throw 'Configured path is not the repository root.' }
 if ($AllowedRemote -inotcontains (Git-One remote get-url origin)) { throw 'Unexpected origin.' }
+$localFilters = @(& git -c core.fsmonitor=false config --local --get-regexp '^filter\..*\.(clean|smudge|process|required)$' 2>$null)
+if ($LASTEXITCODE -notin @(0, 1)) { throw 'Cannot inspect repository-local filters.' }
+if ($localFilters.Count) { throw 'Repository-local Git filters are refused during automatic sync.' }
 if (@(Git status --porcelain --untracked-files=no).Count) { throw 'Tracked changes are present.' }
 foreach ($marker in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply')) {
     if (Test-Path -LiteralPath (Git-One rev-parse --git-path $marker)) { throw "Git operation in progress: $marker" }
@@ -73,3 +77,4 @@ try {
     }
     Write-Host "status=success pr=$PullRequestNumber pr_head=$PullRequestHeadSha merge=$MergeSha target=$TargetSha before=$headBefore after=$TargetSha protected_files=$($before.Count)"
 } finally { if ($lock) { $lock.Dispose() } }
+} finally { Pop-Location }
