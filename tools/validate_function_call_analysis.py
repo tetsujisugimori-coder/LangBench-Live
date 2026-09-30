@@ -11,7 +11,9 @@ from pathlib import Path
 
 from validate_result_json import validate_analysis_manifest
 
-FILES = {"gcc-optimization.txt", "main.s", "python-bytecode.txt", "v8-optimization.txt", "manifest.json"}
+FILES = {"gcc-optimization.txt", "main.s", "python-bytecode.txt", "manifest.json",
+         "v8-optimization-direct_first.txt", "v8-optimization-function_call_first.txt",
+         "javascript-order-findings.json"}
 
 
 def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
@@ -19,10 +21,12 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
     try:
         provenance = json.loads((root / "provenance.json").read_text(encoding="utf-8"))
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        saved_findings = json.loads((root / "javascript-order-findings.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return [f"analysis package cannot be read: {exc}"]
     required = {"schema_version", "analysis_id", "code_sha", "generated_at", "operating_system",
-                "architecture", "trace_options", "order_coverage", "trace_is_benchmark", "evidence_sha256"}
+                "architecture", "trace_options", "order_coverage", "javascript_orders",
+                "trace_is_benchmark", "evidence_sha256"}
     if not isinstance(provenance, dict) or set(provenance) != required:
         return ["provenance fields are invalid"]
     if provenance["schema_version"] != "1.0" or provenance["analysis_id"] != manifest.get("analysis_id"):
@@ -62,6 +66,33 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
                 errors.append(f"invalid SHA-256 for {name}")
             elif not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
                 errors.append(f"evidence was modified or is missing: {name}")
+    orders = provenance["javascript_orders"]
+    expected_orders = {"direct_first", "function_call_first"}
+    if not isinstance(orders, dict) or set(orders) != expected_orders:
+        errors.append("JavaScript order findings are invalid")
+    else:
+        for order in expected_orders:
+            item = orders[order]
+            evidence = f"v8-optimization-{order}.txt"
+            expected_command = ["node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining",
+                                "tools/trace_function_call_javascript.js", order]
+            stimulus = {"iterations": 100, "item_count": 10000, "timed": False,
+                        "writes_benchmark_result": False}
+            if (not isinstance(item, dict)
+                    or set(item) != {"command", "stimulus", "evidence", "evidence_sha256", "findings"}
+                    or item.get("command") != expected_command or item.get("stimulus") != stimulus
+                    or item.get("evidence") != evidence or item.get("evidence_sha256") != hashes.get(evidence)
+                    or item.get("findings") != saved_findings.get(order)):
+                errors.append(f"JavaScript order evidence is invalid for {order}")
+        if set(saved_findings) == expected_orders:
+            consensus: dict[str, dict] = {}
+            for name in ("jit", "inlining", "vectorization", "simd"):
+                direct = saved_findings["direct_first"].get(name)
+                called = saved_findings["function_call_first"].get(name)
+                consensus[name] = direct if direct == called else ({"result": "unknown", "isa": []}
+                                                                 if name == "simd" else {"result": "unknown"})
+            if manifest.get("languages", {}).get("javascript", {}).get("findings") != consensus:
+                errors.append("JavaScript manifest findings overgeneralize order-specific evidence")
     errors.extend(validate_analysis_manifest(manifest, root / "manifest.json"))
     return errors
 

@@ -14,9 +14,23 @@ class AnalysisPackageTests(unittest.TestCase):
     def make_package(self, root: Path) -> str:
         source = json.loads((ROOT / "artifacts/function-call-analysis/manifest.json").read_text(encoding="utf-8"))
         (root / "manifest.json").write_text(json.dumps(source), encoding="utf-8")
-        for name in FILES - {"manifest.json"}:
+        findings = {order: source["languages"]["javascript"]["findings"]
+                    for order in ("direct_first", "function_call_first")}
+        (root / "javascript-order-findings.json").write_text(json.dumps(findings), encoding="utf-8")
+        for name in FILES - {"manifest.json", "javascript-order-findings.json"}:
             (root / name).write_text(f"fixture {name}\n", encoding="utf-8")
         sha = "a" * 40
+        hashes = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in FILES}
+        javascript_orders = {}
+        for order in ("direct_first", "function_call_first"):
+            javascript_orders[order] = {
+                "command": ["node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining",
+                            "tools/trace_function_call_javascript.js", order],
+                "stimulus": {"iterations": 100, "item_count": 10000, "timed": False,
+                             "writes_benchmark_result": False},
+                "evidence": f"v8-optimization-{order}.txt",
+                "evidence_sha256": hashes[f"v8-optimization-{order}.txt"], "findings": findings[order],
+            }
         provenance = {
             "schema_version": "1.0", "analysis_id": source["analysis_id"], "code_sha": sha,
             "generated_at": "2026-09-30T00:00:00Z", "operating_system": "fixture Windows",
@@ -25,8 +39,9 @@ class AnalysisPackageTests(unittest.TestCase):
                 "python": {"basis": "static_analysis", "confirmed": ["direct_first", "function_call_first"], "unconfirmed": []},
                 "javascript": {"basis": "trace_observed", "confirmed": ["direct_first", "function_call_first"], "unconfirmed": []},
             },
+            "javascript_orders": javascript_orders,
             "trace_is_benchmark": False,
-            "evidence_sha256": {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in FILES},
+            "evidence_sha256": hashes,
         }
         (root / "provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
         return sha
@@ -74,6 +89,30 @@ class AnalysisPackageTests(unittest.TestCase):
             javascript["unconfirmed"] = []
             (root / "provenance.json").write_text(json.dumps(provenance))
             self.assertTrue(any("javascript" in error for error in validate_package(root, sha)))
+
+    def test_order_findings_and_evidence_cannot_be_generalized_or_swapped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); sha = self.make_package(root)
+            provenance = json.loads((root / "provenance.json").read_text())
+            provenance["javascript_orders"]["direct_first"]["findings"]["jit"]["result"] = "unknown"
+            provenance["javascript_orders"]["function_call_first"]["evidence_sha256"] = "0" * 64
+            (root / "provenance.json").write_text(json.dumps(provenance))
+            errors = validate_package(root, sha)
+            self.assertTrue(any("direct_first" in error for error in errors))
+            self.assertTrue(any("function_call_first" in error for error in errors))
+
+    def test_different_order_findings_require_unknown_aggregate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); sha = self.make_package(root)
+            findings = json.loads((root / "javascript-order-findings.json").read_text())
+            findings["function_call_first"]["jit"]["result"] = "not_checked"
+            (root / "javascript-order-findings.json").write_text(json.dumps(findings))
+            provenance = json.loads((root / "provenance.json").read_text())
+            digest = hashlib.sha256((root / "javascript-order-findings.json").read_bytes()).hexdigest()
+            provenance["evidence_sha256"]["javascript-order-findings.json"] = digest
+            provenance["javascript_orders"]["function_call_first"]["findings"] = findings["function_call_first"]
+            (root / "provenance.json").write_text(json.dumps(provenance))
+            self.assertTrue(any("overgeneralize" in error for error in validate_package(root, sha)))
 
 
 if __name__ == "__main__":

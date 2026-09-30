@@ -41,6 +41,10 @@ jobs:
           ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output
           python -B ./tools/validate_function_call_analysis.py $output --expected-sha '${{ github.sha }}'
           Remove-Item -LiteralPath $output -Recurse -Force
+      - name: Test analysis shared-operation lock
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_generate_function_call_analysis.ps1
       - name: Run C/PowerShell measurement-order integration
         if: runner.os == 'Windows'
         shell: pwsh

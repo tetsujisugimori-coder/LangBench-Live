@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$')][string]$AnalysisId,
-    [Parameter(Mandatory = $true)][string]$OutputDirectory
+    [Parameter(Mandatory = $true)][string]$OutputDirectory,
+    [ValidateSet("direct_first", "function_call_first")][string]$TestFailTraceOrder
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +15,7 @@ function ConvertTo-ProcessArgument {
 }
 
 function Invoke-CapturedProcess {
-    param([string]$FileName, [string[]]$Arguments, [string]$WorkingDirectory)
+    param([string]$FileName, [string[]]$Arguments, [string]$WorkingDirectory, [switch]$AllowFailure)
     $info = [System.Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $FileName
     $info.WorkingDirectory = $WorkingDirectory
@@ -34,8 +35,8 @@ function Invoke-CapturedProcess {
     $process.WaitForExit()
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    if ($process.ExitCode -ne 0) { throw "$FileName failed with exit code $($process.ExitCode): $stderr" }
-    return [ordered]@{ stdout = $stdout; stderr = $stderr }
+    if ($process.ExitCode -ne 0 -and -not $AllowFailure) { throw "$FileName failed with exit code $($process.ExitCode): $stderr" }
+    return [ordered]@{ stdout = $stdout; stderr = $stderr; exit_code = $process.ExitCode }
 }
 
 function Write-Utf8 {
@@ -51,6 +52,21 @@ function Write-Utf8 {
 }
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$operationLock = $null
+$measurementLock = $null
+try {
+$gitDirectory = (& git -C $projectRoot rev-parse --path-format=absolute --git-common-dir).Trim()
+if ($LASTEXITCODE -ne 0) { throw "failed to locate the shared Git directory" }
+try {
+    $operationLock = [IO.File]::Open((Join-Path $gitDirectory "langbench-operation.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
+} catch {
+    throw "another synchronization, measurement, or analysis operation is active"
+}
+try {
+    $measurementLock = [IO.File]::Open((Join-Path $projectRoot "results/function_call_numeric_sum.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
+} catch {
+    throw "another function-call measurement or analysis operation is active"
+}
 . (Join-Path $projectRoot "tools\source_hash.ps1")
 $artifactDir = [System.IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $artifactDir) { throw "analysis output already exists: $artifactDir" }
@@ -69,7 +85,11 @@ foreach ($language in $sources.Keys) {
 $gccReport = Join-Path $artifactDir "gcc-optimization.txt"
 $assembly = Join-Path $artifactDir "main.s"
 $pythonBytecode = Join-Path $artifactDir "python-bytecode.txt"
-$v8Trace = Join-Path $artifactDir "v8-optimization.txt"
+$v8TracePaths = [ordered]@{
+    direct_first = Join-Path $artifactDir "v8-optimization-direct_first.txt"
+    function_call_first = Join-Path $artifactDir "v8-optimization-function_call_first.txt"
+}
+$v8FindingsPath = Join-Path $artifactDir "javascript-order-findings.json"
 $manifestPath = Join-Path $artifactDir "manifest.json"
 $extractor = Join-Path $projectRoot "tools\extract_function_call_findings.py"
 $analyzedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -94,20 +114,38 @@ if (-not [string]::IsNullOrWhiteSpace($pythonDis.stderr)) { throw "Python disass
 Write-Utf8 $pythonBytecode $pythonDis.stdout
 
 $nodeInfo = (Invoke-CapturedProcess "node" @("-p", "JSON.stringify({node:process.version,v8:process.versions.v8,architecture:require('os').arch(),options:(process.env.NODE_OPTIONS||'').trim().split(/\s+/).filter(Boolean)})") $projectRoot).stdout | ConvertFrom-Json
-$traceContent = ""
+$javascriptOrderFindings = [ordered]@{}
 foreach ($order in @("direct_first", "function_call_first")) {
-    $traceArgs = @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", $order)
-    $nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot
+    $traceArgs = if ($TestFailTraceOrder -eq $order) {
+        @("-e", "console.log('partial stdout'); console.error('fixture failure'); process.exit(23)")
+    } else {
+        @("--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", $order)
+    }
+    $nodeTrace = Invoke-CapturedProcess "node" $traceArgs $projectRoot -AllowFailure
     $traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ }) -join "`n"
     $traceStderr = (($nodeTrace.stderr -split "`r?`n") | Where-Object { $_ }) -join "`n"
-    $traceContent += "# order=$order`n# stdout`n$traceStdout`n# stderr`n$traceStderr`n"
+    $traceContent = "# order=$order`n# exit_code=$($nodeTrace.exit_code)`n# stdout`n$traceStdout`n# stderr`n$traceStderr`n"
+    Write-Utf8 $v8TracePaths[$order] $traceContent
+    if ($nodeTrace.exit_code -ne 0) { throw "Node trace failed for $order with exit code $($nodeTrace.exit_code)" }
+    $javascriptOrderFindings[$order] = (Invoke-CapturedProcess "python" @($extractor, "--language", "javascript", "--artifact", $v8TracePaths[$order]) $projectRoot).stdout | ConvertFrom-Json
 }
-Write-Utf8 $v8Trace $traceContent
+Write-Utf8 $v8FindingsPath (($javascriptOrderFindings | ConvertTo-Json -Depth 8) + "`n")
 
 $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 $cFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "c", "--report", $gccReport, "--assembly", $assembly, "--architecture", $architecture) $projectRoot).stdout | ConvertFrom-Json
 $pythonFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "python", "--artifact", $pythonBytecode) $projectRoot).stdout | ConvertFrom-Json
-$javascriptFindings = (Invoke-CapturedProcess "python" @($extractor, "--language", "javascript", "--artifact", $v8Trace) $projectRoot).stdout | ConvertFrom-Json
+$javascriptFindings = [ordered]@{}
+foreach ($findingName in @("jit", "inlining", "vectorization", "simd")) {
+    $directFinding = $javascriptOrderFindings.direct_first.$findingName
+    $calledFinding = $javascriptOrderFindings.function_call_first.$findingName
+    if (($directFinding | ConvertTo-Json -Compress) -eq ($calledFinding | ConvertTo-Json -Compress)) {
+        $javascriptFindings[$findingName] = $directFinding
+    } elseif ($findingName -eq "simd") {
+        $javascriptFindings[$findingName] = [ordered]@{ result = "unknown"; isa = @() }
+    } else {
+        $javascriptFindings[$findingName] = [ordered]@{ result = "unknown" }
+    }
+}
 foreach ($language in $sources.Keys) {
     if ((Get-CanonicalSourceHash -Path $sources[$language]) -ne $sourceHashes[$language]) {
         throw "source changed while generating $language analysis"
@@ -164,13 +202,17 @@ $manifest = [ordered]@{
             generation_commands = @(@("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", "<measurement-order>"))
             findings = $javascriptFindings
             runtime = [ordered]@{ name = "Node.js"; version = $nodeInfo.node }
-            evidence = @([ordered]@{ type = "jit_trace"; path = "artifacts/function-call-analysis/v8-optimization.txt" })
+            evidence = @(
+                [ordered]@{ type = "jit_trace"; path = "artifacts/function-call-analysis/v8-optimization-direct_first.txt" },
+                [ordered]@{ type = "jit_trace"; path = "artifacts/function-call-analysis/v8-optimization-function_call_first.txt" },
+                [ordered]@{ type = "order_findings"; path = "artifacts/function-call-analysis/javascript-order-findings.json" }
+            )
         }
     }
 }
 Write-Utf8 $manifestPath (($manifest | ConvertTo-Json -Depth 12) + "`n")
 $evidenceHashes = [ordered]@{}
-foreach ($path in @($gccReport, $assembly, $pythonBytecode, $v8Trace, $manifestPath)) {
+foreach ($path in @($gccReport, $assembly, $pythonBytecode, $v8TracePaths.direct_first, $v8TracePaths.function_call_first, $v8FindingsPath, $manifestPath)) {
     $evidenceHashes[(Split-Path -Leaf $path)] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 $provenance = [ordered]@{
@@ -186,9 +228,27 @@ $provenance = [ordered]@{
         python = [ordered]@{ basis = "static_analysis"; confirmed = @("direct_first", "function_call_first"); unconfirmed = @() }
         javascript = [ordered]@{ basis = "trace_observed"; confirmed = @("direct_first", "function_call_first"); unconfirmed = @() }
     }
+    javascript_orders = [ordered]@{
+        direct_first = [ordered]@{
+            command = @("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", "direct_first")
+            stimulus = [ordered]@{ iterations = 100; item_count = 10000; timed = $false; writes_benchmark_result = $false }
+            evidence = "v8-optimization-direct_first.txt"; evidence_sha256 = $evidenceHashes["v8-optimization-direct_first.txt"]
+            findings = $javascriptOrderFindings.direct_first
+        }
+        function_call_first = [ordered]@{
+            command = @("node", "--trace-opt", "--trace-deopt", "--trace-turbo-inlining", "tools/trace_function_call_javascript.js", "function_call_first")
+            stimulus = [ordered]@{ iterations = 100; item_count = 10000; timed = $false; writes_benchmark_result = $false }
+            evidence = "v8-optimization-function_call_first.txt"; evidence_sha256 = $evidenceHashes["v8-optimization-function_call_first.txt"]
+            findings = $javascriptOrderFindings.function_call_first
+        }
+    }
     trace_is_benchmark = $false
     evidence_sha256 = $evidenceHashes
 }
 Write-Utf8 (Join-Path $artifactDir "provenance.json") (($provenance | ConvertTo-Json -Depth 5) + "`n")
 Write-Host "status=success"
 Write-Host "analysis_id=$AnalysisId"
+} finally {
+    if ($null -ne $measurementLock) { $measurementLock.Dispose() }
+    if ($null -ne $operationLock) { $operationLock.Dispose() }
+}
