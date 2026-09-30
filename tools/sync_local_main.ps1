@@ -1,46 +1,75 @@
 param(
     [Parameter(Mandatory)][string]$RepositoryPath,
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$TargetSha,
-    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$MergeSha
+    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$MergeSha,
+    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$PullRequestHeadSha,
+    [Parameter(Mandatory)][ValidateRange(1, [int]::MaxValue)][int]$PullRequestNumber,
+    [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git')
 )
 $ErrorActionPreference = 'Stop'
-$expectedRemotes = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git')
 function Git { $value = & git -c core.hooksPath=NUL -c filter.lfs.smudge= -c filter.lfs.required=false @args; if ($LASTEXITCODE) { throw "git failed: $($args -join ' ')" }; $value }
+function Git-One { $lines = @(Git @args); if ($lines.Count -ne 1) { throw "Expected one line from git $($args -join ' ')" }; return [string]$lines[0] }
+function Normalize([string]$Path) { $Path.Replace('\','/').TrimStart([char[]]'./').TrimEnd('/').ToLowerInvariant() }
 
 $root = [IO.Path]::GetFullPath($RepositoryPath).TrimEnd('\')
 if (-not (Test-Path -LiteralPath $root -PathType Container)) { throw 'Repository folder does not exist.' }
 Set-Location -LiteralPath $root
-if ([IO.Path]::GetFullPath((Git rev-parse --show-toplevel)).TrimEnd('\') -ine $root) { throw 'Configured path is not the repository root.' }
-if ($expectedRemotes -inotcontains (Git remote get-url origin)) { throw 'Unexpected origin.' }
+if ([IO.Path]::GetFullPath((Git-One rev-parse --show-toplevel)).TrimEnd('\') -ine $root) { throw 'Configured path is not the repository root.' }
+if ($AllowedRemote -inotcontains (Git-One remote get-url origin)) { throw 'Unexpected origin.' }
 if (@(Git status --porcelain --untracked-files=no).Count) { throw 'Tracked changes are present.' }
 foreach ($marker in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply')) {
-    if (Test-Path -LiteralPath (Join-Path (Git rev-parse --git-path $marker) '')) { throw "Git operation in progress: $marker" }
+    if (Test-Path -LiteralPath (Git-One rev-parse --git-path $marker)) { throw "Git operation in progress: $marker" }
 }
-$branch = (Git symbolic-ref --short HEAD)
-if ($branch -ne 'main') { throw "Automatic switching from branch '$branch' is refused." }
+& git show-ref --verify --quiet refs/heads/main
+if ($LASTEXITCODE -ne 0) { throw 'Local main does not exist.' }
+$branchOutput = @(& git symbolic-ref --quiet --short HEAD)
+if ($LASTEXITCODE -ne 0 -or $branchOutput.Count -ne 1) { throw 'Detached HEAD is refused.' }
+$branch = [string]$branchOutput[0]
+$headBefore = Git-One rev-parse HEAD
+if ($branch -ne 'main' -and $headBefore -ne $PullRequestHeadSha) {
+    throw "Automatic switching from unrelated branch '$branch' is refused."
+}
+$mainUsers = @(Git worktree list --porcelain | Where-Object { $_ -eq 'branch refs/heads/main' })
+if ($branch -ne 'main' -and $mainUsers.Count) { throw 'main is checked out by another worktree.' }
 
-$lockPath = Join-Path (Git rev-parse --git-common-dir) 'langbench-operation.lock'
+$lockPath = Join-Path (Git-One rev-parse --git-common-dir) 'langbench-operation.lock'
 $lock = $null
 try {
     $lock = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
-    $protected = @(& git ls-files --others --ignored --exclude-standard -z) -join '' -split "`0" | Where-Object { $_ }
+    $untracked = ((@(& git ls-files --others --exclude-standard -z) -join '') -split "`0") | Where-Object { $_ }
+    if ($LASTEXITCODE) { throw 'Cannot enumerate untracked files.' }
+    $ignored = ((@(& git ls-files --others --ignored --exclude-standard -z) -join '') -split "`0") | Where-Object { $_ }
+    if ($LASTEXITCODE) { throw 'Cannot enumerate ignored files.' }
+    $protected = @($untracked + $ignored | Sort-Object -Unique)
     $before = @{}
     foreach ($relative in $protected) {
-        $path = Join-Path $root $relative
-        if ((Get-Item -LiteralPath $path).LinkType) { throw "Link cannot be protected safely: $relative" }
-        if (Test-Path -LiteralPath $path -PathType Leaf) { $before[$relative.ToLowerInvariant()] = @{ path=$relative; size=(Get-Item $path).Length; hash=(Get-FileHash $path -Algorithm SHA256).Hash } }
+        $path = Join-Path $root $relative; $item = Get-Item -LiteralPath $path -Force
+        if ($item.LinkType -or -not $item.PSIsContainer -and -not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Protected path cannot be verified: $relative" }
+        if (-not $item.PSIsContainer) {
+            $key = Normalize $relative
+            if ($before.ContainsKey($key)) { throw "Protected paths collide under Windows case rules: $relative" }
+            $before[$key] = @{ path=$relative; size=$item.Length; hash=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
+        }
     }
     Git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main" | Out-Null
-    if ((Git rev-parse origin/main) -ne $TargetSha) { throw 'Fetched main differs from the validated event SHA.' }
-    & git merge-base --is-ancestor HEAD $TargetSha; if ($LASTEXITCODE) { throw 'Local main cannot fast-forward.' }
+    if ((Git-One rev-parse origin/main) -ne $TargetSha) { throw 'Fetched main differs from the validated event SHA.' }
+    & git merge-base --is-ancestor refs/heads/main $TargetSha; if ($LASTEXITCODE) { throw 'Local main cannot fast-forward.' }
     & git merge-base --is-ancestor $MergeSha $TargetSha; if ($LASTEXITCODE) { throw 'Validated merge result is not in target history.' }
-    $targetFiles = @(Git ls-tree -r --name-only $TargetSha)
-    foreach ($name in $targetFiles) { if ($before.ContainsKey($name.ToLowerInvariant())) { throw "Protected path conflicts with target: $name" } }
+    $targetFiles = @(Git ls-tree -r --name-only $TargetSha | ForEach-Object { Normalize $_ })
+    foreach ($protectedName in $before.Keys) {
+        foreach ($targetName in $targetFiles) {
+            if ($protectedName -eq $targetName -or $protectedName.StartsWith($targetName + '/') -or $targetName.StartsWith($protectedName + '/')) {
+                throw "Protected path conflicts with target: $($before[$protectedName].path)"
+            }
+        }
+    }
+    if ($branch -ne 'main') { Git switch main | Out-Null }
     Git merge --ff-only $TargetSha | Out-Null
-    if ((Git rev-parse HEAD) -ne $TargetSha) { throw 'Final HEAD mismatch.' }
+    if ((Git-One rev-parse HEAD) -ne $TargetSha -or (Git-One symbolic-ref --short HEAD) -ne 'main') { throw 'Final branch or HEAD mismatch.' }
     foreach ($item in $before.Values) {
         $path = Join-Path $root $item.path
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item $path).Length -ne $item.size -or (Get-FileHash $path -Algorithm SHA256).Hash -ne $item.hash) { throw "Protected file changed: $($item.path)" }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -ne $item.size -or
+                (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $item.hash) { throw "Protected file changed: $($item.path)" }
     }
-    Write-Host "status=success before/after=$TargetSha protected_files=$($before.Count)"
+    Write-Host "status=success pr=$PullRequestNumber pr_head=$PullRequestHeadSha merge=$MergeSha target=$TargetSha before=$headBefore after=$TargetSha protected_files=$($before.Count)"
 } finally { if ($lock) { $lock.Dispose() } }

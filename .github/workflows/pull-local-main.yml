@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       merge_sha: ${{ steps.verify.outputs.merge_sha }}
+      pr_number: ${{ steps.verify.outputs.pr_number }}
+      pr_head_sha: ${{ steps.verify.outputs.pr_head_sha }}
     steps:
       - name: Verify that the main update belongs to a merged PR
         id: verify
@@ -28,10 +30,13 @@ jobs:
           test '${{ github.repository }}' = 'tetsujisugimori-coder/LangBench-Live'
           test '${{ github.ref }}' = 'refs/heads/main'
           prs=$(gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/commits/$TARGET_SHA/pulls")
-          merge_sha=$(jq -r --arg sha "$TARGET_SHA" '[.[] | select(.merged_at != null and .base.ref == "main" and .base.repo.full_name == "${{ github.repository }}") | select(.merge_commit_sha == $sha or .merge_commit_sha != null)] | if length == 1 then .[0].merge_commit_sha else empty end' <<<"$prs")
+          matched=$(jq -c '[.[] | select(.merged_at != null and .base.ref == "main" and .base.repo.full_name == "${{ github.repository }}" and .merge_commit_sha != null)] | if length == 1 then .[0] else empty end' <<<"$prs")
+          merge_sha=$(jq -r '.merge_commit_sha // empty' <<<"$matched")
           test -n "$merge_sha" || { echo 'No unique merged PR corresponds to this update.'; exit 1; }
           gh api "/repos/${{ github.repository }}/compare/$merge_sha...$TARGET_SHA" --jq 'select(.status == "ahead" or .status == "identical")' >/dev/null
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$(jq -r '.number' <<<"$matched")" >> "$GITHUB_OUTPUT"
+          echo "pr_head_sha=$(jq -r '.head.sha' <<<"$matched")" >> "$GITHUB_OUTPUT"
   pull-main:
     needs: verify-merge
     runs-on: [self-hosted, Windows, X64]
@@ -46,4 +51,4 @@ jobs:
         env:
           GIT_TERMINAL_PROMPT: '0'
           GCM_INTERACTIVE: Never
-        run: ./tools/sync_local_main.ps1 -RepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live' -TargetSha '${{ github.sha }}' -MergeSha '${{ needs.verify-merge.outputs.merge_sha }}'
+        run: ./tools/sync_local_main.ps1 -RepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live' -TargetSha '${{ github.sha }}' -MergeSha '${{ needs.verify-merge.outputs.merge_sha }}' -PullRequestHeadSha '${{ needs.verify-merge.outputs.pr_head_sha }}' -PullRequestNumber '${{ needs.verify-merge.outputs.pr_number }}'

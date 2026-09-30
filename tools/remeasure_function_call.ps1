@@ -30,7 +30,10 @@ try {
     if ($LASTEXITCODE -ne 0 -or $tracked.Count -eq 0) { throw 'Cannot identify tracked benchmark inputs.' }
     $inputs = @($tracked | ForEach-Object { Join-Path $projectRoot $_ }) + @($PSCommandPath)
     function Get-InputHashes {
-        @($inputs | ForEach-Object { "$_=$((Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash)" })
+        @($inputs | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath($projectRoot, $_).Replace('\', '/')
+            "$relative=$((Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash)"
+        })
     }
     $baseline = (Get-InputHashes) -join "`n"
     $head = (& git rev-parse HEAD).Trim()

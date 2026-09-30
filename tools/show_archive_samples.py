@@ -28,7 +28,8 @@ def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, 
                               "min_ms": min(samples), "max_ms": max(samples),
                               "first_half_median_ms": median_from_samples(samples[:midpoint]),
                               "second_half_median_ms": median_from_samples(samples[midpoint:])})
-        runs.append({**identity(path, archive), "cases": cases})
+        run_ids = {entry["language"]: entry["run_id"] for entry in archive["index"]["results"]}
+        runs.append({**identity(path, archive), "run_ids": run_ids, "cases": cases})
     return {"schema_version": "1.0", "unit": "ms", "runs": runs}
 
 
