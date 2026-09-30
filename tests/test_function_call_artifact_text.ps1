@@ -26,17 +26,18 @@ if ($mixed -notmatch 'safe reason: exit 23' -or $mixed -notmatch 'safe tail' -or
 foreach ($value in @('https://example.com/srv/private', 'split(/\s+/)',
                      'cl /O2 /EHsc main.c', 'option /quiet',
                      '<checkout>/tools/trace.js', '<analysis-package>/main.s',
-                     '<shared-repository>/results')) {
+                     '<shared-repository>/results', 'https:\/\/example.com\/srv\/private')) {
     if ((Protect-ArtifactText $value) -cne $value) { throw "safe diagnostic changed: $value" }
 }
 foreach ($value in @('cwd = /secret/', 'path = /tmp/', 'return /etc/',
                      'trace (/home/)', 'cwd = /quiet',
                      'stderr >/tmp/private.log', 'path:/home/alice/file',
-                     'tag=<note>/srv/private')) {
+                     'tag=<note>/srv/private', '\/home\/alice', '\/tmp',
+                     'stderr >\/tmp\/private.log', 'path:\/home\/alice')) {
     if ((Protect-ArtifactText $value) -notmatch '<absolute-path>') { throw "unsafe diagnostic was retained: $value" }
 }
 foreach ($value in @('return /etc/gg;', 'return /etc/uv;', 'if (/home/gg)',
                      'const r = /foo/;', 'const r = /foo/', 'return /foo/g')) {
     if ((Protect-ArtifactText $value) -notmatch '<absolute-path>') { throw "trace path was retained: $value" }
 }
-Write-Host 'tests=36 passed=36'
+Write-Host 'tests=41 passed=41'

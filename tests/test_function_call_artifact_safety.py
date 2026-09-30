@@ -1,4 +1,5 @@
 import hashlib
+import json
 import sys
 import tempfile
 import unittest
@@ -55,17 +56,24 @@ class ArtifactSafetyTests(unittest.TestCase):
         for safe in ("https://example.com/srv/private", r"split(/\s+/)",
                      "cl /O2 /EHsc main.c", "option /quiet",
                      "<checkout>/tools/trace.js", "<analysis-package>/main.s",
-                     "<shared-repository>/results"):
+                     "<shared-repository>/results",
+                     r"https:\/\/example.com\/srv\/private"):
             with self.subTest(safe=safe):
                 self.assertEqual([], issues(safe))
                 self.assertEqual((safe, {}), redact(safe))
         for unsafe in ("cwd = /secret/", "path = /tmp/", "return /etc/",
                        "trace (/home/)", "cwd = /quiet",
                        "stderr >/tmp/private.log", "path:/home/alice/file",
-                       "tag=<note>/srv/private"):
+                       "tag=<note>/srv/private", r"\/home\/alice", r"\/tmp",
+                       r"stderr >\/tmp\/private.log", r"path:\/home\/alice"):
             with self.subTest(unsafe=unsafe):
                 self.assertIn("absolute path", issues(unsafe))
                 self.assertEqual([], issues(redact(unsafe)[0]))
+        escaped_json = r'{"cwd":"\/home\/alice"}'
+        self.assertIn("absolute path", issues(escaped_json))
+        cleaned, counts = redact(escaped_json)
+        self.assertEqual({"absolute path": 1}, counts)
+        self.assertEqual("<redacted-absolute-path>", json.loads(cleaned)["cwd"])
         for unsafe in ("return /etc/gg;", "return /etc/uv;", "if (/home/gg)",
                        "const r = /foo/;", "const r = /foo/",
                        "return /foo/g", "return /etc/"):
@@ -119,7 +127,7 @@ class ArtifactSafetyTests(unittest.TestCase):
             root = Path(directory)
             raw, bundle = root / "raw", root / "upload"
             (raw / "stage-logs").mkdir(parents=True)
-            (raw / "run-state.json").write_text('{"status":"success"}', encoding="utf-8")
+            (raw / "run-state.json").write_text(r'{"status":"success","cwd":"\/home\/alice"}', encoding="utf-8")
             (raw / "validation.json").write_text('{"status":"valid"}', encoding="utf-8")
             (raw / "stage-logs" / "validator.stderr.txt").write_text(
                 "safe validation reason\nlate \\\\server\\share\\private\\path\n"
@@ -128,6 +136,7 @@ class ArtifactSafetyTests(unittest.TestCase):
             self.assertTrue(scan(raw))
             report = prepare(raw, bundle)
             self.assertEqual("partial", report["bundle_status"])
+            self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["cwd"])
             self.assertIn("<redacted-credential>", (bundle / "main.s").read_text())
             validator_log = (bundle / "stage-logs" / "validator.stderr.txt").read_text()
             self.assertIn("safe validation reason", validator_log)
