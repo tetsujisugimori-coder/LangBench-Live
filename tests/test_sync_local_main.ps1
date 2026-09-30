@@ -1,0 +1,203 @@
+param([string]$Case)
+$ErrorActionPreference = 'Stop'
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$script = Join-Path $root 'tools/sync_local_main.ps1'
+$sandbox = Join-Path ([IO.Path]::GetTempPath()) "langbench-sync-test-$([guid]::NewGuid().ToString('N'))"
+$originalLocation = (Get-Location).Path
+$passed = 0
+$caseTimes = @{}
+$suiteWatch = [Diagnostics.Stopwatch]::StartNew()
+$environmentBefore = @{}
+foreach ($name in @('GIT_CONFIG_NOSYSTEM','GIT_CONFIG_SYSTEM','GIT_CONFIG_GLOBAL','GIT_TERMINAL_PROMPT','GCM_INTERACTIVE')) {
+    $environmentBefore[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
+# Isolate fixtures from installed LFS and user configuration. Dedicated cases
+# explicitly inject each scope; production audits effective values in all scopes.
+$env:GIT_CONFIG_NOSYSTEM = '1'
+$env:GIT_CONFIG_GLOBAL = 'NUL'
+$env:GIT_TERMINAL_PROMPT = '0'
+$env:GCM_INTERACTIVE = 'Never'
+
+function G {
+    # Use raw arguments so PowerShell cannot bind Git options (such as -D)
+    # to helper parameters or common parameters.
+    $FixtureRepositoryPath = [string]$args[0]
+    $Arguments = @($args | Select-Object -Skip 1)
+    & git.exe -C $FixtureRepositoryPath @Arguments | Out-Null
+    if ($LASTEXITCODE) { throw "fixture git failed: $($Arguments -join ' ')" }
+}
+function New-SyncFixture([string]$Name = $([guid]::NewGuid().ToString('N'))) {
+    $folder = Join-Path $sandbox $Name; $bare = Join-Path $folder 'remote.git'; $seed = Join-Path $folder 'seed'; $local = Join-Path $folder 'local'
+    New-Item -ItemType Directory -Path $folder | Out-Null; & git init --bare $bare | Out-Null; & git init -b main $seed | Out-Null
+    G $seed config user.email test@example.invalid; G $seed config user.name test
+    Set-Content (Join-Path $seed 'base.txt') base; G $seed add base.txt; G $seed commit -m base; G $seed remote add origin $bare; G $seed push -u origin main
+    G $bare symbolic-ref HEAD refs/heads/main; & git clone $bare $local | Out-Null
+    G $seed switch -c issue-66; Set-Content (Join-Path $seed 'feature.txt') feature; G $seed add feature.txt; G $seed commit -m feature
+    $prHead = (& git -C $seed rev-parse HEAD).Trim(); G $seed push origin issue-66; G $seed switch main; G $seed merge --no-ff issue-66 -m merge; G $seed push origin main
+    return @{ Folder=$folder; Bare=$bare; Seed=$seed; Local=$local; PrHead=$prHead; Target=(& git -C $seed rev-parse HEAD).Trim() }
+}
+function Invoke-Sync($Fixture, [switch]$Fail, [string]$ExpectedError) {
+    $before = (Get-Location).Path; $errorSeen = $false
+    try { & $script -RepositoryPath $Fixture.Local -TargetSha $Fixture.Target -MergeSha $Fixture.Target -PullRequestHeadSha $Fixture.PrHead -PullRequestNumber 67 -AllowedRemote $Fixture.Bare }
+    catch { $errorSeen = $true; if (-not $Fail -or ($ExpectedError -and $_.Exception.Message -notlike "*$ExpectedError*")) { throw } }
+    if ((Get-Location).Path -ne $before) { throw 'sync script did not restore the caller location' }
+    if ($Fail -ne $errorSeen) { throw "Expected failure=$Fail, actual failure=$errorSeen" }
+}
+function Run-Case([string]$Name, [scriptblock]$Body, [object[]]$Arguments = @()) {
+    if ($Case -and $Case -ne $Name) { return }
+    $watch=[Diagnostics.Stopwatch]::StartNew(); Write-Host "CASE START: $Name at=$([DateTime]::UtcNow.ToString('o'))"
+    try { & $Body @Arguments; $script:passed++; $watch.Stop(); $script:caseTimes[$Name]=$watch.Elapsed.TotalSeconds; Write-Host ("CASE PASS: {0} elapsed={1:N2}s ended={2}" -f $Name,$watch.Elapsed.TotalSeconds,[DateTime]::UtcNow.ToString('o')) }
+    catch { $watch.Stop(); Write-Host ("CASE FAIL: {0} elapsed={1:N2}s ended={2} -- {3}" -f $Name,$watch.Elapsed.TotalSeconds,[DateTime]::UtcNow.ToString('o'),$_.Exception.Message); throw }
+}
+function Failure-Case([string]$Name, [scriptblock]$Arrange, [string]$ExpectedError) {
+    # A dynamic-module closure cannot reliably see script-scope functions when
+    # CI invokes this file from another script. Pass data as arguments instead.
+    $body = { param($Arrange, $ExpectedError) $f = New-SyncFixture; & $Arrange $f; Invoke-Sync $f -Fail -ExpectedError $ExpectedError }
+    Run-Case $Name $body @($Arrange, $ExpectedError)
+}
+
+try {
+    New-Item -ItemType Directory -Path $sandbox | Out-Null
+    Run-Case 'normal fast-forward and update unnecessary' { $f = New-SyncFixture; Invoke-Sync $f; Invoke-Sync $f; if ((& git -C $f.Local rev-parse HEAD).Trim() -ne $f.Target) { throw 'fast-forward failed' } }
+    Run-Case 'Japanese and spaces repository path' { $f = New-SyncFixture '日本語 と spaces'; Invoke-Sync $f }
+    Failure-Case 'staged tracked change' { param($f) Set-Content (Join-Path $f.Local tracked.txt) x; G $f.Local add tracked.txt }
+    Failure-Case 'unstaged tracked change' { param($f) Set-Content (Join-Path $f.Local base.txt) modified }
+    Run-Case 'untracked preserved' { $f = New-SyncFixture; Set-Content (Join-Path $f.Local keep.txt) keep; Invoke-Sync $f; if ((Get-Content (Join-Path $f.Local keep.txt)) -ne 'keep') { throw 'untracked changed' } }
+    Run-Case 'ignored preserved' { $f = New-SyncFixture; Add-Content (Join-Path $f.Local .git/info/exclude) "`nignored.txt"; Set-Content (Join-Path $f.Local ignored.txt) keep; Invoke-Sync $f; if ((Get-Content (Join-Path $f.Local ignored.txt)) -ne 'keep') { throw 'ignored changed' } }
+    foreach ($name in @('feature.txt','FEATURE.TXT')) {
+        $collision=$name; $arrange={ param($f) Set-Content (Join-Path $f.Local $collision) protected }.GetNewClosure()
+        Failure-Case "collision $name" $arrange
+    }
+    Failure-Case 'file directory collision' { param($f) New-Item -ItemType Directory (Join-Path $f.Local feature.txt) | Out-Null; Set-Content (Join-Path $f.Local feature.txt/child) protected }
+    Failure-Case 'unrelated branch' { param($f) G $f.Local switch -c unrelated; Set-Content (Join-Path $f.Local other.txt) other; G $f.Local add other.txt; G $f.Local -c user.email=x@y -c user.name=x commit -m other }
+    Run-Case 'safe PR branch switch' { $f=New-SyncFixture; G $f.Local fetch origin issue-66:issue-66; G $f.Local switch issue-66; Invoke-Sync $f }
+    Failure-Case 'detached HEAD' { param($f) G $f.Local checkout --detach }
+    Failure-Case 'merge in progress' { param($f) Set-Content (Join-Path $f.Local .git/MERGE_HEAD) ('0' * 40) }
+    Failure-Case 'cherry-pick in progress' { param($f) Set-Content (Join-Path $f.Local .git/CHERRY_PICK_HEAD) ('0' * 40) }
+    Failure-Case 'rebase in progress' { param($f) New-Item -ItemType Directory (Join-Path $f.Local .git/rebase-merge) | Out-Null }
+    Failure-Case 'origin mismatch' { param($f) G $f.Local remote set-url origin (Join-Path $f.Folder wrong.git) }
+    Failure-Case 'main absent' { param($f) G $f.Local switch -c temporary; G $f.Local branch -D main }
+    Failure-Case 'diverged local main' { param($f) Set-Content (Join-Path $f.Local local.txt) x; G $f.Local add local.txt; G $f.Local -c user.email=x@y -c user.name=x commit -m local-ahead }
+    Failure-Case 'main used by another worktree' { param($f) G $f.Local fetch origin issue-66:issue-66; G $f.Local switch issue-66; G $f.Local worktree add (Join-Path $f.Folder main-worktree) main }
+    Failure-Case 'remote retrieval failure' { param($f) Remove-Item -LiteralPath $f.Bare -Recurse -Force }
+    Run-Case 'origin main advances after target validation race' {
+        $f=New-SyncFixture; $phase=Join-Path $f.Folder phase; $stdout=Join-Path $f.Folder stdout; $stderr=Join-Path $f.Folder stderr
+        Set-Content (Join-Path $f.Local protected.txt) keep
+        $arguments=@('-NoProfile','-File',$script,'-RepositoryPath',$f.Local,'-TargetSha',$f.Target,'-MergeSha',$f.Target,'-PullRequestHeadSha',$f.PrHead,'-PullRequestNumber','67','-AllowedRemote',$f.Bare,'-TestPhaseDirectory',$phase)
+        $quotedArguments = @($arguments | ForEach-Object { '"' + $_ + '"' })
+        $process=Start-Process pwsh -ArgumentList $quotedArguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $deadline=[DateTime]::UtcNow.AddSeconds(20)
+        while (-not (Test-Path (Join-Path $phase target-validated))) {
+            if ([DateTime]::UtcNow -ge $deadline) { $process.Kill(); throw 'race phase was not reached' }
+            Start-Sleep -Milliseconds 50
+        }
+        Set-Content (Join-Path $f.Seed advanced.txt) x; G $f.Seed add advanced.txt; G $f.Seed commit -m advanced; G $f.Seed push origin main
+        $newRemote=(& git -C $f.Seed rev-parse HEAD).Trim(); Set-Content (Join-Path $phase continue) continue
+        if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'race child process timed out' }
+        $output=Get-Content $stdout -Raw -ErrorAction SilentlyContinue
+        if ($process.ExitCode -eq 0 -or $output -match 'status=success') { throw 'race was incorrectly reported as success' }
+        if ((Get-Content $stderr -Raw) -notmatch 'main advanced during sync') { throw 'race failed for an unexpected reason' }
+        if ((& git --git-dir=$($f.Bare) rev-parse refs/heads/main).Trim() -ne $newRemote) { throw 'remote did not advance' }
+        if ((& git -C $f.Local rev-parse HEAD).Trim() -ne $f.Target) { throw 'local did not remain at validated target' }
+        if ((Get-Content (Join-Path $f.Local protected.txt)) -ne 'keep') { throw 'protected data changed in race' }
+    }
+    Run-Case 'hooks and fsmonitor suppressed' {
+        $f=New-SyncFixture; $sentinel=Join-Path $f.Folder sentinel; $hook=Join-Path $f.Local .git/hooks/post-merge
+        Set-Content $hook "#!/bin/sh`necho hook > '$($sentinel.Replace('\','/'))'"; G $f.Local config core.fsmonitor "echo fsmonitor > '$($sentinel.Replace('\','/'))'"
+        Invoke-Sync $f; if (Test-Path $sentinel) { throw 'hook or fsmonitor unexpectedly executed' }
+    }
+    Failure-Case 'repository-local filter refused' { param($f) G $f.Local config filter.unsafe.smudge 'unsafe-command' } 'Effective Git filters are refused'
+    Run-Case 'global filter refused' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder global.gitconfig
+        Set-Content $config @('[filter "unsafe"]',' smudge = unsafe-command')
+        $old=$env:GIT_CONFIG_GLOBAL; $env:GIT_CONFIG_GLOBAL=$config
+        try { Invoke-Sync $f -Fail -ExpectedError 'Effective Git filters are refused' } finally { $env:GIT_CONFIG_GLOBAL=$old }
+    }
+    Run-Case 'system filter refused' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder system.gitconfig
+        Set-Content $config @('[filter "unsafe"]',' clean = unsafe-command')
+        $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$config; $env:GIT_CONFIG_NOSYSTEM='0'
+        try { Invoke-Sync $f -Fail -ExpectedError 'Effective Git filters are refused' } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
+    Run-Case 'system LFS definitions shadowed' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder system.gitconfig
+        Set-Content $config @('[filter "lfs"]',' clean = git-lfs clean -- %f',' smudge = git-lfs smudge -- %f',' process = git-lfs filter-process',' required = true')
+        $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$config; $env:GIT_CONFIG_NOSYSTEM='0'
+        try { Invoke-Sync $f } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
+    Run-Case 'installed system LFS preserved' {
+        $f=New-SyncFixture; $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$environmentBefore['GIT_CONFIG_SYSTEM']; $env:GIT_CONFIG_NOSYSTEM='0'
+        try {
+            $before=@(& git.exe -C $f.Local config --system --show-origin --get-regexp '^filter\.lfs\.')
+            if ($LASTEXITCODE -notin @(0,1)) { throw 'Cannot inspect installed system LFS' }
+            Invoke-Sync $f
+            $after=@(& git.exe -C $f.Local config --system --show-origin --get-regexp '^filter\.lfs\.')
+            if ($LASTEXITCODE -notin @(0,1) -or ($before -join "`n") -cne ($after -join "`n")) { throw 'Installed system LFS changed' }
+            Write-Host "installed_system_lfs_definitions=$($before.Count) preserved=true"
+        } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
+    Run-Case 'global attributes and LFS clean shadowed without execution' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder global.gitconfig; $attributes=Join-Path $f.Folder global.attributes
+        $sentinel=Join-Path $f.Folder sentinel; $command=Join-Path $f.Folder filter.sh
+        Set-Content $attributes '*.txt filter=lfs'
+        Set-Content $command "#!/bin/sh`necho executed > '$($sentinel.Replace('\','/'))'`ncat"
+        Set-Content $config @('[core]'," attributesFile = $($attributes.Replace('\','/'))",'[filter "lfs"]'," clean = sh $($command.Replace('\','/'))", " smudge = sh $($command.Replace('\','/'))", " process = sh $($command.Replace('\','/'))", ' required = true')
+        $old=$env:GIT_CONFIG_GLOBAL; $env:GIT_CONFIG_GLOBAL=$config
+        try { Invoke-Sync $f; if (Test-Path $sentinel) { throw 'LFS filter unexpectedly executed' } } finally { $env:GIT_CONFIG_GLOBAL=$old }
+    }
+    Run-Case 'system external attributes and LFS commands shadowed without execution' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder system.gitconfig; $attributes=Join-Path $f.Folder system.attributes
+        $sentinel=Join-Path $f.Folder sentinel; $command=Join-Path $f.Folder filter.sh
+        Set-Content $attributes '*.txt filter=lfs'
+        Set-Content $command "#!/bin/sh`necho executed > '$($sentinel.Replace('\','/'))'`ncat"
+        Set-Content $config @('[core]'," attributesFile = $($attributes.Replace('\','/'))",'[filter "lfs"]'," clean = sh $($command.Replace('\','/'))", " smudge = sh $($command.Replace('\','/'))", " process = sh $($command.Replace('\','/'))", ' required = true')
+        $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$config; $env:GIT_CONFIG_NOSYSTEM='0'
+        try { Invoke-Sync $f; if (Test-Path $sentinel) { throw 'System attributes activated an LFS filter' } } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
+    foreach ($scope in @('local','worktree')) {
+        Run-Case "$scope LFS commands shadowed" {
+            param($scope)
+            $f=New-SyncFixture; $sentinel=Join-Path $f.Folder sentinel; $command=Join-Path $f.Folder filter.sh
+            Set-Content $command "#!/bin/sh`necho executed > '$($sentinel.Replace('\','/'))'`ncat"
+            # info attributes ensure an assigned LFS filter also remains inert.
+            Set-Content (Join-Path $f.Local .git/info/attributes) '*.txt filter=lfs'
+            if ($scope -eq 'worktree') { G $f.Local config extensions.worktreeConfig true }
+            foreach ($key in @('clean','smudge','process')) { G $f.Local config "--$scope" "filter.lfs.$key" "sh $($command.Replace('\','/'))" }
+            G $f.Local config "--$scope" filter.lfs.required true
+            Invoke-Sync $f; if (Test-Path $sentinel) { throw 'Shadowed LFS filter executed' }
+        } @($scope)
+    }
+    Failure-Case 'case-sensitive LFS name effective filter refused' { param($f) G $f.Local config filter.LFS.process unsafe-command } 'Effective Git filters are refused'
+    Failure-Case 'unknown required filter refused' { param($f) G $f.Local config filter.unsafe.required true } 'Effective Git filters are refused'
+    Run-Case 'inert unknown filter allowed' { $f=New-SyncFixture; G $f.Local config filter.inert.clean ''; G $f.Local config filter.inert.required false; Invoke-Sync $f }
+    Run-Case 'ambient phase environment ignored' {
+        $f=New-SyncFixture; $phase=Join-Path $f.Folder ambient-phase
+        $old=$env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY; $env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY=$phase
+        try { Invoke-Sync $f; if (Test-Path $phase) { throw 'ambient environment activated test phase' } } finally { $env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY=$old }
+    }
+    Failure-Case 'worktree filter refused' { param($f) G $f.Local config extensions.worktreeConfig true; G $f.Local config --worktree filter.unsafe.process unsafe-command } 'Effective Git filters are refused'
+    Failure-Case 'unsafe target gitattributes refused' { param($f) Set-Content (Join-Path $f.Seed .gitattributes) '*.txt filter=unsafe'; G $f.Seed add .gitattributes; G $f.Seed commit -m attributes; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim() }
+    foreach ($attribute in @('filter=lfs','filter','-filter')) {
+        Run-Case "target $attribute attribute refused" {
+            param($attribute)
+            $f=New-SyncFixture; Set-Content (Join-Path $f.Seed .gitattributes) "*.txt $attribute"; G $f.Seed add .gitattributes; G $f.Seed commit -m lfs-attributes; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim()
+            Invoke-Sync $f -Fail -ExpectedError 'Target .gitattributes contains a filter attribute'
+        } @($attribute)
+    }
+    Failure-Case 'unsafe nested target gitattributes refused' { param($f) New-Item -ItemType Directory (Join-Path $f.Seed nested) | Out-Null; Set-Content (Join-Path $f.Seed nested/.gitattributes) '*.txt filter=unsafe'; G $f.Seed add nested/.gitattributes; G $f.Seed commit -m nested-attributes; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim() }
+    Run-Case 'ordinary target eol attributes allowed' { $f=New-SyncFixture; Set-Content (Join-Path $f.Seed .gitattributes) '* text eol=lf'; G $f.Seed add .gitattributes; G $f.Seed commit -m eol; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim(); Invoke-Sync $f }
+    Failure-Case 'target gitlink refused' { param($f) G $f.Seed update-index --add --cacheinfo "160000,$($f.PrHead),nested"; G $f.Seed commit -m gitlink; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim() }
+    Run-Case 'lock conflict' { $f=New-SyncFixture; $lock=[IO.File]::Open((Join-Path $f.Local '.git/langbench-operation.lock'),'OpenOrCreate','ReadWrite','None'); try { Invoke-Sync $f -Fail } finally { $lock.Dispose() } }
+    $suiteWatch.Stop(); $slowest=$caseTimes.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 1
+    Write-Host ("sync_local_main tests passed: {0} total={1:N2}s slowest={2} elapsed={3:N2}s" -f $passed,$suiteWatch.Elapsed.TotalSeconds,$slowest.Key,$slowest.Value)
+} finally {
+    Set-Location -LiteralPath $originalLocation
+    foreach ($name in $environmentBefore.Keys) { [Environment]::SetEnvironmentVariable($name,$environmentBefore[$name],'Process') }
+    $resolvedSandbox = [IO.Path]::GetFullPath($sandbox)
+    if (-not $resolvedSandbox.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $resolvedSandbox -Leaf) -notlike 'langbench-sync-test-*') { throw 'Unexpected cleanup target' }
+    Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue
+}
