@@ -21,6 +21,8 @@ jobs:
         with:
           python-version: '3.14'
       - run: python -B -m unittest discover -s tests -q
+      - name: Validate analysis package with hosted fixtures only
+        run: python -B -m unittest tests.test_function_call_analysis_package -q
       - uses: actions/setup-node@v7
         with:
           node-version: '24'

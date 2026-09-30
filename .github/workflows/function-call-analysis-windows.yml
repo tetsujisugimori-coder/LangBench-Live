@@ -1,0 +1,98 @@
+name: Prepare Windows function-call analysis artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      merged_pr_number:
+        description: Merged PR-A number whose main SHA will be analyzed
+        required: true
+        type: string
+      sync_run_id:
+        description: Successful Pull local main workflow run for that SHA
+        required: true
+        type: string
+      analysis_id:
+        description: Unique analysis identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: function-call-analysis-windows
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    outputs:
+      code_sha: ${{ steps.gate.outputs.code_sha }}
+      analysis_id: ${{ steps.gate.outputs.analysis_id }}
+    steps:
+      - name: Verify merged PR, fixed main SHA, synchronization, and identifier
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.merged_pr_number }}
+          SYNC_RUN_ID: ${{ inputs.sync_run_id }}
+          ANALYSIS_ID: ${{ inputs.analysis_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SYNC_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$ANALYSIS_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$ ]]
+          pr=$(gh api "/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+          test "$(jq -r '.merged' <<<"$pr")" = true
+          test "$(jq -r '.base.ref' <<<"$pr")" = main
+          test "$(jq -r '.base.repo.full_name' <<<"$pr")" = '${{ github.repository }}'
+          sha=$(jq -r '.merge_commit_sha' <<<"$pr")
+          test "$(gh api "/repos/${{ github.repository }}/git/ref/heads/main" --jq '.object.sha')" = "$sha"
+          run=$(gh api "/repos/${{ github.repository }}/actions/runs/$SYNC_RUN_ID")
+          test "$(jq -r '.name' <<<"$run")" = 'Pull local main after verified merge'
+          test "$(jq -r '.event' <<<"$run")" = push
+          test "$(jq -r '.head_branch' <<<"$run")" = main
+          test "$(jq -r '.head_sha' <<<"$run")" = "$sha"
+          test "$(jq -r '.status + "/" + .conclusion' <<<"$run")" = completed/success
+          echo "code_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "analysis_id=$ANALYSIS_ID" >> "$GITHUB_OUTPUT"
+
+  analyze:
+    needs: authorize
+    runs-on: [self-hosted, Windows, X64, langbench-live-tetsu-windows]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.authorize.outputs.code_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Reserve a new runner-temporary destination
+        id: destination
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $destination = Join-Path $env:RUNNER_TEMP 'langbench-analysis-${{ needs.authorize.outputs.analysis_id }}'
+          if (Test-Path -LiteralPath $destination) { throw 'analysis destination already exists' }
+          "destination=$destination" >> $env:GITHUB_OUTPUT
+      - name: Generate and validate the analysis package
+        shell: pwsh
+        env:
+          CODE_SHA: ${{ needs.authorize.outputs.code_sha }}
+          ANALYSIS_ID: ${{ needs.authorize.outputs.analysis_id }}
+          DESTINATION: ${{ steps.destination.outputs.destination }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne $env:CODE_SHA) { throw 'checkout SHA changed' }
+          ./tools/generate_function_call_analysis.ps1 -AnalysisId $env:ANALYSIS_ID -OutputDirectory $env:DESTINATION
+          python -B ./tools/validate_function_call_analysis.py $env:DESTINATION --expected-sha $env:CODE_SHA
+      - name: Upload unpublished analysis package even when generation fails
+        if: ${{ always() && steps.destination.outputs.destination != '' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: function-call-analysis-${{ needs.authorize.outputs.analysis_id }}
+          path: ${{ steps.destination.outputs.destination }}
+          if-no-files-found: error
+          retention-days: 14

@@ -1,4 +1,7 @@
-param([string]$AnalysisId)
+param(
+    [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$')][string]$AnalysisId,
+    [Parameter(Mandatory = $true)][string]$OutputDirectory
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -49,7 +52,8 @@ function Write-Utf8 {
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 . (Join-Path $projectRoot "tools\source_hash.ps1")
-$artifactDir = Join-Path $projectRoot "artifacts\function-call-analysis"
+$artifactDir = [System.IO.Path]::GetFullPath($OutputDirectory)
+if (Test-Path -LiteralPath $artifactDir) { throw "analysis output already exists: $artifactDir" }
 [System.IO.Directory]::CreateDirectory($artifactDir) | Out-Null
 $cRelativeSource = "benchmarks/function_call_numeric_sum/c/main.c"
 $pythonRelativeSource = "benchmarks/function_call_numeric_sum/python/main.py"
@@ -69,7 +73,8 @@ $v8Trace = Join-Path $artifactDir "v8-optimization.txt"
 $manifestPath = Join-Path $artifactDir "manifest.json"
 $extractor = Join-Path $projectRoot "tools\extract_function_call_findings.py"
 $analyzedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-if ([string]::IsNullOrWhiteSpace($AnalysisId)) { $AnalysisId = "function-call-analysis-" + (Get-Date -Format "yyyyMMdd-HHmmss") }
+$gitSha = (& git -C $projectRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $gitSha -notmatch '^[0-9a-f]{40}$') { throw "failed to obtain the analyzed Git SHA" }
 
 $gccVersionOutput = Invoke-CapturedProcess "gcc" @("--version") $projectRoot
 $gccVersion = ($gccVersionOutput.stdout -split "`r?`n")[0]
@@ -164,5 +169,21 @@ $manifest = [ordered]@{
     }
 }
 Write-Utf8 $manifestPath (($manifest | ConvertTo-Json -Depth 12) + "`n")
+$evidenceHashes = [ordered]@{}
+foreach ($path in @($gccReport, $assembly, $pythonBytecode, $v8Trace, $manifestPath)) {
+    $evidenceHashes[(Split-Path -Leaf $path)] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+$provenance = [ordered]@{
+    schema_version = "1.0"
+    analysis_id = $AnalysisId
+    code_sha = $gitSha
+    generated_at = $analyzedAt
+    operating_system = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
+    architecture = $architecture
+    measurement_orders = @("direct_first", "function_call_first")
+    trace_is_benchmark = $false
+    evidence_sha256 = $evidenceHashes
+}
+Write-Utf8 (Join-Path $artifactDir "provenance.json") (($provenance | ConvertTo-Json -Depth 5) + "`n")
 Write-Host "status=success"
 Write-Host "analysis_id=$AnalysisId"
