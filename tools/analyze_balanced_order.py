@@ -138,13 +138,45 @@ def manifest_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "input_sha256": provenance["input_sha256"], "host": provenance["host"]}
 
 
+def format_summary_value(value: float | None, *, signed: bool = False) -> str:
+    """Round only for display; a zero denominator remains null."""
+    return "null" if value is None else format(value, "+.6f" if signed else ".6f")
+
+
+def summary_table_lines(order_summaries: dict[str, Any]) -> list[str]:
+    """Shared presentation only; the verifier independently recalculates values."""
+    lines = ["| 言語 | 順序群 | median delta (ms) | median ratio | positive | negative | zero |",
+             "|---|---|---:|---:|---:|---:|---:|"]
+    names = {"python": "Python", "javascript": "JavaScript", "c": "C"}
+    for language in LANGUAGES:
+        for order in ("direct_first", "function_call_first"):
+            result = order_summaries[language][order]
+            signs = result["sign_counts"]
+            lines.append(f"| {names[language]} | {order} | "
+                         f"{format_summary_value(result['median_delta_ms'], signed=True)} | "
+                         f"{format_summary_value(result['median_ratio'])} | "
+                         f"{signs['positive']} | {signs['negative']} | {signs['zero']} |")
+    return lines
+
+
 def summary_text(payload: dict[str, Any]) -> str:
     provenance = payload["provenance"]
-    return ("# 均衡順序測定\n\n"
-            f"series ID: `{provenance['series_id']}`  \n"
-            f"測定Git SHA: `{provenance['git_head']}`  \n"
-            "固定したD,F,F,D×3の12 run（3言語、各case 50 sample）を完了しました。"
-            "数値はpublic-samples.csvから検算し、詳細はpublic-data.json / CSVに保存しています。\n")
+    language_runs = sum(len(run["languages"]) for run in payload["runs"])
+    lines = ["# 均衡順序測定", "",
+             f"- series ID: `{provenance['series_id']}`",
+             f"- 測定Git SHA: `{provenance['git_head']}`", "",
+             f"固定したD,F,F,D×3の{len(payload['runs'])}-run計画を完了しました。"
+             f"{language_runs}言語run、各case 50 sample、合計{language_runs * len(CASES) * 50:,} samplesです。",
+             "数値はpublic-samples.csvから検算し、詳細はpublic-data.json / CSVに保存しています。", "",
+             *summary_table_lines(payload["order_summaries"]), "",
+             "- 差は各runのfunction_call median − direct median、ratioはfunction_call / directです。"
+             "表は各順序群6 runの差・ratioの中央値と、丸め前の差のsign countsを示します。",
+             "- msとratioは表示直前だけ小数6桁へ丸め、JSON/CSVの内部値は丸めません。分母0のratioはnullです。",
+             "- D/F順序群は固定12-run計画の記述的比較です。3,600 samplesを独立3,600実験とは扱いません。"
+             "順序群差を純粋なorder effectや因果効果とは呼びません。",
+             "- JavaScriptは差が非常に小さく符号も混在しています。Python/Cは両順序で同方向ですが、"
+             "今回の固定条件・単一実機範囲の記述結果です。"]
+    return "\n".join(lines) + "\n"
 
 
 def main() -> int:

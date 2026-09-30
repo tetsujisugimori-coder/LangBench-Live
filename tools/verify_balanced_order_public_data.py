@@ -10,6 +10,11 @@ import statistics
 from pathlib import Path
 from typing import Any
 
+if __package__:
+    from .analyze_balanced_order import summary_table_lines
+else:
+    from analyze_balanced_order import summary_table_lines
+
 LANGUAGES = ("python", "javascript", "c")
 CASES = ("direct", "function_call")
 PLAN = ("direct_first", "function_call_first", "function_call_first", "direct_first") * 3
@@ -125,9 +130,19 @@ def verify(root: Path) -> None:
             or manifest.get("input_sha256") != data["provenance"].get("input_sha256")
             or manifest.get("host") != data["provenance"].get("host") or manifest.get("plan") != list(PLAN)):
         raise ValueError("manifest does not correspond to public data")
-    summary = (root / "summary.md").read_text(encoding="utf-8")
-    if f"`{manifest['series_id']}`" not in summary or f"`{manifest['measurement_git_sha']}`" not in summary:
+    summary_bytes = (root / "summary.md").read_bytes()
+    if summary_bytes.startswith(b"\xef\xbb\xbf"):
+        raise ValueError("summary must be UTF-8 without BOM")
+    summary_lines = summary_bytes.decode("utf-8").splitlines()
+    if any(line != line.rstrip() for line in summary_lines):
+        raise ValueError("summary contains trailing whitespace")
+    if (f"- series ID: `{manifest['series_id']}`" not in summary_lines
+            or f"- 測定Git SHA: `{manifest['measurement_git_sha']}`" not in summary_lines):
         raise ValueError("summary does not identify the published series and measurement SHA")
+    # Values come only from public-samples.csv, never the published aggregates.
+    # Share display rounding/layout, but not the analyzer's statistical calculation.
+    same(summary_table_lines(expected_orders),
+         [line for line in summary_lines if line.startswith("|")], "summary principal values")
 
 
 def main() -> int:

@@ -57,6 +57,56 @@ class BalancedOrderTest(unittest.TestCase):
             data["successful_runs"] = 11; path.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "incomplete"): analyze(path)
 
+    def test_summary_has_six_order_results_without_whitespace_or_bom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); self.publish(root)
+            summary_bytes = (root / "summary.md").read_bytes()
+            self.assertFalse(summary_bytes.startswith(b"\xef\xbb\xbf"))
+            lines = summary_bytes.decode("utf-8").splitlines()
+            self.assertTrue(all(line == line.rstrip() for line in lines))
+            results = [line.split("|")[1:-1] for line in lines[lines.index("|---|---|---:|---:|---:|---:|---:|") + 1:]
+                       if line.startswith("|")]
+            self.assertEqual(6, len(results))
+            self.assertEqual({(language, order) for language in ("Python", "JavaScript", "C")
+                              for order in ("direct_first", "function_call_first")},
+                             {(row[0].strip(), row[1].strip()) for row in results})
+            for row in results:
+                self.assertEqual("+1.000000", row[2].strip())
+                self.assertEqual("1.976086", row[3].strip())
+                self.assertEqual(["6", "0", "0"], [cell.strip() for cell in row[4:]])
+            self.assertIn("3,600 samples", "\n".join(lines))
+
+    def test_verifier_rejects_summary_delta_ratio_and_sign_count_tamper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); self.publish(root)
+            path = root / "summary.md"; original = path.read_text(encoding="utf-8")
+            for field, column in (("delta", 3), ("ratio", 4), ("positive", 5), ("negative", 6), ("zero", 7)):
+                with self.subTest(field=field):
+                    lines = original.splitlines()
+                    row = next(index for index, line in enumerate(lines) if line.startswith("| Python | direct_first |"))
+                    cells = lines[row].split("|"); cells[column] = " 99 "; lines[row] = "|".join(cells)
+                    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "summary principal values"): verify(root)
+
+    def test_verifier_rejects_summary_series_and_measurement_sha_tamper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); self.publish(root)
+            path = root / "summary.md"; original = path.read_text(encoding="utf-8")
+            for value in ("series-test", "a" * 40):
+                with self.subTest(value=value):
+                    path.write_text(original.replace(value, "tampered"), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "summary does not identify"): verify(root)
+
+    def test_verifier_rejects_summary_bom_and_trailing_whitespace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); self.publish(root)
+            path = root / "summary.md"; original = path.read_bytes()
+            for name, content in (("BOM", b"\xef\xbb\xbf" + original),
+                                  ("trailing whitespace", original.replace(b"\n", b"  \n", 1))):
+                with self.subTest(name=name):
+                    path.write_bytes(content)
+                    with self.assertRaisesRegex(ValueError, name): verify(root)
+
     def test_report_identity_block_and_duplicate_case_are_rejected(self):
         mutations = (("identity", lambda root, series: self.mutate_report(root, "experiment_id", "wrong")),
                      ("block", lambda root, series: series["runs"][0].update(block=2)),
