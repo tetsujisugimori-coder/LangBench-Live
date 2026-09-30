@@ -8,11 +8,11 @@ $passed = 0
 $caseTimes = @{}
 $suiteWatch = [Diagnostics.Stopwatch]::StartNew()
 $environmentBefore = @{}
-foreach ($name in @('GIT_CONFIG_NOSYSTEM','GIT_CONFIG_GLOBAL','GIT_TERMINAL_PROMPT','GCM_INTERACTIVE')) {
+foreach ($name in @('GIT_CONFIG_NOSYSTEM','GIT_CONFIG_SYSTEM','GIT_CONFIG_GLOBAL','GIT_TERMINAL_PROMPT','GCM_INTERACTIVE')) {
     $environmentBefore[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 # Isolate fixtures from installed LFS and user configuration. Dedicated cases
-# explicitly inject each scope; production continues auditing all scopes.
+# explicitly inject each scope; production audits effective values in all scopes.
 $env:GIT_CONFIG_NOSYSTEM = '1'
 $env:GIT_CONFIG_GLOBAL = 'NUL'
 $env:GIT_TERMINAL_PROMPT = '0'
@@ -120,15 +120,50 @@ try {
         $env:GIT_CONFIG_SYSTEM=$config; $env:GIT_CONFIG_NOSYSTEM='0'
         try { Invoke-Sync $f -Fail -ExpectedError 'Effective Git filters are refused' } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
     }
-    Run-Case 'global attributes and LFS clean refused without execution' {
+    Run-Case 'system LFS definitions shadowed' {
+        $f=New-SyncFixture; $config=Join-Path $f.Folder system.gitconfig
+        Set-Content $config @('[filter "lfs"]',' clean = git-lfs clean -- %f',' smudge = git-lfs smudge -- %f',' process = git-lfs filter-process',' required = true')
+        $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$config; $env:GIT_CONFIG_NOSYSTEM='0'
+        try { Invoke-Sync $f } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
+    Run-Case 'installed system LFS preserved' {
+        $f=New-SyncFixture; $oldSystem=$env:GIT_CONFIG_SYSTEM; $oldNoSystem=$env:GIT_CONFIG_NOSYSTEM
+        $env:GIT_CONFIG_SYSTEM=$environmentBefore['GIT_CONFIG_SYSTEM']; $env:GIT_CONFIG_NOSYSTEM='0'
+        try {
+            $before=@(& git.exe -C $f.Local config --system --show-origin --get-regexp '^filter\.lfs\.')
+            if ($LASTEXITCODE -notin @(0,1)) { throw 'Cannot inspect installed system LFS' }
+            Invoke-Sync $f
+            $after=@(& git.exe -C $f.Local config --system --show-origin --get-regexp '^filter\.lfs\.')
+            if ($LASTEXITCODE -notin @(0,1) -or ($before -join "`n") -cne ($after -join "`n")) { throw 'Installed system LFS changed' }
+            Write-Host "installed_system_lfs_definitions=$($before.Count) preserved=true"
+        } finally { $env:GIT_CONFIG_SYSTEM=$oldSystem; $env:GIT_CONFIG_NOSYSTEM=$oldNoSystem }
+    }
+    Run-Case 'global attributes and LFS clean shadowed without execution' {
         $f=New-SyncFixture; $config=Join-Path $f.Folder global.gitconfig; $attributes=Join-Path $f.Folder global.attributes
         $sentinel=Join-Path $f.Folder sentinel; $command=Join-Path $f.Folder filter.sh
         Set-Content $attributes '*.txt filter=lfs'
         Set-Content $command "#!/bin/sh`necho executed > '$($sentinel.Replace('\','/'))'`ncat"
-        Set-Content $config @('[core]'," attributesFile = $($attributes.Replace('\','/'))",'[filter "lfs"]'," clean = sh $($command.Replace('\','/'))")
+        Set-Content $config @('[core]'," attributesFile = $($attributes.Replace('\','/'))",'[filter "lfs"]'," clean = sh $($command.Replace('\','/'))", " smudge = sh $($command.Replace('\','/'))", " process = sh $($command.Replace('\','/'))", ' required = true')
         $old=$env:GIT_CONFIG_GLOBAL; $env:GIT_CONFIG_GLOBAL=$config
-        try { Invoke-Sync $f -Fail -ExpectedError 'Effective Git filters are refused'; if (Test-Path $sentinel) { throw 'LFS clean unexpectedly executed' } } finally { $env:GIT_CONFIG_GLOBAL=$old }
+        try { Invoke-Sync $f; if (Test-Path $sentinel) { throw 'LFS filter unexpectedly executed' } } finally { $env:GIT_CONFIG_GLOBAL=$old }
     }
+    foreach ($scope in @('local','worktree')) {
+        Run-Case "$scope LFS commands shadowed" {
+            param($scope)
+            $f=New-SyncFixture; $sentinel=Join-Path $f.Folder sentinel; $command=Join-Path $f.Folder filter.sh
+            Set-Content $command "#!/bin/sh`necho executed > '$($sentinel.Replace('\','/'))'`ncat"
+            # info attributes ensure an assigned LFS filter also remains inert.
+            Set-Content (Join-Path $f.Local .git/info/attributes) '*.txt filter=lfs'
+            if ($scope -eq 'worktree') { G $f.Local config extensions.worktreeConfig true }
+            foreach ($key in @('clean','smudge','process')) { G $f.Local config "--$scope" "filter.lfs.$key" "sh $($command.Replace('\','/'))" }
+            G $f.Local config "--$scope" filter.lfs.required true
+            Invoke-Sync $f; if (Test-Path $sentinel) { throw 'Shadowed LFS filter executed' }
+        } @($scope)
+    }
+    Failure-Case 'case-sensitive LFS name effective filter refused' { param($f) G $f.Local config filter.LFS.process unsafe-command } 'Effective Git filters are refused'
+    Failure-Case 'unknown required filter refused' { param($f) G $f.Local config filter.unsafe.required true } 'Effective Git filters are refused'
+    Run-Case 'inert unknown filter allowed' { $f=New-SyncFixture; G $f.Local config filter.inert.clean ''; G $f.Local config filter.inert.required false; Invoke-Sync $f }
     Run-Case 'ambient phase environment ignored' {
         $f=New-SyncFixture; $phase=Join-Path $f.Folder ambient-phase
         $old=$env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY; $env:LANGBENCH_SYNC_TEST_PHASE_DIRECTORY=$phase
@@ -136,6 +171,13 @@ try {
     }
     Failure-Case 'worktree filter refused' { param($f) G $f.Local config extensions.worktreeConfig true; G $f.Local config --worktree filter.unsafe.process unsafe-command } 'Effective Git filters are refused'
     Failure-Case 'unsafe target gitattributes refused' { param($f) Set-Content (Join-Path $f.Seed .gitattributes) '*.txt filter=unsafe'; G $f.Seed add .gitattributes; G $f.Seed commit -m attributes; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim() }
+    foreach ($attribute in @('filter=lfs','filter','-filter')) {
+        Run-Case "target $attribute attribute refused" {
+            param($attribute)
+            $f=New-SyncFixture; Set-Content (Join-Path $f.Seed .gitattributes) "*.txt $attribute"; G $f.Seed add .gitattributes; G $f.Seed commit -m lfs-attributes; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim()
+            Invoke-Sync $f -Fail -ExpectedError 'Target .gitattributes contains a filter attribute'
+        } @($attribute)
+    }
     Failure-Case 'unsafe nested target gitattributes refused' { param($f) New-Item -ItemType Directory (Join-Path $f.Seed nested) | Out-Null; Set-Content (Join-Path $f.Seed nested/.gitattributes) '*.txt filter=unsafe'; G $f.Seed add nested/.gitattributes; G $f.Seed commit -m nested-attributes; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim() }
     Run-Case 'ordinary target eol attributes allowed' { $f=New-SyncFixture; Set-Content (Join-Path $f.Seed .gitattributes) '* text eol=lf'; G $f.Seed add .gitattributes; G $f.Seed commit -m eol; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim(); Invoke-Sync $f }
     Failure-Case 'target gitlink refused' { param($f) G $f.Seed update-index --add --cacheinfo "160000,$($f.PrHead),nested"; G $f.Seed commit -m gitlink; G $f.Seed push origin main; $f.Target=(& git -C $f.Seed rev-parse HEAD).Trim() }

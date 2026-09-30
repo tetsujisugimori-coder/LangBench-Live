@@ -33,14 +33,23 @@ $env:GIT_ATTR_NOSYSTEM = '1'
 try {
 if ([IO.Path]::GetFullPath((Git-One rev-parse --show-toplevel)).TrimEnd('\') -ine $root) { throw 'Configured path is not the repository root.' }
 if ($AllowedRemote -inotcontains (Git-One remote get-url origin)) { throw 'Unexpected origin.' }
-# Audit every definition, including overridden LFS definitions. Only our exact
-# command-scope disables are exempt; the filter name alone never implies safety.
-$filterDefinitions = @(Invoke-HardenedGit -Arguments @('config','--show-origin','--show-scope','--get-regexp','^filter\..*\.(clean|smudge|process|required)$') -AllowedExitCodes @(0,1))
-$effectiveFilters = @($filterDefinitions | Where-Object {
-    $_ -cnotmatch '^command\tcommand line:\tfilter\.lfs\.(?:clean|smudge|process) $' -and
-    $_ -cnotmatch '^command\tcommand line:\tfilter\.lfs\.required false$'
-})
-if ($effectiveFilters.Count) { throw 'Effective Git filters are refused during automatic sync.' }
+# Enumerate all scopes, but judge each key's last/effective value under the same
+# command-scope hardening as status/fetch/merge. A shadowed definition cannot
+# execute. Filter subsection names are case-sensitive, so never collapse LFS/lfs.
+$filterKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+foreach ($key in @(Git config --name-only --get-regexp '^filter\..*\.(clean|smudge|process|required)$')) {
+    [void]$filterKeys.Add([string]$key)
+}
+foreach ($key in $filterKeys) {
+    if ($key.EndsWith('.required', [StringComparison]::OrdinalIgnoreCase)) {
+        $effectiveValue = Git-One config --type=bool --get $key
+        $safe = $effectiveValue -ceq 'false'
+    } else {
+        $effectiveValue = Git-One config --get $key
+        $safe = $effectiveValue -ceq ''
+    }
+    if (-not $safe) { throw "Effective Git filters are refused during automatic sync: $key" }
+}
 if (@(Git status --porcelain --untracked-files=no).Count) { throw 'Tracked changes are present.' }
 foreach ($marker in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply')) {
     if (Test-Path -LiteralPath (Git-One rev-parse --git-path $marker)) { throw "Git operation in progress: $marker" }
