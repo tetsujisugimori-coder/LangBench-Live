@@ -18,7 +18,15 @@ class AnalysisPackageTests(unittest.TestCase):
                     for order in ("direct_first", "function_call_first")}
         (root / "javascript-order-findings.json").write_text(json.dumps(findings), encoding="utf-8")
         for name in FILES - {"manifest.json", "javascript-order-findings.json"}:
-            (root / name).write_text(f"fixture {name}\n", encoding="utf-8")
+            if name.startswith("v8-optimization-"):
+                order = name.removeprefix("v8-optimization-").removesuffix(".txt")
+                trace = (f"# order={order}\n# exit_code=0\n# stdout\n"
+                         "[completed optimizing x <JSFunction called y]\n"
+                         "Inlining x <SharedFunctionInfo add>} into y <SharedFunctionInfo called>}\n"
+                         "# stderr\n")
+                (root / name).write_text(trace, encoding="utf-8")
+            else:
+                (root / name).write_text(f"fixture {name}\n", encoding="utf-8")
         sha = "a" * 40
         hashes = {name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in FILES}
         javascript_orders = {}
@@ -113,6 +121,51 @@ class AnalysisPackageTests(unittest.TestCase):
             provenance["javascript_orders"]["function_call_first"]["findings"] = findings["function_call_first"]
             (root / "provenance.json").write_text(json.dumps(provenance))
             self.assertTrue(any("overgeneralize" in error for error in validate_package(root, sha)))
+
+    def test_saved_findings_shape_and_trace_headers_are_strict(self):
+        cases = [
+            lambda value: value.pop("function_call_first"),
+            lambda value: value.update(function_call_first=None),
+            lambda value: value.update(direct_first=None),
+            lambda value: value.update(extra=value["direct_first"]),
+            lambda value: value["direct_first"].pop("jit"),
+            lambda value: value["direct_first"].update(extra={"result": "detected"}),
+            lambda value: value["direct_first"]["jit"].update(result="maybe"),
+            lambda value: value["direct_first"]["jit"].update(result=[]),
+        ]
+        for mutate in cases:
+            with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); sha = self.make_package(root)
+                findings = json.loads((root / "javascript-order-findings.json").read_text())
+                mutate(findings)
+                (root / "javascript-order-findings.json").write_text(json.dumps(findings))
+                provenance = json.loads((root / "provenance.json").read_text())
+                provenance["evidence_sha256"]["javascript-order-findings.json"] = hashlib.sha256(
+                    (root / "javascript-order-findings.json").read_bytes()).hexdigest()
+                (root / "provenance.json").write_text(json.dumps(provenance))
+                self.assertTrue(any("saved JavaScript" in error for error in validate_package(root, sha)))
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); sha = self.make_package(root)
+            trace = root / "v8-optimization-direct_first.txt"
+            trace.write_text(trace.read_text().replace("# order=direct_first", "# order=function_call_first"))
+            provenance = json.loads((root / "provenance.json").read_text())
+            digest = hashlib.sha256(trace.read_bytes()).hexdigest()
+            provenance["evidence_sha256"][trace.name] = digest
+            provenance["javascript_orders"]["direct_first"]["evidence_sha256"] = digest
+            (root / "provenance.json").write_text(json.dumps(provenance))
+            self.assertTrue(any("direct_first" in error for error in validate_package(root, sha)))
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); sha = self.make_package(root)
+            trace = root / "v8-optimization-function_call_first.txt"
+            trace.write_text("# order=function_call_first\n# exit_code=0\n# stdout\n# stderr\n")
+            provenance = json.loads((root / "provenance.json").read_text())
+            digest = hashlib.sha256(trace.read_bytes()).hexdigest()
+            provenance["evidence_sha256"][trace.name] = digest
+            provenance["javascript_orders"]["function_call_first"]["evidence_sha256"] = digest
+            (root / "provenance.json").write_text(json.dumps(provenance))
+            self.assertTrue(any("function_call_first" in error for error in validate_package(root, sha)))
 
 
 if __name__ == "__main__":

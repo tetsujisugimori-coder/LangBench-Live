@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$')][string]$AnalysisId,
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
+    [Parameter(Mandatory = $true)][string]$SharedRepositoryPath,
+    [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git'),
     [ValidateSet("direct_first", "function_call_first")][string]$TestFailTraceOrder
 )
 
@@ -55,15 +57,24 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $operationLock = $null
 $measurementLock = $null
 try {
-$gitDirectory = (& git -C $projectRoot rev-parse --path-format=absolute --git-common-dir).Trim()
-if ($LASTEXITCODE -ne 0) { throw "failed to locate the shared Git directory" }
+$sharedRoot = [IO.Path]::GetFullPath($SharedRepositoryPath).TrimEnd('\', '/')
+if (-not (Test-Path -LiteralPath $sharedRoot -PathType Container)) { throw "shared repository does not exist" }
+$sharedTop = (& git -C $sharedRoot rev-parse --show-toplevel).Trim()
+$gitDirectory = (& git -C $sharedRoot rev-parse --path-format=absolute --git-common-dir).Trim()
+if ($LASTEXITCODE -ne 0 -or [IO.Path]::GetFullPath($sharedTop).TrimEnd('\', '/') -ine $sharedRoot) { throw "shared repository root is invalid" }
 try {
     $operationLock = [IO.File]::Open((Join-Path $gitDirectory "langbench-operation.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
 } catch {
     throw "another synchronization, measurement, or analysis operation is active"
 }
+if ($AllowedRemote -inotcontains ((& git -C $sharedRoot remote get-url origin).Trim())) { throw "shared repository origin is not trusted" }
+$codeHead = (& git -C $projectRoot rev-parse HEAD).Trim()
+$sharedHead = (& git -C $sharedRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $sharedHead -ne $codeHead) { throw "shared repository is not synchronized to the analyzed SHA" }
+if ((& git -C $sharedRoot branch --show-current).Trim() -ne "main") { throw "shared repository is not on main" }
+if (@(& git -C $sharedRoot status --porcelain --untracked-files=no).Count) { throw "shared repository has tracked changes" }
 try {
-    $measurementLock = [IO.File]::Open((Join-Path $projectRoot "results/function_call_numeric_sum.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
+    $measurementLock = [IO.File]::Open((Join-Path $sharedRoot "results/function_call_numeric_sum.lock"), 'OpenOrCreate', 'ReadWrite', 'None')
 } catch {
     throw "another function-call measurement or analysis operation is active"
 }

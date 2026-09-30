@@ -16,7 +16,9 @@
    workflow 自体も `refs/heads/main` からの dispatch に限定し、照合失敗時は実機 job を起動しない。
 4. 実機 job は専用四 label の runner で固定 SHA を checkout し、`RUNNER_TEMP` の未使用先へ
    C/Python/JavaScript 解析を生成する。開始前に同期・測定と共有する Git common-directory lock と
-   function-call measurement lock を取得し、競合時は出力作成前に停止する。既存成果物やユーザー作業フォルダーは上書きしない。
+   function-call measurement lock を、信頼済み固定設定のユーザー作業コピーから取得する。その repository root、
+   origin、main、固定 SHA、tracked 状態を確認し、競合時は出力作成前に停止する。実行コードと出力はそれぞれ
+   固定 SHA の runner checkout と `RUNNER_TEMP` に置き、ユーザー作業フォルダーの成果物は上書きしない。
 5. validator が manifest、解析 SHA、両測定順序の適用範囲、trace と本測定の分離、および全根拠
    SHA-256 を検証する。失敗時を含め、生成できた package は 14 日 artifact として保持する。
 

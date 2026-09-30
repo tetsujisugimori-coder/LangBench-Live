@@ -10,10 +10,28 @@ import re
 from pathlib import Path
 
 from validate_result_json import validate_analysis_manifest
+from extract_function_call_findings import analyze_v8_trace
 
 FILES = {"gcc-optimization.txt", "main.s", "python-bytecode.txt", "manifest.json",
          "v8-optimization-direct_first.txt", "v8-optimization-function_call_first.txt",
          "javascript-order-findings.json"}
+FINDING_RESULTS = {"detected", "not_detected", "not_checked", "unknown", "not_applicable"}
+
+
+def valid_findings(value: object) -> bool:
+    if not isinstance(value, dict) or set(value) != {"jit", "inlining", "vectorization", "simd"}:
+        return False
+    for name in ("jit", "inlining", "vectorization"):
+        item = value[name]
+        if (not isinstance(item, dict) or set(item) != {"result"}
+                or not isinstance(item["result"], str) or item["result"] not in FINDING_RESULTS):
+            return False
+    simd = value["simd"]
+    return (isinstance(simd, dict) and set(simd) == {"result", "isa"}
+            and isinstance(simd["result"], str) and simd["result"] in FINDING_RESULTS and isinstance(simd["isa"], list)
+            and all(isinstance(isa, str) and isa for isa in simd["isa"])
+            and len(simd["isa"]) == len(set(simd["isa"]))
+            and (simd["result"] == "detected") == bool(simd["isa"]))
 
 
 def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
@@ -59,6 +77,7 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
     hashes = provenance["evidence_sha256"]
     if not isinstance(hashes, dict) or set(hashes) != FILES:
         errors.append("evidence hash inventory is invalid")
+        hashes = {}
     else:
         for name, expected in hashes.items():
             path = root / name
@@ -68,6 +87,10 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
                 errors.append(f"evidence was modified or is missing: {name}")
     orders = provenance["javascript_orders"]
     expected_orders = {"direct_first", "function_call_first"}
+    if (not isinstance(saved_findings, dict) or set(saved_findings) != expected_orders
+            or not all(valid_findings(saved_findings.get(order)) for order in expected_orders)):
+        errors.append("saved JavaScript order findings are invalid")
+        saved_findings = {}
     if not isinstance(orders, dict) or set(orders) != expected_orders:
         errors.append("JavaScript order findings are invalid")
     else:
@@ -78,11 +101,20 @@ def validate_package(root: Path, expected_sha: str | None = None) -> list[str]:
                                 "tools/trace_function_call_javascript.js", order]
             stimulus = {"iterations": 100, "item_count": 10000, "timed": False,
                         "writes_benchmark_result": False}
+            trace_path = root / evidence
+            try:
+                trace = trace_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                trace = ""
+            header_valid = (trace.startswith(f"# order={order}\n# exit_code=0\n# stdout\n")
+                            and "\n# stderr\n" in trace)
+            extracted = analyze_v8_trace(trace) if header_valid else None
             if (not isinstance(item, dict)
                     or set(item) != {"command", "stimulus", "evidence", "evidence_sha256", "findings"}
                     or item.get("command") != expected_command or item.get("stimulus") != stimulus
                     or item.get("evidence") != evidence or item.get("evidence_sha256") != hashes.get(evidence)
-                    or item.get("findings") != saved_findings.get(order)):
+                    or item.get("findings") != saved_findings.get(order)
+                    or extracted != saved_findings.get(order)):
                 errors.append(f"JavaScript order evidence is invalid for {order}")
         if set(saved_findings) == expected_orders:
             consensus: dict[str, dict] = {}

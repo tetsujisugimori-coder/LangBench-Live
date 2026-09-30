@@ -88,7 +88,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           if ((git rev-parse HEAD).Trim() -ne $env:CODE_SHA) { throw 'checkout SHA changed' }
-          ./tools/generate_function_call_analysis.ps1 -AnalysisId $env:ANALYSIS_ID -OutputDirectory $env:DESTINATION
+          ./tools/generate_function_call_analysis.ps1 -AnalysisId $env:ANALYSIS_ID -OutputDirectory $env:DESTINATION -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live'
           python -B ./tools/validate_function_call_analysis.py $env:DESTINATION --expected-sha $env:CODE_SHA
       - name: Upload unpublished analysis package even when generation fails
         if: ${{ always() && steps.destination.outputs.destination != '' }}
