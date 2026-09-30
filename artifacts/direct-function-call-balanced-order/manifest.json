@@ -1,14 +1,106 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "issue": 66,
   "benchmark": "function_call_numeric_sum",
-  "status": "windows_measurement_pending",
-  "plan": ["direct_first", "function_call_first", "function_call_first", "direct_first", "direct_first", "function_call_first", "function_call_first", "direct_first", "direct_first", "function_call_first", "function_call_first", "direct_first"],
+  "status": "completed",
+  "plan": [
+    "direct_first",
+    "function_call_first",
+    "function_call_first",
+    "direct_first",
+    "direct_first",
+    "function_call_first",
+    "function_call_first",
+    "direct_first",
+    "direct_first",
+    "function_call_first",
+    "function_call_first",
+    "direct_first"
+  ],
   "blocks": 3,
   "runs_per_language": 12,
   "samples_per_case": 50,
   "expected_public_samples": 3600,
-  "language_execution_order": ["python", "javascript", "c"],
-  "measurement_git_sha": null,
-  "series_id": null
+  "language_execution_order": [
+    "python",
+    "javascript",
+    "c"
+  ],
+  "measurement_git_sha": "fde3f78b385034248bac9dfe7a97c8da37ffb3ae",
+  "series_id": "issue66-balanced-final-01",
+  "input_sha256": [
+    "artifacts/function-call-analysis/gcc-optimization.txt=B4E6DE24E2B7E9B38A56FC8E49D641707650E893A86F6FB0615551542062989A",
+    "artifacts/function-call-analysis/main.s=215FD68B6692CED643E128363C7E6501947B3A1DCD614289FAA9EAE2B8CB922F",
+    "artifacts/function-call-analysis/manifest.json=158209BB3A63E44C8F5AC54EC235C307842F96E4958F2D37E587155D5E9056C0",
+    "artifacts/function-call-analysis/python-bytecode.txt=7A6FD2EFF202B8609CF103DE407CBFF410A19616D38F6E3114EAF42313314CC2",
+    "artifacts/function-call-analysis/review-2026-09-29.md=7DB4093D27427136C8DCBF775F1C7D53AB76F9BE1F02E81EAB8CE498EE94B943",
+    "artifacts/function-call-analysis/review-prompt-ja.md=778FDEC1684F2E035D86ACA98361C3CC687ADCDB577DD16317B56F2E491A317B",
+    "artifacts/function-call-analysis/v8-optimization.txt=5E041FD333FF566CB9544D3A69B85DEE80FB58D154F9CFA19EC585E3840484F5",
+    "benchmarks/function_call_numeric_sum/c/main.c=B107C19CDCC972E23C5968CC217F7C9EC88B06B840AB5AAC8DAA888FBE16CAD3",
+    "benchmarks/function_call_numeric_sum/c/run_c.ps1=1A234DEACF599C78679214144AB413FD835F8F5CEDFB5DE5FA13B1BE3A159D8B",
+    "benchmarks/function_call_numeric_sum/javascript/main.js=0838635D22BD28EE110915D7F3A0DB0B3BB7D6C211985F4B13ED32800E6C5169",
+    "benchmarks/function_call_numeric_sum/python/main.py=F174BD2A03C028A333AA26550185FB2AA9636FE1B48235D68E14E6EF6252ADCC",
+    "benchmarks/function_call_numeric_sum/run_all.ps1=18775DFBCD760F4C83F9F1DC8E8CE582116A08B81523C03A2D1F61A71E0F6822",
+    "experiments/function_call_numeric_sum.json=F01EEC0A87DEF02E6701BF3348196B2EE30880CE610425732A333176255CF263",
+    "tools/analyze_balanced_order.py=3291F865D7C3778C8668D169CA62ED9CCB9D2703C8786A67319927128F2336FD",
+    "tools/analyze_cpu_pair.py=8C93FD72AD61278BA9C22996FEFAB81CEAC8C788D58DAE111C30A231D4A6F9C3",
+    "tools/analyze_direct_function_call_comparison.py=046610C340C0A221B8DCAA6F52DB33E136599247B4FD8560999B3B11D8C44862",
+    "tools/archive_results.py=80F37B2F20B440A7C0013FFD59A8E32B0D0533E551F21E4CDE1B1AAA4B1E5450",
+    "tools/c_order_followup.py=7C35346899982E7F2383A038ED4EB93FF36F0D5487576EC8D3473D35806334B2",
+    "tools/compare_archives.py=9FACBBACCCA0EF2A4279CDDFC713E82ECE268BD122058392CC539E71D13CB3FC",
+    "tools/compare_cpu_pair_runs.py=EA28896B519448F9E6F99FCC08411002135D50B549FCA0ADFFE751B14FCFF86F",
+    "tools/cpu_pair_time.py=F6121F2086CBFA968C29976B7A915F6F7089D7D9B9BEE87F68D61E1486313126",
+    "tools/cpu_topology.py=99768E5DCBEC11583FA16DB8474D962F0844D003A048A80DB8D4E8DC692D4691",
+    "tools/create_sample_csv.py=E3CBA1AC03A31DA9EA554C8F60986D6D699E27DA98F1A6DDE55F30414BA80002",
+    "tools/diagnose_c_affinity.py=57623FC827D3FFD3A58C1D3B9579DCE8B962427A14C4685DE3B7466E0C5FEA3B",
+    "tools/extract_function_call_findings.py=2E932D8C0B2DCA1914F18CE0AF98D58EE1595A6597571758DFFC9FF3FDB708A9",
+    "tools/publish_c_affinity.py=BA69A037E02F045C9653CCD20E078587181C90A7113B4E461998E8B4783A347D",
+    "tools/repeat_cpu_pair.py=D7A642C11AD0C2B53A33BD5D82A04C73D03246E72B01C5354C117CD7B52BD004",
+    "tools/sample_windows_cpu.py=8B0AE0EED775C626C74B27B7B2E873B292C770CB2045900BBA30EFFF7FDAB000",
+    "tools/show_archive_metrics.py=E884B53CD6AA431737E4D8F40B2E32F1F8B45E19989DCBDCFEB3CF9F6373BFB8",
+    "tools/show_archive_samples.py=4072C315DAD33E9ADB01DC4057ABCA446D1FDB717F32CF13AA0E0DA6CE8804A9",
+    "tools/show_archive_variability.py=005BF53632CB789359DBE7941922597C9233354B3EC675295EC2812DACA30710",
+    "tools/summarize_c_order_diagnostic.py=FFA534971DADD33BA0177A5EB002DC09F44BBCFB6412D4C4E3EE65E02155A0A5",
+    "tools/validate_result_json.py=65D7FADE4CB7918AA28C72624C90994794D0C0C112AE2D5BBF80ECD248B038AD",
+    "tools/verify_balanced_order_public_data.py=DD5E76A92D570861C5158532F41FA86003AC0EF83957DC3E0C64B4B4728002B6",
+    "tools/verify_direct_function_call_public_data.py=BE8AFC725C45B3DD7DD34449EF3CA5F0C5A5D29881B0221EFAB34145A6598BD8",
+    "tools/verify_merge_gate.py=25611D5E1DE9AB7CA6166C37163CD3FDFF47453F378C3E7F3AA729753E6E2356",
+    "tools/remeasure_function_call.ps1=47DE80B226FC353EFC16FF580688DAD7C47BF681B90EBA4F7C6F04AF9F76C3BE"
+  ],
+  "host": {
+    "os": "Microsoft Windows 10.0.26200",
+    "architecture": "X64",
+    "cpu_model": "Intel(R) Core(TM) i7-14650HX",
+    "logical_processors": 24,
+    "cpu_topology": [
+      {
+        "device_id": "CPU0",
+        "cores": 16,
+        "logical_processors": 24
+      }
+    ],
+    "python": "Python 3.14.7",
+    "node": "v24.20.0",
+    "gcc": "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0",
+    "affinity": "not_requested",
+    "launch": {
+      "orchestrator": "pwsh -NoProfile",
+      "language_order": [
+        "python",
+        "javascript",
+        "c"
+      ],
+      "parallel": false
+    },
+    "compile": {
+      "c": [
+        "-O2",
+        "-std=c11",
+        "-Wall",
+        "-Wextra"
+      ],
+      "python": [],
+      "javascript": []
+    }
+  }
 }
