@@ -13,10 +13,10 @@ SENSITIVE = {
         r"Bearer\s+\S+|(?:token|password|secret|authorization)\s*[:=]\s*[^\s\"']+)"
     ),
     # Detect path syntax rather than an allowlist of machine-specific roots.
-    # URL slashes are excluded by the leading boundary. Only complete known
-    # command lines may retain ambiguous slash options below.
+    # Only complete URLs, generated placeholders, and known command lines
+    # may retain ambiguous slash forms below.
     "absolute path": re.compile(
-        r"(?ix)(?<![\w:/\\>])(?:"
+        r"(?ix)(?<![\w/\\])(?:"
         r"file:///(?:[A-Z]:[\\/])?[^\s\"'<>]+"
         r"|(?:\\\\\?\\|\\\\\.\\|\\\\|//)[^\s\"'<>/\\]+[\\/][^\s\"'<>]+"
         r"|[A-Z]:[\\/][^\s\"'<>]*"
@@ -28,13 +28,21 @@ SENSITIVE = {
 
 
 COMMAND_LINE = re.compile(r"(?:cl(?:\s+/(?:O2|EHsc))+\s+\w+\.\w+|option\s+/quiet)\s*$", re.I)
+URL_PREFIX = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:$")
+PLACEHOLDER_PREFIX = re.compile(
+    r"<(?:checkout|analysis-package|shared-repository|redacted-(?:credential|absolute-path))>$"
+)
 
 
 def _safe_slash(content: str, match: re.Match[str]) -> bool:
-    if not match.group().startswith("/") or match.group().startswith("//"):
+    if not match.group().startswith("/"):
         return False
     before = content[:match.start()].split("\n")[-1]
     tail = content[match.start():]
+    if match.group().startswith("//") and URL_PREFIX.search(before):
+        return True
+    if PLACEHOLDER_PREFIX.search(before):
+        return True
     line = (before + tail.split("\n", 1)[0]).strip()
     return match.group() in {"/O2", "/EHsc", "/quiet"} and bool(COMMAND_LINE.fullmatch(line))
 

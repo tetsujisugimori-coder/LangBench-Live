@@ -53,12 +53,16 @@ class ArtifactSafetyTests(unittest.TestCase):
                 self.assertEqual({"absolute path": 1}, counts)
                 self.assertEqual([], issues(sanitized))
         for safe in ("https://example.com/srv/private", r"split(/\s+/)",
-                     "cl /O2 /EHsc main.c", "option /quiet"):
+                     "cl /O2 /EHsc main.c", "option /quiet",
+                     "<checkout>/tools/trace.js", "<analysis-package>/main.s",
+                     "<shared-repository>/results"):
             with self.subTest(safe=safe):
                 self.assertEqual([], issues(safe))
                 self.assertEqual((safe, {}), redact(safe))
         for unsafe in ("cwd = /secret/", "path = /tmp/", "return /etc/",
-                       "trace (/home/)", "cwd = /quiet"):
+                       "trace (/home/)", "cwd = /quiet",
+                       "stderr >/tmp/private.log", "path:/home/alice/file",
+                       "tag=<note>/srv/private"):
             with self.subTest(unsafe=unsafe):
                 self.assertIn("absolute path", issues(unsafe))
                 self.assertEqual([], issues(redact(unsafe)[0]))
@@ -118,7 +122,8 @@ class ArtifactSafetyTests(unittest.TestCase):
             (raw / "run-state.json").write_text('{"status":"success"}', encoding="utf-8")
             (raw / "validation.json").write_text('{"status":"valid"}', encoding="utf-8")
             (raw / "stage-logs" / "validator.stderr.txt").write_text(
-                "safe validation reason\nlate \\\\server\\share\\private\\path\nsafe exit code 23\n", encoding="utf-8")
+                "safe validation reason\nlate \\\\server\\share\\private\\path\n"
+                "stderr >/tmp/private.log\nsafe exit code 23\n", encoding="utf-8")
             (raw / "main.s").write_text("secret=dummyvalue", encoding="utf-8")
             self.assertTrue(scan(raw))
             report = prepare(raw, bundle)
@@ -128,10 +133,11 @@ class ArtifactSafetyTests(unittest.TestCase):
             self.assertIn("safe validation reason", validator_log)
             self.assertIn("safe exit code 23", validator_log)
             self.assertIn("<redacted-absolute-path>", validator_log)
+            self.assertNotIn("/tmp/private.log", validator_log)
             file_record = next(item for item in report["files"] if item["file"] == "stage-logs/validator.stderr.txt")
             self.assertEqual(hashlib.sha256((raw / "stage-logs" / "validator.stderr.txt").read_bytes()).hexdigest(), file_record["raw_sha256"])
             self.assertEqual(hashlib.sha256((bundle / "stage-logs" / "validator.stderr.txt").read_bytes()).hexdigest(), file_record["upload_sha256"])
-            self.assertEqual({"absolute path": 1}, file_record["redactions"])
+            self.assertEqual({"absolute path": 2}, file_record["redactions"])
             self.assertEqual([], scan(bundle))
 
     def test_safe_evidence_is_copied_byte_for_byte(self):
