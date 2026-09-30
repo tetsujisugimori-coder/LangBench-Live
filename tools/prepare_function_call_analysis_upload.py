@@ -45,8 +45,8 @@ def prepare(raw: Path, bundle: Path) -> dict:
             except UnicodeError:
                 excluded.append({"file": name, "reason": "non-UTF-8", "raw_sha256": raw_hash})
                 continue
-            content, counts = redact(content, name)
-            problems = issues(content, name)
+            content, counts = redact(content)
+            problems = issues(content)
             if problems:
                 excluded.append({"file": name, "reason": ", ".join(problems), "raw_sha256": raw_hash})
                 continue

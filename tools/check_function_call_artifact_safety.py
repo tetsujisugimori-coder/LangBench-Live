@@ -13,8 +13,8 @@ SENSITIVE = {
         r"Bearer\s+\S+|(?:token|password|secret|authorization)\s*[:=]\s*[^\s\"']+)"
     ),
     # Detect path syntax rather than an allowlist of machine-specific roots.
-    # URL slashes are excluded by the leading boundary. Ambiguous slash tokens
-    # are resolved from their command/source context below.
+    # URL slashes are excluded by the leading boundary. Only complete known
+    # command lines may retain ambiguous slash options below.
     "absolute path": re.compile(
         r"(?ix)(?<![\w:/\\>])(?:"
         r"file:///(?:[A-Z]:[\\/])?[^\s\"'<>]+"
@@ -27,39 +27,31 @@ SENSITIVE = {
 }
 
 
-JS_LITERAL = re.compile(r"^/(?:\\.|[^/\\\r\n])+/[dgimsuvy]*(?=[,;)}\].])")
 COMMAND_LINE = re.compile(r"(?:cl(?:\s+/(?:O2|EHsc))+\s+\w+\.\w+|option\s+/quiet)\s*$", re.I)
-JS_SOURCE_CONTEXT = re.compile(
-    r"(?:\b(?:const|let|var)\s+\w+\s*=\s*|\breturn\s+|\bif\s*\(\s*|"
-    r"\[\s*|,\s*|\{\s*\w+\s*:\s*)$"
-)
-JS_TRACE_FILES = {"v8-optimization-direct_first.txt", "v8-optimization-function_call_first.txt"}
 
 
-def _safe_slash(content: str, match: re.Match[str], artifact: str | None) -> bool:
+def _safe_slash(content: str, match: re.Match[str]) -> bool:
     if not match.group().startswith("/") or match.group().startswith("//"):
         return False
     before = content[:match.start()].split("\n")[-1]
     tail = content[match.start():]
-    if artifact in JS_TRACE_FILES and JS_LITERAL.match(tail) and JS_SOURCE_CONTEXT.search(before):
-        return True
     line = (before + tail.split("\n", 1)[0]).strip()
     return match.group() in {"/O2", "/EHsc", "/quiet"} and bool(COMMAND_LINE.fullmatch(line))
 
 
-def _matches(content: str, kind: str, artifact: str | None) -> list[re.Match[str]]:
+def _matches(content: str, kind: str) -> list[re.Match[str]]:
     return [match for match in SENSITIVE[kind].finditer(content)
-            if kind != "absolute path" or not _safe_slash(content, match, artifact)]
+            if kind != "absolute path" or not _safe_slash(content, match)]
 
 
-def issues(content: str, artifact: str | None = None) -> list[str]:
-    return [kind for kind in SENSITIVE if _matches(content, kind, artifact)]
+def issues(content: str) -> list[str]:
+    return [kind for kind in SENSITIVE if _matches(content, kind)]
 
 
-def redact(content: str, artifact: str | None = None) -> tuple[str, dict[str, int]]:
+def redact(content: str) -> tuple[str, dict[str, int]]:
     counts: dict[str, int] = {}
     for kind in SENSITIVE:
-        matches = _matches(content, kind, artifact)
+        matches = _matches(content, kind)
         for match in reversed(matches):
             content = content[:match.start()] + f"<redacted-{kind.replace(' ', '-')}>" + content[match.end():]
         count = len(matches)
@@ -78,7 +70,7 @@ def scan(root: Path) -> list[str]:
         except UnicodeError:
             errors.append(f"{path.relative_to(root).as_posix()}: non-UTF-8 artifact")
             continue
-        for kind in issues(content, path.relative_to(root).as_posix()):
+        for kind in issues(content):
             errors.append(f"{path.relative_to(root).as_posix()}: {kind}")
     return errors
 

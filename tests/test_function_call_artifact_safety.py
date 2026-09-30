@@ -62,14 +62,12 @@ class ArtifactSafetyTests(unittest.TestCase):
             with self.subTest(unsafe=unsafe):
                 self.assertIn("absolute path", issues(unsafe))
                 self.assertEqual([], issues(redact(unsafe)[0]))
-        trace = "v8-optimization-direct_first.txt"
-        self.assertIn("absolute path", issues("return /etc/", trace))
-        for safe in ("const r = /foo/;", "const r = /foo/i;",
-                     "if (/foo/.test(x))", "const rs = [/foo/, /bar/i];",
-                     "return /fo\\/o/g;", "const o = {key: /foo/};"):
-            with self.subTest(js=safe):
-                self.assertEqual([], issues(safe, trace))
-                self.assertEqual((safe, {}), redact(safe, trace))
+        for unsafe in ("return /etc/gg;", "return /etc/uv;", "if (/home/gg)",
+                       "const r = /foo/;", "const r = /foo/",
+                       "return /foo/g", "return /etc/"):
+            with self.subTest(trace=unsafe):
+                self.assertIn("absolute path", issues(unsafe))
+                self.assertEqual([], issues(redact(unsafe)[0]))
 
     def test_failed_raw_keeps_only_inspected_diagnostics_in_upload_copy(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -103,11 +101,12 @@ class ArtifactSafetyTests(unittest.TestCase):
             raw.mkdir()
             (raw / "run-state.json").write_text('{"status":"failed"}', encoding="utf-8")
             trace = raw / "v8-optimization-direct_first.txt"
-            trace.write_text("const rs = [/foo/, /bar/i];\ncwd = /secret/\n", encoding="utf-8")
+            trace.write_text("[marking function for optimization]\nreturn /etc/gg;\ncwd = /secret/\n", encoding="utf-8")
             self.assertTrue(scan(raw))
             prepare(raw, bundle)
             uploaded = (bundle / trace.name).read_text(encoding="utf-8")
-            self.assertIn("const rs = [/foo/, /bar/i];", uploaded)
+            self.assertIn("[marking function for optimization]", uploaded)
+            self.assertNotIn("/etc/gg", uploaded)
             self.assertIn("cwd = <redacted-absolute-path>", uploaded)
             self.assertEqual([], scan(bundle))
 
