@@ -4,17 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
-from check_function_call_artifact_safety import issues, scan
-
-
-def _safe_diagnostic(relative: Path) -> bool:
-    name = relative.as_posix()
-    return (name in {"run-state.json", "validation.json"}
-            or name.startswith("stage-logs/")
-            or name.startswith("v8-optimization-") and name.endswith(".txt"))
+from check_function_call_artifact_safety import issues, redact, scan
 
 
 def prepare(raw: Path, bundle: Path) -> dict:
@@ -24,6 +18,7 @@ def prepare(raw: Path, bundle: Path) -> dict:
     included: list[str] = []
     excluded: list[dict[str, str]] = []
     redacted: list[str] = []
+    files: list[dict] = []
     raw_status = "missing"
     if (raw / "run-state.json").is_file():
         try:
@@ -41,22 +36,30 @@ def prepare(raw: Path, bundle: Path) -> dict:
                 continue
             try:
                 original = path.read_bytes()
+            except OSError:
+                excluded.append({"file": name, "reason": "unreadable"})
+                continue
+            raw_hash = hashlib.sha256(original).hexdigest()
+            try:
                 content = original.decode("utf-8")
-            except (OSError, UnicodeError):
-                excluded.append({"file": name, "reason": "unreadable or non-UTF-8"})
+            except UnicodeError:
+                excluded.append({"file": name, "reason": "non-UTF-8", "raw_sha256": raw_hash})
                 continue
+            content, counts = redact(content)
             problems = issues(content)
-            if problems and _safe_diagnostic(relative):
-                content = "<redacted unsafe diagnostic>\n"
-                problems = []
-                redacted.append(name)
             if problems:
-                excluded.append({"file": name, "reason": ", ".join(problems)})
+                excluded.append({"file": name, "reason": ", ".join(problems), "raw_sha256": raw_hash})
                 continue
+            sanitized = content.encode("utf-8") if counts else original
+            if counts:
+                redacted.append(name)
             target = bundle / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(content.encode("utf-8") if name in redacted else original)
+            target.write_bytes(sanitized)
             included.append(name)
+            files.append({"file": name, "raw_sha256": raw_hash,
+                          "upload_sha256": hashlib.sha256(sanitized).hexdigest(),
+                          "redactions": counts})
     report = {
         "schema_version": "1.0",
         "raw_status": raw_status,
@@ -64,6 +67,7 @@ def prepare(raw: Path, bundle: Path) -> dict:
         "included_files": included,
         "excluded_files": excluded,
         "redacted_files": redacted,
+        "files": files,
         "raw_kept_separate_from_upload": True,
     }
     (bundle / "upload-manifest.json").write_text(

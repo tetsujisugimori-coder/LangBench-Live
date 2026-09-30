@@ -21,7 +21,8 @@
 5. 生成直後から `run-state.json` を atomic 更新し、stage ごとの sanitized command、exit code、
    stdout/stderr log、source/condition/evidence hash を残す。validator の結果を `validation.json` に保存する。
    成否を問わず raw package は runner の一時領域に残し、upload 前に別の検査済み bundle を作る。
-   秘密情報や絶対 path を含む原本は bundle に入れず、安全な state/log/先行 trace を保持する。
+   秘密情報や絶対 path を含む原本は bundle に入れず、text は該当箇所のみ伏字にして
+   安全な state/log/先行 trace と失敗原因を保持する。安全化できない file は除外する。
    最終 bundle 全体の scan に成功した場合だけ 14 日 artifact として upload する。
 
 JavaScript は通常 benchmark entry point を trace flags 付きで起動せず、専用 harness が時間計測・sample

@@ -112,8 +112,10 @@ int main(int argc, char **argv) {
     $gccBundle = Join-Path $tempRoot 'gcc-failure-upload'
     & python -B (Join-Path $projectRoot 'tools/prepare_function_call_analysis_upload.py') $gccFailureOutput $gccBundle
     Assert-True ($LASTEXITCODE -eq 0) 'GCC failure upload bundle preparation failed'
-    Assert-True (-not (Test-Path -LiteralPath (Join-Path $gccBundle 'gcc-optimization.txt'))) 'unsafe GCC report entered upload bundle'
-    Assert-True (-not (Test-Path -LiteralPath (Join-Path $gccBundle 'main.s'))) 'unsafe GCC assembly entered upload bundle'
+    $safeReport = Get-Content -LiteralPath (Join-Path $gccBundle 'gcc-optimization.txt') -Raw
+    $safeAssembly = Get-Content -LiteralPath (Join-Path $gccBundle 'main.s') -Raw
+    Assert-True ($safeReport -match '<redacted-absolute-path>' -and $safeReport -match '<redacted-credential>') 'GCC report was not sanitized'
+    Assert-True ($safeAssembly -match '<redacted-credential>') 'GCC assembly was not sanitized'
     Assert-True (Test-Path -LiteralPath (Join-Path $gccBundle 'run-state.json')) 'safe GCC failure state was not retained'
     Assert-True (Test-Path -LiteralPath (Join-Path $gccBundle 'stage-logs/gcc.stderr.txt')) 'safe GCC failure log was not retained'
     & python -B (Join-Path $projectRoot 'tools/check_function_call_artifact_safety.py') $gccBundle

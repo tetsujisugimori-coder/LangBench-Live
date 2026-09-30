@@ -12,15 +12,31 @@ SENSITIVE = {
         r"(?i)(?:gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|"
         r"Bearer\s+\S+|(?:token|password|secret|authorization)\s*[:=]\s*[^\s\"']+)"
     ),
+    # Detect path syntax rather than an allowlist of machine-specific roots.
+    # URL slashes and JavaScript /regex/ expressions are excluded by the
+    # leading and first-segment constraints.
     "absolute path": re.compile(
-        r"(?i)(?:[A-Z]:[\\/]|/(?:home|Users|tmp|var|workspace|work|opt|mnt|root|runner|__w)/)"
-        r"[^\s\"'<>]+"
+        r"(?ix)(?<![\w:/\\>])(?:"
+        r"(?:\\\\\?\\|\\\\\.\\|\\\\|//)[^\s\"'<>/\\]+[\\/][^\s\"'<>]+"
+        r"|[A-Z]:[\\/][^\s\"'<>]+"
+        r"|\\(?!\\)[A-Za-z0-9._~-]+(?:\\[A-Za-z0-9._~-]+)+"
+        r"|/(?!/)[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~-]+)+"
+        r")"
     ),
 }
 
 
 def issues(content: str) -> list[str]:
     return [kind for kind, pattern in SENSITIVE.items() if pattern.search(content)]
+
+
+def redact(content: str) -> tuple[str, dict[str, int]]:
+    counts: dict[str, int] = {}
+    for kind, pattern in SENSITIVE.items():
+        content, count = pattern.subn(f"<redacted-{kind.replace(' ', '-')}>", content)
+        if count:
+            counts[kind] = count
+    return content, counts
 
 
 def scan(root: Path) -> list[str]:
