@@ -53,11 +53,23 @@ class ArtifactSafetyTests(unittest.TestCase):
                 self.assertEqual({"absolute path": 1}, counts)
                 self.assertEqual([], issues(sanitized))
         for safe in ("https://example.com/srv/private", r"split(/\s+/)",
-                     "const r = /foo/;", "const r = /foo/i;",
                      "cl /O2 /EHsc main.c", "option /quiet"):
             with self.subTest(safe=safe):
                 self.assertEqual([], issues(safe))
                 self.assertEqual((safe, {}), redact(safe))
+        for unsafe in ("cwd = /secret/", "path = /tmp/", "return /etc/",
+                       "trace (/home/)", "cwd = /quiet"):
+            with self.subTest(unsafe=unsafe):
+                self.assertIn("absolute path", issues(unsafe))
+                self.assertEqual([], issues(redact(unsafe)[0]))
+        trace = "v8-optimization-direct_first.txt"
+        self.assertIn("absolute path", issues("return /etc/", trace))
+        for safe in ("const r = /foo/;", "const r = /foo/i;",
+                     "if (/foo/.test(x))", "const rs = [/foo/, /bar/i];",
+                     "return /fo\\/o/g;", "const o = {key: /foo/};"):
+            with self.subTest(js=safe):
+                self.assertEqual([], issues(safe, trace))
+                self.assertEqual((safe, {}), redact(safe, trace))
 
     def test_failed_raw_keeps_only_inspected_diagnostics_in_upload_copy(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -82,6 +94,21 @@ class ArtifactSafetyTests(unittest.TestCase):
             self.assertTrue((bundle / "run-state.json").exists())
             self.assertTrue((bundle / "stage-logs" / "gcc.stderr.txt").exists())
             self.assertTrue((bundle / "v8-optimization-direct_first.txt").exists())
+            self.assertEqual([], scan(bundle))
+
+    def test_trace_copy_preserves_javascript_and_redacts_diagnostic_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            raw, bundle = root / "raw", root / "upload"
+            raw.mkdir()
+            (raw / "run-state.json").write_text('{"status":"failed"}', encoding="utf-8")
+            trace = raw / "v8-optimization-direct_first.txt"
+            trace.write_text("const rs = [/foo/, /bar/i];\ncwd = /secret/\n", encoding="utf-8")
+            self.assertTrue(scan(raw))
+            prepare(raw, bundle)
+            uploaded = (bundle / trace.name).read_text(encoding="utf-8")
+            self.assertIn("const rs = [/foo/, /bar/i];", uploaded)
+            self.assertIn("cwd = <redacted-absolute-path>", uploaded)
             self.assertEqual([], scan(bundle))
 
     def test_scan_rejection_after_validation_cannot_enter_bundle(self):

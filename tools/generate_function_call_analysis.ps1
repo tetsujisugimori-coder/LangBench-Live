@@ -52,7 +52,7 @@ function Get-TextHash([string]$Value) {
     return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
 }
 
-function Protect-ArtifactText([string]$Value) {
+function Protect-ArtifactText([string]$Value, [string]$Artifact = '') {
     $safe = $Value
     foreach ($pair in @(@($artifactDir, '<analysis-package>'), @($projectRoot, '<checkout>'), @($sharedRoot, '<shared-repository>'))) {
         if ($pair[0]) { $safe = [regex]::Replace($safe, [regex]::Escape([string]$pair[0]), [string]$pair[1], 'IgnoreCase') }
@@ -65,9 +65,12 @@ function Protect-ArtifactText([string]$Value) {
         if ($match.Value.StartsWith('/') -and -not $match.Value.StartsWith('//')) {
             $before = ($original.Substring(0, $match.Index) -split "`n")[-1]
             $tail = $original.Substring($match.Index)
-            $literal = $tail -match '^/(?:\\.|[^/\\\r\n])+/[dgimsuvy]*(?=$|[\s,;)}\]])'
-            if ($literal -and $before -match '(?:=\s*|return\s+|\(\s*)$') { return $match.Value }
-            if ($match.Value -cin @('/O2', '/EHsc', '/quiet') -and $before -match '(?i)\b(?:cl|option)(?:\s+/(?:O2|EHsc|quiet))*\s*$') { return $match.Value }
+            $literal = $tail -match '^/(?:\\.|[^/\\\r\n])+/[dgimsuvy]*(?=[,;)}\].])'
+            if ($Artifact -cin @('v8-optimization-direct_first.txt', 'v8-optimization-function_call_first.txt') -and
+                $literal -and $before -match '(?:\b(?:const|let|var)\s+\w+\s*=\s*|\breturn\s+|\bif\s*\(\s*|\[\s*|,\s*|\{\s*\w+\s*:\s*)$') { return $match.Value }
+            $line = ($before + ($tail -split "`n", 2)[0]).Trim()
+            if ($match.Value -cin @('/O2', '/EHsc', '/quiet') -and
+                $line -match '(?i)^(?:cl(?:\s+/(?:O2|EHsc))+\s+\w+\.\w+|option\s+/quiet)\s*$') { return $match.Value }
         }
         return '<absolute-path>'
     })
@@ -245,7 +248,7 @@ foreach ($order in @("direct_first", "function_call_first")) {
     $traceStdout = (($nodeTrace.stdout -split "`r?`n") | Where-Object { $_ }) -join "`n"
     $traceStderr = (($nodeTrace.stderr -split "`r?`n") | Where-Object { $_ }) -join "`n"
     $traceContent = "# order=$order`n# exit_code=$($nodeTrace.exit_code)`n# stdout`n$traceStdout`n# stderr`n$traceStderr`n"
-    Write-Utf8 $v8TracePaths[$order] (Protect-ArtifactText $traceContent)
+    Write-Utf8 $v8TracePaths[$order] (Protect-ArtifactText $traceContent ([IO.Path]::GetFileName($v8TracePaths[$order])))
     Add-StageEvidence "node-trace-$order" $v8TracePaths[$order]
     if ($nodeTrace.exit_code -ne 0) { throw "Node trace failed for $order with exit code $($nodeTrace.exit_code)" }
     $javascriptOrderFindings[$order] = (Invoke-RecordedStage "javascript-extractor-$order" 'python' @($extractor, '--language', 'javascript', '--artifact', $v8TracePaths[$order]) 'javascript' @($v8TracePaths[$order])).stdout | ConvertFrom-Json

@@ -24,8 +24,21 @@ if ($mixed -notmatch 'safe reason: exit 23' -or $mixed -notmatch 'safe tail' -or
     throw 'safe diagnostic text was lost while sanitizing a path'
 }
 foreach ($value in @('https://example.com/srv/private', 'split(/\s+/)',
-                     'const r = /foo/;', 'const r = /foo/i;',
                      'cl /O2 /EHsc main.c', 'option /quiet')) {
     if ((Protect-ArtifactText $value) -cne $value) { throw "safe diagnostic changed: $value" }
 }
-Write-Host 'tests=21 passed=21'
+foreach ($value in @('cwd = /secret/', 'path = /tmp/', 'return /etc/',
+                     'trace (/home/)', 'cwd = /quiet')) {
+    if ((Protect-ArtifactText $value) -notmatch '<absolute-path>') { throw "unsafe diagnostic was retained: $value" }
+}
+foreach ($value in @('const r = /foo/;', 'const r = /foo/i;',
+                     'if (/foo/.test(x))', 'const rs = [/foo/, /bar/i];',
+                     'return /fo\/o/g;', 'const o = {key: /foo/};')) {
+    if ((Protect-ArtifactText $value 'v8-optimization-direct_first.txt') -cne $value) {
+        throw "JavaScript evidence changed: $value"
+    }
+}
+if ((Protect-ArtifactText 'return /etc/' 'v8-optimization-direct_first.txt') -notmatch '<absolute-path>') {
+    throw 'trace diagnostic path was retained'
+}
+Write-Host 'tests=31 passed=31'
