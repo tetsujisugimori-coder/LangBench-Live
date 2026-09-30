@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-from check_function_call_artifact_safety import issues, scan
+from check_function_call_artifact_safety import issues, redact, scan
 from prepare_function_call_analysis_upload import prepare
 
 
@@ -49,8 +49,15 @@ class ArtifactSafetyTests(unittest.TestCase):
         for path in paths:
             with self.subTest(path=path):
                 self.assertIn("absolute path", issues(path))
-        self.assertEqual([], issues("https://example.com/srv/private"))
-        self.assertEqual([], issues(r"split(/\s+/)"))
+                sanitized, counts = redact(path)
+                self.assertEqual({"absolute path": 1}, counts)
+                self.assertEqual([], issues(sanitized))
+        for safe in ("https://example.com/srv/private", r"split(/\s+/)",
+                     "const r = /foo/;", "const r = /foo/i;",
+                     "cl /O2 /EHsc main.c", "option /quiet"):
+            with self.subTest(safe=safe):
+                self.assertEqual([], issues(safe))
+                self.assertEqual((safe, {}), redact(safe))
 
     def test_failed_raw_keeps_only_inspected_diagnostics_in_upload_copy(self):
         with tempfile.TemporaryDirectory() as directory:

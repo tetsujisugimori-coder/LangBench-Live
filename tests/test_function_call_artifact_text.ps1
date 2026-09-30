@@ -23,6 +23,9 @@ $mixed = Protect-ArtifactText 'safe reason: exit 23; D:/a/private/file.txt; safe
 if ($mixed -notmatch 'safe reason: exit 23' -or $mixed -notmatch 'safe tail' -or $mixed -match 'private') {
     throw 'safe diagnostic text was lost while sanitizing a path'
 }
-$negative = Protect-ArtifactText 'https://example.com/srv/private split(/\s+/)'
-if ($negative -ne 'https://example.com/srv/private split(/\s+/)') { throw 'URL or JS regex changed' }
-Write-Host 'tests=16 passed=16'
+foreach ($value in @('https://example.com/srv/private', 'split(/\s+/)',
+                     'const r = /foo/;', 'const r = /foo/i;',
+                     'cl /O2 /EHsc main.c', 'option /quiet')) {
+    if ((Protect-ArtifactText $value) -cne $value) { throw "safe diagnostic changed: $value" }
+}
+Write-Host 'tests=21 passed=21'
