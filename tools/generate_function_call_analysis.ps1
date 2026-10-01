@@ -89,7 +89,14 @@ function Protect-ArtifactText([string]$Value) {
                             $safeKey = "$baseKey-$suffix"
                             $suffix++
                         }
-                        $cleaned[$safeKey] = Protect-ArtifactJsonNode $Node[$key]
+                        $child = $Node[$key]
+                        $alreadyRedacted = $child -is [string] -and $child -ceq '<redacted-credential>'
+                        if ([string]$key -in @('token', 'password', 'secret', 'authorization') -and
+                            -not $alreadyRedacted) {
+                            $cleaned[$safeKey] = '<redacted-credential>'
+                        } else {
+                            $cleaned[$safeKey] = Protect-ArtifactJsonNode $child
+                        }
                     }
                     return $cleaned
                 }

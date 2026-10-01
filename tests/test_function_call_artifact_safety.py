@@ -33,6 +33,60 @@ class ArtifactSafetyTests(unittest.TestCase):
                 encoding="utf-8")
             self.assertEqual([], scan(root))
 
+    def test_json_credential_fields_are_redacted_without_losing_safe_evidence(self):
+        original = (r'{"password":"dummy-pass","nested":{"ToKeN":"dummy-token",'
+                    r'"reason":"safe failure","exit_code":23},"events":[{'
+                    r'"\u0073ecret":{"child":"dummy-child","trace":["prior trace"]},'
+                    r'"AUTHORIZATION":"Basic ZHVtbXk="}],'
+                    r'"authorization":["dummy-array",{"child":"dummy-child-2"}],'
+                    r'"option":"cl /O2 /EHsc main.c","trace":"safe trace"}')
+        self.assertEqual(["credential"], issues(original))
+        cleaned, counts = redact(original)
+        self.assertEqual({"credential": 5}, counts)
+        decoded = json.loads(cleaned)
+        self.assertEqual("<redacted-credential>", decoded["password"])
+        self.assertEqual("<redacted-credential>", decoded["nested"]["ToKeN"])
+        self.assertEqual("<redacted-credential>", decoded["events"][0]["secret"])
+        self.assertEqual("<redacted-credential>", decoded["events"][0]["AUTHORIZATION"])
+        self.assertEqual("<redacted-credential>", decoded["authorization"])
+        self.assertEqual("safe failure", decoded["nested"]["reason"])
+        self.assertEqual(23, decoded["nested"]["exit_code"])
+        self.assertEqual("cl /O2 /EHsc main.c", decoded["option"])
+        self.assertEqual("safe trace", decoded["trace"])
+        for forbidden in ("dummy-pass", "dummy-token", "dummy-child", "dummy-array", "ZHVtbXk="):
+            self.assertNotIn(forbidden, cleaned)
+        self.assertEqual([], issues(cleaned))
+        self.assertEqual((cleaned, {}), redact(cleaned))
+
+    def test_prepare_redacts_json_fields_and_keeps_raw_and_hashes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            raw, bundle = Path(directory) / "raw", Path(directory) / "upload"
+            raw.mkdir()
+            (raw / "run-state.json").write_text('{"status":"failed"}', encoding="utf-8")
+            original = (r'{"password":"dummy-pass","nested":{"TOKEN":{"child":"dummy-child"}},'
+                        r'"events":[{"authorization":"Basic ZHVtbXk="}],'
+                        r'"reason":"safe error","exit_code":23,"trace":"prior trace",'
+                        r'"option":"cl /O2 /EHsc main.c"}')
+            diagnostic = raw / "diagnostic.json"
+            diagnostic.write_text(original, encoding="utf-8")
+            self.assertIn("credential", scan(raw)[0])
+            report = prepare(raw, bundle)
+            self.assertEqual(original, diagnostic.read_text(encoding="utf-8"))
+            uploaded = (bundle / diagnostic.name).read_text(encoding="utf-8")
+            self.assertNotIn("dummy-pass", uploaded)
+            self.assertNotIn("dummy-child", uploaded)
+            self.assertNotIn("ZHVtbXk=", uploaded)
+            decoded = json.loads(uploaded)
+            self.assertEqual("safe error", decoded["reason"])
+            self.assertEqual(23, decoded["exit_code"])
+            self.assertEqual("prior trace", decoded["trace"])
+            self.assertEqual("cl /O2 /EHsc main.c", decoded["option"])
+            record = next(item for item in report["files"] if item["file"] == diagnostic.name)
+            self.assertEqual({"credential": 3}, record["redactions"])
+            self.assertEqual(hashlib.sha256(original.encode()).hexdigest(), record["raw_sha256"])
+            self.assertEqual(hashlib.sha256(uploaded.encode()).hexdigest(), record["upload_sha256"])
+            self.assertEqual([], scan(bundle))
+
     def test_drive_slash_and_workspace_paths_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

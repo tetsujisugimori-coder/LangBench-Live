@@ -34,6 +34,8 @@ URL_PREFIX = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:$")
 PLACEHOLDER_PREFIX = re.compile(
     r"<(?:checkout|analysis-package|shared-repository|redacted-(?:credential|absolute-path))>$"
 )
+CREDENTIAL_FIELDS = {"token", "password", "secret", "authorization"}
+CREDENTIAL_PLACEHOLDER = "<redacted-credential>"
 
 
 class DuplicateJsonKey(ValueError):
@@ -94,16 +96,19 @@ def _parsed_json(content: str) -> tuple[bool, object]:
         return False, None
 
 
-def _strings(value: object):
+def _json_issues(value: object):
     if isinstance(value, str):
-        yield value
+        yield from _text_issues(value)
     elif isinstance(value, dict):
         for key, child in value.items():
-            yield from _strings(key)
-            yield from _strings(child)
+            yield from _text_issues(key)
+            if key.casefold() in CREDENTIAL_FIELDS and child != CREDENTIAL_PLACEHOLDER:
+                yield "credential"
+            else:
+                yield from _json_issues(child)
     elif isinstance(value, list):
         for child in value:
-            yield from _strings(child)
+            yield from _json_issues(child)
 
 
 def issues(content: str) -> list[str]:
@@ -113,7 +118,7 @@ def issues(content: str) -> list[str]:
         return ["duplicate JSON key"]
     if not parsed:
         return _text_issues(content)
-    found = {kind for item in _strings(value) for kind in _text_issues(item)}
+    found = set(_json_issues(value))
     return [kind for kind in SENSITIVE if kind in found]
 
 
@@ -140,7 +145,11 @@ def redact(content: str) -> tuple[str, dict[str, int]]:
                 while safe_key.casefold() in {existing.casefold() for existing in cleaned}:
                     safe_key = f"{base_key}-{suffix}"
                     suffix += 1
-                cleaned[safe_key] = sanitize(child)
+                if key.casefold() in CREDENTIAL_FIELDS and child != CREDENTIAL_PLACEHOLDER:
+                    cleaned[safe_key] = CREDENTIAL_PLACEHOLDER
+                    counts["credential"] = counts.get("credential", 0) + 1
+                else:
+                    cleaned[safe_key] = sanitize(child)
             return cleaned
         return item
 
