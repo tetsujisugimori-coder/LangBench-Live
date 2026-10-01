@@ -87,6 +87,15 @@ class ArtifactSafetyTests(unittest.TestCase):
         unsafe_key = r'{"\/\u0068ome\/alice":"safe"}'
         self.assertIn("absolute path", issues(unsafe_key))
         self.assertEqual({"<redacted-absolute-path>": "safe"}, json.loads(redact(unsafe_key)[0]))
+        colliding = r'{"/home/alice/a":"first","/home/bob/b":"second","/tmp":"third"}'
+        collision_result = json.loads(redact(colliding)[0])
+        self.assertEqual(["first", "second", "third"], list(collision_result.values()))
+        self.assertEqual(["<redacted-absolute-path>", "<redacted-absolute-path>-1",
+                          "<redacted-absolute-path>-2"], list(collision_result))
+        credentials = r'{"ghp_abcdefghijklmnop":"first","ghp_qrstuvwxyzabcdefgh":"second"}'
+        credential_result = json.loads(redact(credentials)[0])
+        self.assertEqual(["first", "second"], list(credential_result.values()))
+        self.assertEqual(["<redacted-credential>", "<redacted-credential>-1"], list(credential_result))
         for duplicate in (r'{"cwd":"/home/alice","cwd":"safe"}',
                           r'{"cwd":"safe","cwd":"/home/alice"}',
                           r'{"nested":{"cwd":"\/\u0068ome\/alice","cwd":"safe"}}',
@@ -159,6 +168,8 @@ class ArtifactSafetyTests(unittest.TestCase):
             (raw / "main.s").write_text("secret=dummyvalue", encoding="utf-8")
             duplicate = r'{"cwd":"/home/alice","cwd":"safe"}'
             (raw / "duplicate.json").write_text(duplicate, encoding="utf-8")
+            colliding = r'{"/home/alice/a":"first","/home/bob/b":"second","/tmp":"third"}'
+            (raw / "collision.json").write_text(colliding, encoding="utf-8")
             self.assertTrue(scan(raw))
             report = prepare(raw, bundle)
             self.assertEqual("partial", report["bundle_status"])
@@ -166,6 +177,13 @@ class ArtifactSafetyTests(unittest.TestCase):
             excluded = next(item for item in report["excluded_files"] if item["file"] == "duplicate.json")
             self.assertEqual("duplicate JSON key", excluded["reason"])
             self.assertEqual(hashlib.sha256(duplicate.encode()).hexdigest(), excluded["raw_sha256"])
+            uploaded_collision = json.loads((bundle / "collision.json").read_text())
+            self.assertEqual(["first", "second", "third"], list(uploaded_collision.values()))
+            collision_record = next(item for item in report["files"] if item["file"] == "collision.json")
+            self.assertEqual({"absolute path": 3}, collision_record["redactions"])
+            self.assertEqual(hashlib.sha256(colliding.encode()).hexdigest(), collision_record["raw_sha256"])
+            self.assertEqual(hashlib.sha256((bundle / "collision.json").read_bytes()).hexdigest(),
+                             collision_record["upload_sha256"])
             self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["cwd"])
             self.assertEqual("<redacted-absolute-path>", json.loads((bundle / "run-state.json").read_text())["paths"][0])
             self.assertIn("<redacted-credential>", (bundle / "main.s").read_text())

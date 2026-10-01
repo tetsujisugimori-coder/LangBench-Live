@@ -42,7 +42,7 @@ foreach ($value in @('return /etc/gg;', 'return /etc/uv;', 'if (/home/gg)',
 }
 $json = '{"cwd":"\/\u0068ome\/alice","nested":[{"path":"C:\\Users\\alice\\private"},{"url":"https:\/\/example.com\/srv\/private"}]}'
 $cleaned = (Protect-ArtifactText $json) | ConvertFrom-Json -AsHashtable
-if ($cleaned.cwd -ne '<absolute-path>' -or $cleaned.nested[0].path -ne '<absolute-path>' -or
+if ($cleaned.cwd -ne '<redacted-absolute-path>' -or $cleaned.nested[0].path -ne '<redacted-absolute-path>' -or
     $cleaned.nested[1].url -ne 'https://example.com/srv/private') { throw 'JSON decoded path was not safely redacted' }
 foreach ($value in @('{"cwd":"/home/alice","cwd":"safe"}',
                      '{"cwd":"safe","cwd":"/home/alice"}',
@@ -53,4 +53,20 @@ foreach ($value in @('{"cwd":"/home/alice","cwd":"safe"}',
         throw 'duplicate JSON key was not rejected'
     }
 }
-Write-Host 'tests=47 passed=47'
+$collision = '{"/home/alice/a":"first","/home/bob/b":"second","/tmp":"third"}'
+$collisionCleaned = (Protect-ArtifactText $collision) | ConvertFrom-Json -AsHashtable
+if ($collisionCleaned.Count -ne 3 -or
+    $collisionCleaned['<redacted-absolute-path>'] -ne 'first' -or
+    $collisionCleaned['<redacted-absolute-path>-1'] -ne 'second' -or
+    $collisionCleaned['<redacted-absolute-path>-2'] -ne 'third') { throw 'path key collision lost evidence' }
+$nestedCollision = '{"entries":[{"/home/alice/a":"first","/home/bob/b":"second"}]}'
+$nestedCleaned = (Protect-ArtifactText $nestedCollision) | ConvertFrom-Json -AsHashtable
+if ($nestedCleaned.entries[0].Count -ne 2 -or
+    $nestedCleaned.entries[0]['<redacted-absolute-path>'] -ne 'first' -or
+    $nestedCleaned.entries[0]['<redacted-absolute-path>-1'] -ne 'second') { throw 'nested collision lost evidence' }
+$credentialCollision = '{"ghp_abcdefghijklmnop":"first","ghp_qrstuvwxyzabcdefgh":"second"}'
+$credentialCleaned = (Protect-ArtifactText $credentialCollision) | ConvertFrom-Json -AsHashtable
+if ($credentialCleaned.Count -ne 2 -or
+    $credentialCleaned['<redacted-credential>'] -ne 'first' -or
+    $credentialCleaned['<redacted-credential>-1'] -ne 'second') { throw 'credential key collision lost evidence' }
+Write-Host 'tests=50 passed=50'

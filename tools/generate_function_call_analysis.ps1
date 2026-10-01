@@ -75,11 +75,20 @@ function Protect-ArtifactText([string]$Value) {
             }
             $decoded = ConvertFrom-Json -InputObject $Value -AsHashtable -ErrorAction Stop
             function Protect-ArtifactJsonNode($Node) {
-                if ($Node -is [string]) { return Protect-ArtifactText $Node }
+                if ($Node -is [string]) {
+                    $safeText = Protect-ArtifactText $Node
+                    return $safeText.Replace('<absolute-path>', '<redacted-absolute-path>').Replace('<redacted>', '<redacted-credential>')
+                }
                 if ($Node -is [System.Collections.IDictionary]) {
                     $cleaned = [ordered]@{}
                     foreach ($key in $Node.Keys) {
-                        $safeKey = Protect-ArtifactText ([string]$key)
+                        $safeKey = Protect-ArtifactJsonNode ([string]$key)
+                        $baseKey = $safeKey
+                        $suffix = $cleaned.Count
+                        while ($cleaned.Contains($safeKey)) {
+                            $safeKey = "$baseKey-$suffix"
+                            $suffix++
+                        }
                         $cleaned[$safeKey] = Protect-ArtifactJsonNode $Node[$key]
                     }
                     return $cleaned

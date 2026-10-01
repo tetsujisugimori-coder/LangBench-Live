@@ -135,8 +135,11 @@ def redact(content: str) -> tuple[str, dict[str, int]]:
             cleaned: dict[str, object] = {}
             for key, child in item.items():
                 safe_key = sanitize(key)
-                if safe_key in cleaned:
-                    safe_key = f"{safe_key}-{len(cleaned)}"
+                base_key = safe_key
+                suffix = len(cleaned)
+                while safe_key.casefold() in {existing.casefold() for existing in cleaned}:
+                    safe_key = f"{base_key}-{suffix}"
+                    suffix += 1
                 cleaned[safe_key] = sanitize(child)
             return cleaned
         return item
