@@ -8,11 +8,11 @@
 - 取得した ZIP の SHA-256: `116c37289b674b477640ab0d02273ce1c6ad46b51a136fa1c72cdc34cc0a19fb`
 - ZIP: 37 entries、integrity check 成功。展開後、repository の `tools/validate_function_call_analysis.py --expected-sha 98dbb01d36c204f352d5b4690de72b570fdb075e` で `analysis_package=valid`。
 - `upload-manifest.json`: 36 included files、0 excluded files、0 redacted files。36ファイルの upload SHA-256 を取得物の実バイトから再計算し、すべて一致。記録上の raw/upload SHA-256 も全件一致し、`raw_kept_separate_from_upload=true`。runner 上の raw package は取得もcommitもしていない。
-- PR #67 の公開測定 manifest: `artifacts/direct-function-call-balanced-order/manifest.json`、SHA-256 `60a5b14eeb8f287910b248e832a177264593682eda3952f06219e4a13a49c4a4`、code SHA `fde3f78b385034248bac9dfe7a97c8da37ffb3ae`、series `issue66-balanced-final-01`、issue 66、benchmark `function_call_numeric_sum`、status `completed`。
+- PR #67 の公開測定 manifest: `artifacts/direct-function-call-balanced-order/manifest.json`、Git公開LFバイト列のSHA-256 `f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252`、code SHA `fde3f78b385034248bac9dfe7a97c8da37ffb3ae`、series `issue66-balanced-final-01`、issue 66、benchmark `function_call_numeric_sum`、status `completed`。WindowsでCRLFへ変換した場合だけ `60a5b14eeb8f287910b248e832a177264593682eda3952f06219e4a13a49c4a4` となる。Git blobは変更せず、`.gitattributes` でcheckoutをLFへ固定した。
 
 ## 公開範囲
 
-`analysis-package/` には取得した upload artifact から、manifest、provenance、upload manifest、validation、C の GCC report/assembly、Python bytecode、JavaScript の両順序 trace と order findings をバイト同一で収録した。provenance の evidence SHA-256 と各ファイルを validator が照合する。`comparison-reviewed/comparison.json` と `comparison-reviewed/comparison.md` は、この公開packageとPR #67公開manifestから生成した。比較内の各evidenceは元artifact上の `original_path` と、repository rootから辿れる `published_path` を別々に記録し、生成時に後者の6ファイルすべての実在・SHA-256一致を確認した。
+`analysis-package/` には取得した upload artifact から、manifest、provenance、upload manifest、validation、C の GCC report/assembly、Python bytecode、JavaScript の両順序 trace と order findings をバイト同一で収録した。provenance の evidence SHA-256 と各ファイルを validator が照合する。`comparison-portable/comparison.json` と `comparison-portable/comparison.md` は、この公開packageとPR #67公開manifestから生成した。比較内の各evidenceは元artifact上の `original_path` と、repository rootから辿れる `published_path` を別々に記録し、生成時に後者の6ファイルすべての実在・SHA-256一致を確認した。
 
 取得artifactに含まれる `stage-logs/` 26件と `run-state.json` はPR差分には含めない。これらは取得元artifactに残り、`upload-manifest.json` にupload時の一覧とhashがある。PR差分内の公開evidenceは、第三者がvalidatorと比較器を実行できる範囲を揃えた。取得ZIPそのものとself-hosted runnerのraw packageはcommitしない。
 
@@ -38,5 +38,6 @@ JavaScript解析条件のV8は `13.6.233.17-node.53`。Node.js版が一致して
 | Python options fixture不一致 | P2 | IN_SCOPE_MINOR | yes | 実物のoptions差をfixtureと出力へ反映し、Pythonを非exactと記録。 |
 | 再レビュー: evidence pathが旧資料を参照 | P1 | IN_SCOPE_BLOCKER | yes | 元pathと公開pathを分離し、公開pathの実在・hashを生成前に検証。 |
 | 再レビュー: PR本文が旧内容 | P2 | IN_SCOPE_MINOR | yes | PR本文を現headの完全版へ更新。レビュー投稿後にGitHub上の本文更新を確認。 |
+| 再レビュー: manifest digestの改行依存 | P1 | IN_SCOPE_BLOCKER | yes | Git blobのLF digestへ固定し、checkoutのLFを明示。実ファイルとCLI再生成の回帰を追加。 |
 
 PR #62とPR #67の既存公開測定ファイルは変更していない。PR #62は9 runs/900 samples、PR #67は12 runs/36 language runs/3600 samplesの公開検算を通した。

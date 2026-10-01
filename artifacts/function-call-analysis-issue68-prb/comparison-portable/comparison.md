@@ -4,7 +4,7 @@
 - analysis code SHA: `98dbb01d36c204f352d5b4690de72b570fdb075e`
 - measurement series: `issue66-balanced-final-01`
 - measurement Git SHA: `fde3f78b385034248bac9dfe7a97c8da37ffb3ae`
-- measurement manifest SHA-256: `60a5b14eeb8f287910b248e832a177264593682eda3952f06219e4a13a49c4a4`
+- measurement manifest SHA-256: `f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252`
 - trace flags: `["--trace-opt", "--trace-deopt", "--trace-turbo-inlining"]`
 
 | language | source | runtime | implementation | architecture | options | both orders | exact |

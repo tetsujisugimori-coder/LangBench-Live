@@ -17,6 +17,7 @@ from compare_function_call_analysis import (
 
 PACKAGE = ROOT / "artifacts/function-call-analysis-issue68-prb/analysis-package"
 MEASUREMENT = ROOT / "artifacts/direct-function-call-balanced-order/manifest.json"
+COMPARISON = ROOT / "artifacts/function-call-analysis-issue68-prb/comparison-portable"
 
 
 class CompareFunctionCallAnalysisTests(unittest.TestCase):
@@ -29,6 +30,40 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
         result = build_comparison(self.measurement, self.analysis, self.provenance,
                                   MEASUREMENT_SHA256)
         return {row["language"]: row for row in result["languages"]}
+
+    def test_public_manifest_has_canonical_lf_digest(self):
+        contents = MEASUREMENT.read_bytes()
+        self.assertNotIn(b"\r\n", contents)
+        self.assertEqual(MEASUREMENT_SHA256, hashlib.sha256(contents).hexdigest())
+        self.assertNotEqual(MEASUREMENT_SHA256,
+                            hashlib.sha256(contents.replace(b"\n", b"\r\n")).hexdigest())
+
+    def test_cli_reproduces_published_comparison_and_rejects_crlf_input(self):
+        base = ROOT / "work" / f"comparison-cli-{uuid.uuid4().hex}"
+        base.mkdir(parents=True)
+        try:
+            output = base / "from-public-input"
+            args = ["compare", str(PACKAGE), str(MEASUREMENT), "--expected-sha",
+                    ANALYSIS_CODE_SHA, "--json-output", str(output / "comparison.json"),
+                    "--markdown-output", str(output / "comparison.md")]
+            with patch.object(sys, "argv", args):
+                self.assertEqual(0, main())
+            self.assertEqual(json.loads((COMPARISON / "comparison.json").read_text(encoding="utf-8")),
+                             json.loads((output / "comparison.json").read_text(encoding="utf-8")))
+            self.assertEqual((COMPARISON / "comparison.md").read_text(encoding="utf-8"),
+                             (output / "comparison.md").read_text(encoding="utf-8"))
+            altered = base / "crlf-manifest.json"
+            altered.write_bytes(MEASUREMENT.read_bytes().replace(b"\n", b"\r\n"))
+            rejected = base / "rejected"
+            args[2] = str(altered)
+            args[6] = str(rejected / "comparison.json")
+            args[8] = str(rejected / "comparison.md")
+            with patch.object(sys, "argv", args):
+                with self.assertRaisesRegex(ValueError, "identity mismatch"):
+                    main()
+            self.assertFalse(rejected.exists())
+        finally:
+            shutil.rmtree(base)
 
     def test_real_conditions_fail_closed(self):
         rows = self.rows()

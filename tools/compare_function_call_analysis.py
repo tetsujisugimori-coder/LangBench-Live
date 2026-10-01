@@ -15,7 +15,7 @@ from validate_function_call_analysis import validate_package
 
 LANGUAGES = ("c", "python", "javascript")
 ORDERS = {"direct_first", "function_call_first"}
-MEASUREMENT_SHA256 = "60a5b14eeb8f287910b248e832a177264593682eda3952f06219e4a13a49c4a4"
+MEASUREMENT_SHA256 = "f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252"
 MEASUREMENT_GIT_SHA = "fde3f78b385034248bac9dfe7a97c8da37ffb3ae"
 MEASUREMENT_SERIES = "issue66-balanced-final-01"
 ANALYSIS_ID = "issue68-pra-69-36797708544"

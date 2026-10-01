@@ -5,7 +5,7 @@
   "analysis_code_sha": "98dbb01d36c204f352d5b4690de72b570fdb075e",
   "measurement_identity": {
     "expected": {
-      "sha256": "60a5b14eeb8f287910b248e832a177264593682eda3952f06219e4a13a49c4a4",
+      "sha256": "f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252",
       "measurement_git_sha": "fde3f78b385034248bac9dfe7a97c8da37ffb3ae",
       "series_id": "issue66-balanced-final-01",
       "issue": 66,
@@ -13,7 +13,7 @@
       "status": "completed"
     },
     "actual": {
-      "sha256": "60a5b14eeb8f287910b248e832a177264593682eda3952f06219e4a13a49c4a4",
+      "sha256": "f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252",
       "measurement_git_sha": "fde3f78b385034248bac9dfe7a97c8da37ffb3ae",
       "series_id": "issue66-balanced-final-01",
       "issue": 66,

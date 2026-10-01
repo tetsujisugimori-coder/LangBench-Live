@@ -2,4 +2,5 @@
 /benchmarks/function_call_numeric_sum/python/main.py text eol=lf
 /benchmarks/function_call_numeric_sum/javascript/main.js text eol=lf
 /artifacts/function-call-analysis/** text eol=lf
+/artifacts/direct-function-call-balanced-order/manifest.json text eol=lf
 /artifacts/function-call-analysis-issue68-prb/analysis-package/** -text whitespace=cr-at-eol,-blank-at-eof
