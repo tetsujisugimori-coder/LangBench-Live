@@ -1,0 +1,32 @@
+{
+  "direct_first": {
+    "jit": {
+      "result": "detected"
+    },
+    "inlining": {
+      "result": "detected"
+    },
+    "vectorization": {
+      "result": "not_checked"
+    },
+    "simd": {
+      "result": "not_checked",
+      "isa": []
+    }
+  },
+  "function_call_first": {
+    "jit": {
+      "result": "detected"
+    },
+    "inlining": {
+      "result": "detected"
+    },
+    "vectorization": {
+      "result": "not_checked"
+    },
+    "simd": {
+      "result": "not_checked",
+      "isa": []
+    }
+  }
+}

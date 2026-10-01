@@ -1,0 +1,44 @@
+# order=direct_first
+# exit_code=0
+# stdout
+[marking 0x01fe116c8779 <JSFunction isPathSeparator (sfi = 000000461BA548A1)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x01fe116c8779 <JSFunction isPathSeparator (sfi = 000000461BA548A1)> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x01fe116c8779 <JSFunction isPathSeparator (sfi = 000000461BA548A1)> (target MAGLEV) - took 0.000, 0.111, 0.001 ms]
+[marking 0x01fe116c88f9 <JSFunction normalizeString (sfi = 000000461BA54BA1)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x01fe116c88f9 <JSFunction normalizeString (sfi = 000000461BA54BA1)> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x01fe116c88f9 <JSFunction normalizeString (sfi = 000000461BA54BA1)> (target MAGLEV) - took 0.000, 0.388, 0.004 ms]
+[marking 0x003775b6e961 <JSFunction (sfi = 0000001324C49821)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x003775b6e961 <JSFunction (sfi = 0000001324C49821)> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x003775b6e961 <JSFunction (sfi = 0000001324C49821)> (target MAGLEV) - took 0.000, 0.044, 0.000 ms]
+[marking 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> (target MAGLEV) OSR, mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> (target MAGLEV) OSR - took 0.000, 0.134, 0.001 ms]
+[marking 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> (target TURBOFAN_JS) OSR, mode: ConcurrencyMode::kConcurrent]
+[compiling method 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> (target MAGLEV) - took 0.000, 0.094, 0.001 ms]
+[marking 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[marking 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> (target MAGLEV) OSR, mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> (target MAGLEV) - took 0.000, 0.142, 0.000 ms]
+[marking 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> for optimization to TURBOFAN_JS, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> (target TURBOFAN_JS), mode: ConcurrencyMode::kConcurrent]
+[completed compiling 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> (target MAGLEV) OSR - took 0.000, 0.399, 0.002 ms]
+[marking 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> for optimization to TURBOFAN_JS, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> (target TURBOFAN_JS) OSR, mode: ConcurrencyMode::kConcurrent]
+[compiling method 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> (target TURBOFAN_JS), mode: ConcurrencyMode::kConcurrent]
+Considering 000001474EF87CE0 {0x033baa114561 <SharedFunctionInfo add>} for inlining with 000001474EF881E8 {0x001324c4a419 <FeedbackVector[1]>}
+Inlining small function(s) at call site #45:JSCall
+Inlining 000001474EF87CE0 {0x033baa114561 <SharedFunctionInfo add>} into 000001474EF879B8 {0x033baa1145a9 <SharedFunctionInfo called>}
+[completed compiling 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> (target TURBOFAN_JS) - took 0.010, 0.712, 0.006 ms]
+[completed optimizing 0x03dfab8315b9 <JSFunction add (sfi = 0000033BAA114561)> (target TURBOFAN_JS)]
+[completed compiling 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> (target TURBOFAN_JS) - took 0.008, 0.719, 0.006 ms]
+[completed optimizing 0x03dfab8315f9 <JSFunction called (sfi = 0000033BAA1145A9)> (target TURBOFAN_JS)]
+Considering 000001474EF77CC0 {0x033baa114561 <SharedFunctionInfo add>} for inlining with 000001474EF781C8 {0x001324c4a419 <FeedbackVector[1]>}
+[completed compiling 0x03dfab831579 <JSFunction direct (sfi = 0000033BAA114519)> (target TURBOFAN_JS) OSR - took 0.026, 2.110, 0.002 ms]
+Inlining small function(s) at call site #[completed optimizing 530x03dfab831579: JSCall
+<JSFunction direct (sfi = 0000033BAA114519)> (target TURBOFAN_JS) OSR]
+Inlining 000001474EF77CC0 {0x033baa114561 <SharedFunctionInfo add>} into 000001474EF77998 {0x033baa1145a9 <SharedFunctionInfo called>}
+# stderr
+
