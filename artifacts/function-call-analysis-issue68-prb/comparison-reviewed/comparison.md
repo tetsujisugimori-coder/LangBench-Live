@@ -26,8 +26,8 @@
 - measurement order: `['direct_first', 'function_call_first', 'function_call_first', 'direct_first', 'direct_first', 'function_call_first', 'function_call_first', 'direct_first', 'direct_first', 'function_call_first', 'function_call_first', 'direct_first']`
 - analysis order coverage: `{'basis': 'static_analysis', 'confirmed': ['direct_first', 'function_call_first'], 'unconfirmed': []}`
 - findings: `{'inlining': {'result': 'not_detected'}, 'vectorization': {'result': 'detected'}, 'simd': {'result': 'detected', 'isa': ['SSE2']}}`
-- evidence: `[{'type': 'assembly', 'path': 'artifacts/function-call-analysis/main.s'}, {'type': 'compiler_report', 'path': 'artifacts/function-call-analysis/gcc-optimization.txt'}]`
-- evidence SHA-256: `{'main.s': '3c7b91c62b342947251eb6f8f5a203f7e716ec24c6b58087088b3329ff316aca', 'gcc-optimization.txt': 'e1293028ed09ec5eec62db1340518a47cd0eda57237f5226a844227067f31b76'}`
+- evidence original/published paths: `[{'type': 'assembly', 'original_path': 'artifacts/function-call-analysis/main.s', 'published_path': 'artifacts/function-call-analysis-issue68-prb/analysis-package/main.s', 'sha256': '3c7b91c62b342947251eb6f8f5a203f7e716ec24c6b58087088b3329ff316aca'}, {'type': 'compiler_report', 'original_path': 'artifacts/function-call-analysis/gcc-optimization.txt', 'published_path': 'artifacts/function-call-analysis-issue68-prb/analysis-package/gcc-optimization.txt', 'sha256': 'e1293028ed09ec5eec62db1340518a47cd0eda57237f5226a844227067f31b76'}]`
+- evidence SHA-256: `{'artifacts/function-call-analysis-issue68-prb/analysis-package/main.s': '3c7b91c62b342947251eb6f8f5a203f7e716ec24c6b58087088b3329ff316aca', 'artifacts/function-call-analysis-issue68-prb/analysis-package/gcc-optimization.txt': 'e1293028ed09ec5eec62db1340518a47cd0eda57237f5226a844227067f31b76'}`
 - applicability reasons: `[]`
 - source mismatch impact: `not_assessed`
 
@@ -42,8 +42,8 @@
 - measurement order: `['direct_first', 'function_call_first', 'function_call_first', 'direct_first', 'direct_first', 'function_call_first', 'function_call_first', 'direct_first', 'direct_first', 'function_call_first', 'function_call_first', 'direct_first']`
 - analysis order coverage: `{'basis': 'static_analysis', 'confirmed': ['direct_first', 'function_call_first'], 'unconfirmed': []}`
 - findings: `{'inlining': {'result': 'not_detected'}, 'vectorization': {'result': 'not_detected'}, 'simd': {'result': 'not_checked', 'isa': []}}`
-- evidence: `[{'type': 'disassembly', 'path': 'artifacts/function-call-analysis/python-bytecode.txt'}]`
-- evidence SHA-256: `{'python-bytecode.txt': 'eb38a209049a8843ff52f466604ed2e3d9ff233d5d649964d4591efd52353ce9'}`
+- evidence original/published paths: `[{'type': 'disassembly', 'original_path': 'artifacts/function-call-analysis/python-bytecode.txt', 'published_path': 'artifacts/function-call-analysis-issue68-prb/analysis-package/python-bytecode.txt', 'sha256': 'eb38a209049a8843ff52f466604ed2e3d9ff233d5d649964d4591efd52353ce9'}]`
+- evidence SHA-256: `{'artifacts/function-call-analysis-issue68-prb/analysis-package/python-bytecode.txt': 'eb38a209049a8843ff52f466604ed2e3d9ff233d5d649964d4591efd52353ce9'}`
 - applicability reasons: `['options']`
 - source mismatch impact: `not_assessed`
 
@@ -58,8 +58,8 @@
 - measurement order: `['direct_first', 'function_call_first', 'function_call_first', 'direct_first', 'direct_first', 'function_call_first', 'function_call_first', 'direct_first', 'direct_first', 'function_call_first', 'function_call_first', 'direct_first']`
 - analysis order coverage: `{'basis': 'trace_observed', 'confirmed': ['direct_first', 'function_call_first'], 'unconfirmed': []}`
 - findings: `{'jit': {'result': 'detected'}, 'inlining': {'result': 'detected'}, 'vectorization': {'result': 'not_checked'}, 'simd': {'result': 'not_checked', 'isa': []}}`
-- evidence: `[{'type': 'jit_trace', 'path': 'artifacts/function-call-analysis/v8-optimization-direct_first.txt'}, {'type': 'jit_trace', 'path': 'artifacts/function-call-analysis/v8-optimization-function_call_first.txt'}, {'type': 'order_findings', 'path': 'artifacts/function-call-analysis/javascript-order-findings.json'}]`
-- evidence SHA-256: `{'v8-optimization-direct_first.txt': '923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179', 'v8-optimization-function_call_first.txt': 'c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d', 'javascript-order-findings.json': '1ba44510a4507b7f270e115428218b53ea1709985706281cb7c982df1c3eac11'}`
+- evidence original/published paths: `[{'type': 'jit_trace', 'original_path': 'artifacts/function-call-analysis/v8-optimization-direct_first.txt', 'published_path': 'artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-direct_first.txt', 'sha256': '923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179'}, {'type': 'jit_trace', 'original_path': 'artifacts/function-call-analysis/v8-optimization-function_call_first.txt', 'published_path': 'artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-function_call_first.txt', 'sha256': 'c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d'}, {'type': 'order_findings', 'original_path': 'artifacts/function-call-analysis/javascript-order-findings.json', 'published_path': 'artifacts/function-call-analysis-issue68-prb/analysis-package/javascript-order-findings.json', 'sha256': '1ba44510a4507b7f270e115428218b53ea1709985706281cb7c982df1c3eac11'}]`
+- evidence SHA-256: `{'artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-direct_first.txt': '923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179', 'artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-function_call_first.txt': 'c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d', 'artifacts/function-call-analysis-issue68-prb/analysis-package/javascript-order-findings.json': '1ba44510a4507b7f270e115428218b53ea1709985706281cb7c982df1c3eac11'}`
 - applicability reasons: `['source', 'implementation']`
 - source mismatch impact: `unknown`
 

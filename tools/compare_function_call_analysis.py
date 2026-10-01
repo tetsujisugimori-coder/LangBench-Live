@@ -9,7 +9,7 @@ import json
 import re
 import shutil
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from validate_function_call_analysis import validate_package
 
@@ -20,6 +20,8 @@ MEASUREMENT_GIT_SHA = "fde3f78b385034248bac9dfe7a97c8da37ffb3ae"
 MEASUREMENT_SERIES = "issue66-balanced-final-01"
 ANALYSIS_ID = "issue68-pra-69-36797708544"
 ANALYSIS_CODE_SHA = "98dbb01d36c204f352d5b4690de72b570fdb075e"
+PUBLICATION_PREFIX = "artifacts/function-call-analysis-issue68-prb/analysis-package"
+PUBLICATION_ROOT = Path(__file__).resolve().parents[1] / PUBLICATION_PREFIX
 SOURCE_PATHS = {
     "c": "benchmarks/function_call_numeric_sum/c/main.c",
     "python": "benchmarks/function_call_numeric_sum/python/main.py",
@@ -116,8 +118,46 @@ def _coverage(provenance: dict, language: str) -> tuple[object, bool]:
     return coverage, bool(valid)
 
 
+def _published_evidence(entry: dict, provenance: dict, publication_root: Path,
+                        seen: set[str]) -> list[dict]:
+    output = []
+    if not isinstance(entry.get("evidence"), list) or not entry["evidence"]:
+        raise ValueError("analysis evidence list is missing")
+    hashes = provenance.get("evidence_sha256")
+    if not isinstance(hashes, dict):
+        raise ValueError("evidence hash inventory is missing")
+    if publication_root.is_symlink():
+        raise ValueError("published package root must not be a symlink")
+    root = publication_root.resolve(strict=True)
+    for item in entry.get("evidence", []):
+        if not isinstance(item, dict) or not isinstance(item.get("path"), str):
+            raise ValueError("invalid evidence reference")
+        original = item["path"]
+        parts = PurePosixPath(original).parts
+        if len(parts) != 3 or parts[:2] != ("artifacts", "function-call-analysis"):
+            raise ValueError(f"unexpected original evidence path: {original}")
+        basename = parts[2]
+        if basename in seen or basename not in hashes:
+            raise ValueError(f"evidence basename collision or missing hash: {basename}")
+        seen.add(basename)
+        expected = hashes[basename]
+        published = publication_root / basename
+        if (published.is_symlink() or not published.is_file()
+                or published.resolve(strict=True).parent != root
+                or not isinstance(expected, str)
+                or _sha256(published) != expected):
+            raise ValueError(f"published evidence is missing or differs: {basename}")
+        output.append({
+            "type": item.get("type"),
+            "original_path": original,
+            "published_path": f"{PUBLICATION_PREFIX}/{basename}",
+            "sha256": expected,
+        })
+    return output
+
+
 def build_comparison(measurement: dict, analysis: dict, provenance: dict,
-                     measurement_sha256: str) -> dict:
+                     measurement_sha256: str, publication_root: Path = PUBLICATION_ROOT) -> dict:
     identity = validate_measurement(measurement, measurement_sha256)
     if analysis.get("analysis_id") != ANALYSIS_ID or provenance.get("code_sha") != ANALYSIS_CODE_SHA:
         raise ValueError("analysis identity mismatch")
@@ -128,6 +168,7 @@ def build_comparison(measurement: dict, analysis: dict, provenance: dict,
     if not isinstance(host, dict) or not isinstance(host.get("compile"), dict):
         raise ValueError("measurement host or compile options are missing")
     rows = []
+    seen_evidence: set[str] = set()
     for language in LANGUAGES:
         entry = analysis["languages"][language]
         condition = entry["condition"]
@@ -146,6 +187,7 @@ def build_comparison(measurement: dict, analysis: dict, provenance: dict,
         analysis_options = condition.get("options")
         options_match = isinstance(measured_options, list) and measured_options == analysis_options
         coverage, coverage_match = _coverage(provenance, language)
+        evidence = _published_evidence(entry, provenance, publication_root, seen_evidence)
         checks = {
             "source": bool(source_match), "runtime": runtime_match,
             "implementation": implementation_match, "architecture": architecture_match,
@@ -169,11 +211,8 @@ def build_comparison(measurement: dict, analysis: dict, provenance: dict,
             "measurement_order": measurement.get("plan"),
             "analysis_order_coverage": coverage,
             "analysis_findings": entry.get("findings"),
-            "analysis_evidence": entry.get("evidence"),
-            "analysis_evidence_sha256": {
-                Path(item["path"]).name: provenance["evidence_sha256"].get(Path(item["path"]).name)
-                for item in entry.get("evidence", [])
-            },
+            "analysis_evidence": evidence,
+            "analysis_evidence_sha256": {item["published_path"]: item["sha256"] for item in evidence},
             "checks": checks,
             "source_exact_match": bool(source_match),
             "runtime_match": runtime_match,
@@ -232,7 +271,7 @@ def render_markdown(result: dict) -> str:
             f"- measurement order: `{row['measurement_order']}`",
             f"- analysis order coverage: `{row['analysis_order_coverage']}`",
             f"- findings: `{row['analysis_findings']}`",
-            f"- evidence: `{row['analysis_evidence']}`",
+            f"- evidence original/published paths: `{row['analysis_evidence']}`",
             f"- evidence SHA-256: `{row['analysis_evidence_sha256']}`",
             f"- applicability reasons: `{row['applicability_reasons']}`",
             f"- source mismatch impact: `{row['impact']}`", "",
@@ -278,6 +317,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.expected_sha.lower() != ANALYSIS_CODE_SHA:
         raise SystemExit("unexpected analysis code SHA")
+    if args.analysis_package.resolve() != PUBLICATION_ROOT.resolve():
+        raise SystemExit("analysis package is not the fixed published package")
     errors = validate_package(args.analysis_package, ANALYSIS_CODE_SHA)
     if errors:
         raise SystemExit("analysis package validation failed:\n" + "\n".join(errors))

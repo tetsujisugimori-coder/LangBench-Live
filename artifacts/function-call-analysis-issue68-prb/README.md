@@ -12,7 +12,7 @@
 
 ## 公開範囲
 
-`analysis-package/` には取得した upload artifact から、manifest、provenance、upload manifest、validation、C の GCC report/assembly、Python bytecode、JavaScript の両順序 trace と order findings をバイト同一で収録した。provenance の evidence SHA-256 と各ファイルを validator が照合する。`comparison-final/comparison.json` と `comparison-final/comparison.md` は、この公開packageとPR #67公開manifestから生成した。
+`analysis-package/` には取得した upload artifact から、manifest、provenance、upload manifest、validation、C の GCC report/assembly、Python bytecode、JavaScript の両順序 trace と order findings をバイト同一で収録した。provenance の evidence SHA-256 と各ファイルを validator が照合する。`comparison-reviewed/comparison.json` と `comparison-reviewed/comparison.md` は、この公開packageとPR #67公開manifestから生成した。比較内の各evidenceは元artifact上の `original_path` と、repository rootから辿れる `published_path` を別々に記録し、生成時に後者の6ファイルすべての実在・SHA-256一致を確認した。
 
 取得artifactに含まれる `stage-logs/` 26件と `run-state.json` はPR差分には含めない。これらは取得元artifactに残り、`upload-manifest.json` にupload時の一覧とhashがある。PR差分内の公開evidenceは、第三者がvalidatorと比較器を実行できる範囲を揃えた。取得ZIPそのものとself-hosted runnerのraw packageはcommitしない。
 
@@ -36,5 +36,7 @@ JavaScript解析条件のV8は `13.6.233.17-node.53`。Node.js版が一致して
 | V8と両順序coverageの未検証 | P1 | IN_SCOPE_BLOCKER | yes | runtime/implementationとversionを分離し、両順序coverageをexact条件に追加。欠落/未知はfail closed。 |
 | PR #67測定manifestへの未束縛 | P1 | IN_SCOPE_BLOCKER | yes | 実ファイルのSHA-256、series、code SHA、issue/benchmark/statusを照合し、不一致は出力前に拒否。 |
 | Python options fixture不一致 | P2 | IN_SCOPE_MINOR | yes | 実物のoptions差をfixtureと出力へ反映し、Pythonを非exactと記録。 |
+| 再レビュー: evidence pathが旧資料を参照 | P1 | IN_SCOPE_BLOCKER | yes | 元pathと公開pathを分離し、公開pathの実在・hashを生成前に検証。 |
+| 再レビュー: PR本文が旧内容 | P2 | IN_SCOPE_MINOR | yes | PR本文を現headの完全版へ更新。レビュー投稿後にGitHub上の本文更新を確認。 |
 
 PR #62とPR #67の既存公開測定ファイルは変更していない。PR #62は9 runs/900 samples、PR #67は12 runs/36 language runs/3600 samplesの公開検算を通した。

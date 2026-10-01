@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import shutil
 import sys
@@ -47,6 +48,8 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
         self.analysis["languages"]["javascript"]["condition"]["implementation"]["version"] = "13.5.0"
         self.assertFalse(self.rows()["javascript"]["implementation_match"])
         self.assertTrue(self.rows()["javascript"]["runtime_match"])
+        self.analysis["languages"]["javascript"]["condition"]["implementation"]["version"] = "13.6.233.17-node.52"
+        self.assertFalse(self.rows()["javascript"]["implementation_match"])
 
     def test_node_only_mismatch(self):
         self.analysis["languages"]["javascript"]["runtime"]["version"] = "v23.0.0"
@@ -86,6 +89,46 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
         self.assertIn("V8", text)
         self.assertIn("因果関係を示さない", text)
         self.assertEqual("not_established", result["causal_conclusion"])
+
+    def test_every_published_evidence_path_exists_and_matches_hash(self):
+        for row in self.rows().values():
+            for item in row["analysis_evidence"]:
+                published = ROOT / item["published_path"]
+                self.assertTrue(published.is_file())
+                self.assertEqual(item["sha256"], hashlib.sha256(published.read_bytes()).hexdigest())
+                self.assertNotEqual(item["original_path"], item["published_path"])
+        old_c = ROOT / self.rows()["c"]["analysis_evidence"][0]["original_path"]
+        self.assertNotEqual(hashlib.sha256(old_c.read_bytes()).hexdigest(),
+                            self.rows()["c"]["analysis_evidence"][0]["sha256"])
+
+    def test_invalid_evidence_references_fail_before_output(self):
+        evidence = self.analysis["languages"]["c"]["evidence"]
+        original = evidence[0]["path"]
+        for path in ("artifacts/function-call-analysis-old/main.s",
+                     "artifacts/function-call-analysis/../main.s"):
+            evidence[0]["path"] = path
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, "original evidence path"):
+                self.rows()
+        evidence[0]["path"] = original
+        evidence[1]["path"] = original
+        with self.assertRaisesRegex(ValueError, "basename collision"):
+            self.rows()
+
+    def test_missing_or_modified_published_evidence_fails_closed(self):
+        base = ROOT / "work" / f"evidence-test-{uuid.uuid4().hex}"
+        shutil.copytree(PACKAGE, base)
+        try:
+            (base / "main.s").unlink()
+            with self.assertRaisesRegex(ValueError, "missing or differs"):
+                build_comparison(self.measurement, self.analysis, self.provenance,
+                                 MEASUREMENT_SHA256, base)
+            shutil.copy2(PACKAGE / "main.s", base / "main.s")
+            (base / "main.s").write_text("modified", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "missing or differs"):
+                build_comparison(self.measurement, self.analysis, self.provenance,
+                                 MEASUREMENT_SHA256, base)
+        finally:
+            shutil.rmtree(base)
 
     def test_collision_and_validation_failure_do_not_overwrite(self):
         base = ROOT / "work" / f"comparison-test-{uuid.uuid4().hex}"
