@@ -1,0 +1,171 @@
+{
+  "schema_version": "1.0",
+  "analysis_id": "issue68-pra-69-36797708544",
+  "generated_at": "2026-10-01T00:46:51Z",
+  "languages": {
+    "c": {
+      "artifact_id": "issue68-pra-69-36797708544-c",
+      "analyzed_at": "2026-10-01T00:46:51Z",
+      "applies_to": [
+        "inlining",
+        "vectorization",
+        "simd"
+      ],
+      "condition": {
+        "source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+        "implementation": {
+          "name": "GCC",
+          "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+        },
+        "architecture": "x64",
+        "options": [
+          "-O2",
+          "-std=c11",
+          "-Wall",
+          "-Wextra"
+        ]
+      },
+      "generation_commands": [
+        "gcc",
+        "benchmarks/function_call_numeric_sum/c/main.c",
+        "-O2",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-S",
+        "-masm=intel",
+        "-fopt-info-all=artifacts/function-call-analysis/gcc-optimization.txt",
+        "-o",
+        "artifacts/function-call-analysis/main.s"
+      ],
+      "findings": {
+        "inlining": {
+          "result": "not_detected"
+        },
+        "vectorization": {
+          "result": "detected"
+        },
+        "simd": {
+          "result": "detected",
+          "isa": [
+            "SSE2"
+          ]
+        }
+      },
+      "evidence": [
+        {
+          "type": "assembly",
+          "path": "artifacts/function-call-analysis/main.s"
+        },
+        {
+          "type": "compiler_report",
+          "path": "artifacts/function-call-analysis/gcc-optimization.txt"
+        }
+      ]
+    },
+    "python": {
+      "artifact_id": "issue68-pra-69-36797708544-python",
+      "analyzed_at": "2026-10-01T00:46:51Z",
+      "applies_to": [
+        "inlining",
+        "vectorization",
+        "simd"
+      ],
+      "condition": {
+        "source_sha256": "f174bd2a03c028a333aa26550185fb2aa9636fe1b48235d68e14e6ef6252adcc",
+        "implementation": {
+          "name": "CPython",
+          "version": "3.14.7"
+        },
+        "architecture": "amd64",
+        "options": [
+          "optimize=0"
+        ]
+      },
+      "generation_commands": [
+        "python",
+        "-m",
+        "dis",
+        "benchmarks/function_call_numeric_sum/python/main.py"
+      ],
+      "findings": {
+        "inlining": {
+          "result": "not_detected"
+        },
+        "vectorization": {
+          "result": "not_detected"
+        },
+        "simd": {
+          "result": "not_checked",
+          "isa": []
+        }
+      },
+      "evidence": [
+        {
+          "type": "disassembly",
+          "path": "artifacts/function-call-analysis/python-bytecode.txt"
+        }
+      ]
+    },
+    "javascript": {
+      "artifact_id": "issue68-pra-69-36797708544-javascript",
+      "analyzed_at": "2026-10-01T00:46:51Z",
+      "applies_to": [
+        "jit",
+        "inlining",
+        "vectorization",
+        "simd"
+      ],
+      "condition": {
+        "source_sha256": "6fe69643f08742fc7aaf51ba0b65a9312add16f5ed9ae9eacf3d2426c1d91473",
+        "implementation": {
+          "name": "V8",
+          "version": "13.6.233.17-node.53"
+        },
+        "architecture": "x64",
+        "options": []
+      },
+      "generation_commands": [
+        "node",
+        "--trace-opt",
+        "--trace-deopt",
+        "--trace-turbo-inlining",
+        "tools/trace_function_call_javascript.js",
+        "<measurement-order>"
+      ],
+      "findings": {
+        "jit": {
+          "result": "detected"
+        },
+        "inlining": {
+          "result": "detected"
+        },
+        "vectorization": {
+          "result": "not_checked"
+        },
+        "simd": {
+          "result": "not_checked",
+          "isa": []
+        }
+      },
+      "runtime": {
+        "name": "Node.js",
+        "version": "v24.20.0"
+      },
+      "evidence": [
+        {
+          "type": "jit_trace",
+          "path": "artifacts/function-call-analysis/v8-optimization-direct_first.txt"
+        },
+        {
+          "type": "jit_trace",
+          "path": "artifacts/function-call-analysis/v8-optimization-function_call_first.txt"
+        },
+        {
+          "type": "order_findings",
+          "path": "artifacts/function-call-analysis/javascript-order-findings.json"
+        }
+      ]
+    }
+  }
+}

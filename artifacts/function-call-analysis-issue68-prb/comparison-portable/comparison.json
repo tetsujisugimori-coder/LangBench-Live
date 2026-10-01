@@ -1,0 +1,416 @@
+{
+  "schema_version": "2.0",
+  "issue": 68,
+  "analysis_id": "issue68-pra-69-36797708544",
+  "analysis_code_sha": "98dbb01d36c204f352d5b4690de72b570fdb075e",
+  "measurement_identity": {
+    "expected": {
+      "sha256": "f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252",
+      "measurement_git_sha": "fde3f78b385034248bac9dfe7a97c8da37ffb3ae",
+      "series_id": "issue66-balanced-final-01",
+      "issue": 66,
+      "benchmark": "function_call_numeric_sum",
+      "status": "completed"
+    },
+    "actual": {
+      "sha256": "f33cbbf063ae7b07e14125e659a2e0f02c49e02916c9cd2c1ee42086940dc252",
+      "measurement_git_sha": "fde3f78b385034248bac9dfe7a97c8da37ffb3ae",
+      "series_id": "issue66-balanced-final-01",
+      "issue": 66,
+      "benchmark": "function_call_numeric_sum",
+      "status": "completed"
+    }
+  },
+  "measurement_series_id": "issue66-balanced-final-01",
+  "measurement_git_sha": "fde3f78b385034248bac9dfe7a97c8da37ffb3ae",
+  "analysis_trace_options": [
+    "--trace-opt",
+    "--trace-deopt",
+    "--trace-turbo-inlining"
+  ],
+  "analysis_evidence_sha256": {
+    "gcc-optimization.txt": "e1293028ed09ec5eec62db1340518a47cd0eda57237f5226a844227067f31b76",
+    "main.s": "3c7b91c62b342947251eb6f8f5a203f7e716ec24c6b58087088b3329ff316aca",
+    "python-bytecode.txt": "eb38a209049a8843ff52f466604ed2e3d9ff233d5d649964d4591efd52353ce9",
+    "v8-optimization-direct_first.txt": "923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179",
+    "v8-optimization-function_call_first.txt": "c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d",
+    "javascript-order-findings.json": "1ba44510a4507b7f270e115428218b53ea1709985706281cb7c982df1c3eac11",
+    "manifest.json": "c10677f0d267f6a34928d90bba0ce54003e152c076882d100286fe4d24808c9e"
+  },
+  "javascript_orders": {
+    "direct_first": {
+      "command": [
+        "node",
+        "--trace-opt",
+        "--trace-deopt",
+        "--trace-turbo-inlining",
+        "tools/trace_function_call_javascript.js",
+        "direct_first"
+      ],
+      "stimulus": {
+        "iterations": 100,
+        "item_count": 10000,
+        "timed": false,
+        "writes_benchmark_result": false
+      },
+      "evidence": "v8-optimization-direct_first.txt",
+      "evidence_sha256": "923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179",
+      "findings": {
+        "jit": {
+          "result": "detected"
+        },
+        "inlining": {
+          "result": "detected"
+        },
+        "vectorization": {
+          "result": "not_checked"
+        },
+        "simd": {
+          "result": "not_checked",
+          "isa": []
+        }
+      }
+    },
+    "function_call_first": {
+      "command": [
+        "node",
+        "--trace-opt",
+        "--trace-deopt",
+        "--trace-turbo-inlining",
+        "tools/trace_function_call_javascript.js",
+        "function_call_first"
+      ],
+      "stimulus": {
+        "iterations": 100,
+        "item_count": 10000,
+        "timed": false,
+        "writes_benchmark_result": false
+      },
+      "evidence": "v8-optimization-function_call_first.txt",
+      "evidence_sha256": "c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d",
+      "findings": {
+        "jit": {
+          "result": "detected"
+        },
+        "inlining": {
+          "result": "detected"
+        },
+        "vectorization": {
+          "result": "not_checked"
+        },
+        "simd": {
+          "result": "not_checked",
+          "isa": []
+        }
+      }
+    }
+  },
+  "trace_is_benchmark": false,
+  "causal_conclusion": "not_established",
+  "languages": [
+    {
+      "language": "c",
+      "measurement_source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+      "analysis_source_sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3",
+      "analysis_condition_sha256": "7d5579bf83f485d13d78a899c8b1b30dde423c45a09216c0301a5519cb46881d",
+      "measurement_runtime": {
+        "name": "GCC",
+        "version": "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0"
+      },
+      "analysis_runtime": {
+        "name": "GCC",
+        "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+      },
+      "measurement_implementation": {
+        "name": "GCC",
+        "version": "gcc.exe (Rev5, Built by MSYS2 project) 16.1.0"
+      },
+      "analysis_implementation": {
+        "name": "GCC",
+        "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+      },
+      "measurement_architecture": "X64",
+      "analysis_architecture": "x64",
+      "measurement_options": [
+        "-O2",
+        "-std=c11",
+        "-Wall",
+        "-Wextra"
+      ],
+      "analysis_options": [
+        "-O2",
+        "-std=c11",
+        "-Wall",
+        "-Wextra"
+      ],
+      "measurement_order": [
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first",
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first",
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first"
+      ],
+      "analysis_order_coverage": {
+        "basis": "static_analysis",
+        "confirmed": [
+          "direct_first",
+          "function_call_first"
+        ],
+        "unconfirmed": []
+      },
+      "analysis_findings": {
+        "inlining": {
+          "result": "not_detected"
+        },
+        "vectorization": {
+          "result": "detected"
+        },
+        "simd": {
+          "result": "detected",
+          "isa": [
+            "SSE2"
+          ]
+        }
+      },
+      "analysis_evidence": [
+        {
+          "type": "assembly",
+          "original_path": "artifacts/function-call-analysis/main.s",
+          "published_path": "artifacts/function-call-analysis-issue68-prb/analysis-package/main.s",
+          "sha256": "3c7b91c62b342947251eb6f8f5a203f7e716ec24c6b58087088b3329ff316aca"
+        },
+        {
+          "type": "compiler_report",
+          "original_path": "artifacts/function-call-analysis/gcc-optimization.txt",
+          "published_path": "artifacts/function-call-analysis-issue68-prb/analysis-package/gcc-optimization.txt",
+          "sha256": "e1293028ed09ec5eec62db1340518a47cd0eda57237f5226a844227067f31b76"
+        }
+      ],
+      "analysis_evidence_sha256": {
+        "artifacts/function-call-analysis-issue68-prb/analysis-package/main.s": "3c7b91c62b342947251eb6f8f5a203f7e716ec24c6b58087088b3329ff316aca",
+        "artifacts/function-call-analysis-issue68-prb/analysis-package/gcc-optimization.txt": "e1293028ed09ec5eec62db1340518a47cd0eda57237f5226a844227067f31b76"
+      },
+      "checks": {
+        "source": true,
+        "runtime": true,
+        "implementation": true,
+        "architecture": true,
+        "options": true,
+        "order_coverage": true
+      },
+      "source_exact_match": true,
+      "runtime_match": true,
+      "implementation_match": true,
+      "architecture_match": true,
+      "options_match": true,
+      "order_coverage_match": true,
+      "exact_applicability": true,
+      "applicability_reasons": [],
+      "impact": "not_assessed"
+    },
+    {
+      "language": "python",
+      "measurement_source_sha256": "f174bd2a03c028a333aa26550185fb2aa9636fe1b48235d68e14e6ef6252adcc",
+      "analysis_source_sha256": "f174bd2a03c028a333aa26550185fb2aa9636fe1b48235d68e14e6ef6252adcc",
+      "analysis_condition_sha256": "5ad1456f26f84c499796a3b9a3820bc1eb4f27d16da8301194b601721eeaa378",
+      "measurement_runtime": {
+        "name": "CPython",
+        "version": "Python 3.14.7"
+      },
+      "analysis_runtime": {
+        "name": "CPython",
+        "version": "3.14.7"
+      },
+      "measurement_implementation": {
+        "name": "CPython",
+        "version": "Python 3.14.7"
+      },
+      "analysis_implementation": {
+        "name": "CPython",
+        "version": "3.14.7"
+      },
+      "measurement_architecture": "X64",
+      "analysis_architecture": "amd64",
+      "measurement_options": [],
+      "analysis_options": [
+        "optimize=0"
+      ],
+      "measurement_order": [
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first",
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first",
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first"
+      ],
+      "analysis_order_coverage": {
+        "basis": "static_analysis",
+        "confirmed": [
+          "direct_first",
+          "function_call_first"
+        ],
+        "unconfirmed": []
+      },
+      "analysis_findings": {
+        "inlining": {
+          "result": "not_detected"
+        },
+        "vectorization": {
+          "result": "not_detected"
+        },
+        "simd": {
+          "result": "not_checked",
+          "isa": []
+        }
+      },
+      "analysis_evidence": [
+        {
+          "type": "disassembly",
+          "original_path": "artifacts/function-call-analysis/python-bytecode.txt",
+          "published_path": "artifacts/function-call-analysis-issue68-prb/analysis-package/python-bytecode.txt",
+          "sha256": "eb38a209049a8843ff52f466604ed2e3d9ff233d5d649964d4591efd52353ce9"
+        }
+      ],
+      "analysis_evidence_sha256": {
+        "artifacts/function-call-analysis-issue68-prb/analysis-package/python-bytecode.txt": "eb38a209049a8843ff52f466604ed2e3d9ff233d5d649964d4591efd52353ce9"
+      },
+      "checks": {
+        "source": true,
+        "runtime": true,
+        "implementation": true,
+        "architecture": true,
+        "options": false,
+        "order_coverage": true
+      },
+      "source_exact_match": true,
+      "runtime_match": true,
+      "implementation_match": true,
+      "architecture_match": true,
+      "options_match": false,
+      "order_coverage_match": true,
+      "exact_applicability": false,
+      "applicability_reasons": [
+        "options"
+      ],
+      "impact": "not_assessed"
+    },
+    {
+      "language": "javascript",
+      "measurement_source_sha256": "0838635d22bd28ee110915d7f3a0db0b3bb7d6c211985f4b13ed32800e6c5169",
+      "analysis_source_sha256": "6fe69643f08742fc7aaf51ba0b65a9312add16f5ed9ae9eacf3d2426c1d91473",
+      "analysis_condition_sha256": "4e4653dd11cca3712f93d35cc174b8932782bb3ad96414db206476ba1b9f118f",
+      "measurement_runtime": {
+        "name": "Node.js",
+        "version": "v24.20.0"
+      },
+      "analysis_runtime": {
+        "name": "Node.js",
+        "version": "v24.20.0"
+      },
+      "measurement_implementation": null,
+      "analysis_implementation": {
+        "name": "V8",
+        "version": "13.6.233.17-node.53"
+      },
+      "measurement_architecture": "X64",
+      "analysis_architecture": "x64",
+      "measurement_options": [],
+      "analysis_options": [],
+      "measurement_order": [
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first",
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first",
+        "direct_first",
+        "function_call_first",
+        "function_call_first",
+        "direct_first"
+      ],
+      "analysis_order_coverage": {
+        "basis": "trace_observed",
+        "confirmed": [
+          "direct_first",
+          "function_call_first"
+        ],
+        "unconfirmed": []
+      },
+      "analysis_findings": {
+        "jit": {
+          "result": "detected"
+        },
+        "inlining": {
+          "result": "detected"
+        },
+        "vectorization": {
+          "result": "not_checked"
+        },
+        "simd": {
+          "result": "not_checked",
+          "isa": []
+        }
+      },
+      "analysis_evidence": [
+        {
+          "type": "jit_trace",
+          "original_path": "artifacts/function-call-analysis/v8-optimization-direct_first.txt",
+          "published_path": "artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-direct_first.txt",
+          "sha256": "923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179"
+        },
+        {
+          "type": "jit_trace",
+          "original_path": "artifacts/function-call-analysis/v8-optimization-function_call_first.txt",
+          "published_path": "artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-function_call_first.txt",
+          "sha256": "c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d"
+        },
+        {
+          "type": "order_findings",
+          "original_path": "artifacts/function-call-analysis/javascript-order-findings.json",
+          "published_path": "artifacts/function-call-analysis-issue68-prb/analysis-package/javascript-order-findings.json",
+          "sha256": "1ba44510a4507b7f270e115428218b53ea1709985706281cb7c982df1c3eac11"
+        }
+      ],
+      "analysis_evidence_sha256": {
+        "artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-direct_first.txt": "923cac58cfef8fd47f52e95b59b994deba21517136e9ea43f9355333dbe24179",
+        "artifacts/function-call-analysis-issue68-prb/analysis-package/v8-optimization-function_call_first.txt": "c3dccb5c453c5733e1f2a45506f868d9becbfa5d40cc3e83fa1984a9a1afe27d",
+        "artifacts/function-call-analysis-issue68-prb/analysis-package/javascript-order-findings.json": "1ba44510a4507b7f270e115428218b53ea1709985706281cb7c982df1c3eac11"
+      },
+      "checks": {
+        "source": false,
+        "runtime": true,
+        "implementation": false,
+        "architecture": true,
+        "options": true,
+        "order_coverage": true
+      },
+      "source_exact_match": false,
+      "runtime_match": true,
+      "implementation_match": false,
+      "architecture_match": true,
+      "options_match": true,
+      "order_coverage_match": true,
+      "exact_applicability": false,
+      "applicability_reasons": [
+        "source",
+        "implementation"
+      ],
+      "impact": "unknown"
+    }
+  ]
+}
