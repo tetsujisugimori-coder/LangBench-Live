@@ -2,6 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const os = require("node:os");
+const childProcess = require("node:child_process");
 const {
   optimizationAnalysis,
   orderedMeasurements,
@@ -9,6 +11,19 @@ const {
   sourceSha256,
   currentAnalysisCondition,
 } = require("../benchmarks/function_call_numeric_sum/javascript/main.js");
+
+test("trace-only harness stimulates both orders without writing benchmark results", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "langbench-trace-only-"));
+  try {
+    const harness = path.join(__dirname, "..", "tools", "trace_function_call_javascript.js");
+    for (const order of ["direct_first", "function_call_first"]) {
+      const result = childProcess.spawnSync(process.execPath, [harness, order], { cwd: directory, encoding: "utf8" });
+      assert.equal(result.status, 0, result.stderr);
+    }
+    assert.deepEqual(fs.readdirSync(directory), []);
+    assert.equal(fs.existsSync(path.join(__dirname, "..", "results", "function_call_numeric_sum_javascript_result.json")), false);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
 
 test("source hash equates CRLF with LF and detects other byte changes", () => {
   const lf = Buffer.from("first\nsecond\n");

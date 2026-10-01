@@ -21,6 +21,8 @@ jobs:
         with:
           python-version: '3.14'
       - run: python -B -m unittest discover -s tests -q
+      - name: Validate analysis package with hosted fixtures only
+        run: python -B -m unittest tests.test_function_call_analysis_package -q
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -31,6 +33,48 @@ jobs:
           msystem: MINGW64
           update: true
           install: mingw-w64-x86_64-gcc
+      - name: Test main and detached source fixture clones
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_prepare_function_call_fixture_clone.ps1
+      - name: Test artifact text sanitization
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_function_call_artifact_text.ps1
+      - name: Run hosted Windows analysis fixture without publishing it
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceRoot = (Resolve-Path '.').Path
+          $sourceSha = (git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sourceSha -notmatch '^[0-9a-f]{40}$') { throw 'cannot identify fixture source SHA' }
+          $shared = Join-Path $env:RUNNER_TEMP 'function-call-analysis-shared-clone'
+          $output = Join-Path $env:RUNNER_TEMP 'function-call-analysis-hosted-fixture'
+          if ((Test-Path -LiteralPath $shared) -or (Test-Path -LiteralPath $output)) { throw 'fixture path already exists' }
+          try {
+            ./tools/prepare_function_call_fixture_clone.ps1 -SourceRepository $sourceRoot -Destination $shared -SourceSha $sourceSha
+            try {
+              ./tools/generate_function_call_analysis.ps1 -AnalysisId hosted-windows-fixture -OutputDirectory $output -SharedRepositoryPath $shared -AllowedRemote $sourceRoot
+            } catch {
+              $safetyLog = Join-Path $output 'stage-logs/artifact-safety.stdout.txt'
+              if (Test-Path -LiteralPath $safetyLog) { Get-Content -LiteralPath $safetyLog }
+              throw
+            }
+            python -B ./tools/validate_function_call_analysis.py $output --expected-sha $sourceSha
+            python -B ./tools/check_function_call_artifact_safety.py $output
+            if ($LASTEXITCODE -ne 0) { throw 'hosted artifact safety scan failed' }
+            $state = Get-Content -LiteralPath (Join-Path $output 'run-state.json') -Raw | ConvertFrom-Json
+            $validation = Get-Content -LiteralPath (Join-Path $output 'validation.json') -Raw | ConvertFrom-Json
+            if ($state.status -ne 'success' -or $state.stages.validator.status -ne 'success' -or $validation.status -ne 'valid') { throw 'hosted artifact state is incomplete' }
+          } finally {
+            if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
+            if (Test-Path -LiteralPath $shared) { Remove-Item -LiteralPath $shared -Recurse -Force }
+          }
+      - name: Test analysis shared-operation lock
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_generate_function_call_analysis.ps1
       - name: Run C/PowerShell measurement-order integration
         if: runner.os == 'Windows'
         shell: pwsh
