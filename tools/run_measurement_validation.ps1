@@ -1,9 +1,14 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$TrustedSha,
+    [Parameter(Mandatory)][ValidateRange(1, [long]::MaxValue)][long]$SyncRunId,
     [Parameter(Mandatory)][ValidateRange(1, [long]::MaxValue)][long]$RunId,
     [Parameter(Mandatory)][ValidateRange(1, [int]::MaxValue)][int]$RunAttempt,
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [Parameter(Mandatory)][string]$SharedRepositoryPath
+    [Parameter(Mandatory)][string]$ExecutionDirectory,
+    [Parameter(Mandatory)][string]$SharedRepositoryPath,
+    [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git'),
+    # Fixture-only preflight boundary; production workflow never supplies it.
+    [switch]$TestPreflightOnly
 )
 $ErrorActionPreference = 'Stop'
 $env:GIT_TERMINAL_PROMPT = '0'
@@ -16,30 +21,47 @@ function Git([string]$Repository, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "git failed: $($Arguments -join ' ')" }
     return $value
 }
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$sourceRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { throw 'validation output already exists' }
-if ((Git $root @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'runner checkout differs from authorized SHA' }
+$execution = [IO.Path]::GetFullPath($ExecutionDirectory)
+if (Test-Path -LiteralPath $execution) { throw 'independent execution directory already exists' }
+if ((Git $sourceRoot @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'runner source checkout differs from authorized SHA' }
 $shared = [IO.Path]::GetFullPath($SharedRepositoryPath).TrimEnd('\')
 if (-not (Test-Path -LiteralPath $shared -PathType Container)) { throw 'shared repository is absent' }
-$allowed = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git')
 if ((Git $shared @('rev-parse','--show-toplevel')).Trim().TrimEnd('\') -ine $shared) { throw 'shared path is not its repository root' }
-if ($allowed -inotcontains (Git $shared @('remote','get-url','origin')).Trim()) { throw 'shared repository origin is unexpected' }
+if ($AllowedRemote -inotcontains (Git $shared @('remote','get-url','origin')).Trim()) { throw 'shared repository origin is unexpected' }
+$sourceCommon = (Git $sourceRoot @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
+$sharedCommon = (Git $shared @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
+if ([IO.Path]::GetFullPath($sourceCommon) -ieq [IO.Path]::GetFullPath($sharedCommon)) { throw 'runner source and user working copy share a Git common directory' }
 if ((Git $shared @('symbolic-ref','--quiet','--short','HEAD')).Trim() -cne 'main') { throw 'shared repository is not on main' }
 if ((Git $shared @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'shared main is not the authorized SHA; use the official sync workflow' }
 $remoteBefore = ((Git $shared @('ls-remote','origin','refs/heads/main')) -split '\s+')[0]
 if ($remoteBefore -cne $TrustedSha) { throw 'remote main changed or could not be verified' }
 if (@(Git $shared @('status','--porcelain','--untracked-files=no')).Count) { throw 'shared repository has tracked changes' }
 foreach ($marker in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply')) {
-    $path = (Git $shared @('rev-parse','--git-path',$marker)).Trim()
+    $path = (Git $shared @('rev-parse','--path-format=absolute','--git-path',$marker)).Trim()
     if (Test-Path -LiteralPath $path) { throw "shared Git operation in progress: $marker" }
 }
-$common = (Git $shared @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
+$indexLock = (Git $shared @('rev-parse','--path-format=absolute','--git-path','index.lock')).Trim()
+if (Test-Path -LiteralPath $indexLock) { throw 'shared Git index lock is present' }
+$common = $sharedCommon
 $sharedLock = $null
+$measurementLock = $null
 try {
     # This is the user working-copy operation lock. remeasure takes the runner
     # checkout's distinct operation lock, then run_all takes its measurement lock.
     $sharedLock = [IO.File]::Open((Join-Path $common 'langbench-operation.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+    $measurementLockPath = Join-Path $shared 'results/function_call_numeric_sum.lock'
+    if (-not (Test-Path -LiteralPath (Split-Path -Parent $measurementLockPath) -PathType Container)) { throw 'shared results directory is absent' }
+    $measurementLock = [IO.File]::Open($measurementLockPath, 'OpenOrCreate', 'ReadWrite', 'None')
+    if ((Git $shared @('rev-parse','HEAD')).Trim() -cne $TrustedSha -or @(Git $shared @('status','--porcelain','--untracked-files=no')).Count) {
+        throw 'shared working-copy preconditions changed while acquiring locks'
+    }
+    foreach ($marker in @('MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply','index.lock')) {
+        $path = (Git $shared @('rev-parse','--path-format=absolute','--git-path',$marker)).Trim()
+        if (Test-Path -LiteralPath $path) { throw "shared Git state changed while acquiring locks: $marker" }
+    }
     $untracked = @(Git $shared @('ls-files','--others','--exclude-standard'))
     $ignored = @(Git $shared @('ls-files','--others','--ignored','--exclude-standard'))
     $protected = @($untracked + $ignored | Sort-Object -Unique)
@@ -53,22 +75,46 @@ try {
                 sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
         }
     }
+    if ($TestPreflightOnly) {
+        if ($env:LANGBENCH_TEST_PREFLIGHT -cne '1') { throw 'fixture-only preflight boundary is disabled' }
+        foreach ($relative in $before.Keys) {
+            $path = Join-Path $shared $relative
+            if ((Get-Item -LiteralPath $path -Force).Length -ne $before[$relative].size -or
+                (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $before[$relative].sha256) {
+                throw "protected fixture file changed: $relative"
+            }
+        }
+        Write-Host "status=preflight-valid protected_files=$($before.Count)"
+        return
+    }
     $id = "issue74-run$RunId-attempt$RunAttempt-$($TrustedSha.Substring(0,12))"
     $diagnostic = "results/diagnostics/$id"
-    Push-Location $root
-    try { ./tools/remeasure_function_call.ps1 -Count 1 -MeasurementOrder direct_first -SeriesId $id -OutputDirectory $diagnostic }
+    & git.exe -c core.hooksPath=NUL -c core.fsmonitor=false -c submodule.recurse=false clone --no-local --no-hardlinks --no-checkout $sourceRoot $execution
+    if ($LASTEXITCODE -ne 0) { throw 'independent trusted checkout clone failed' }
+    & git.exe -c core.hooksPath=NUL -c core.fsmonitor=false -C $execution checkout --detach $TrustedSha
+    if ($LASTEXITCODE -ne 0 -or (Git $execution @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'independent trusted checkout failed' }
+    $executionCommon = (Git $execution @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
+    if ([IO.Path]::GetFullPath($executionCommon) -ieq [IO.Path]::GetFullPath($sharedCommon)) { throw 'execution checkout shares the user Git common directory' }
+    Push-Location $execution
+    try {
+        ./tools/remeasure_function_call.ps1 -Count 1 -MeasurementOrder direct_first -SeriesId $id -OutputDirectory $diagnostic
+        if ($LASTEXITCODE -ne 0) { throw "Count=1 measurement failed with exit code $LASTEXITCODE" }
+    }
     finally { Pop-Location }
-    $record = Get-Content -LiteralPath (Join-Path $root "$diagnostic/runs.json") -Raw | ConvertFrom-Json
+    $record = Get-Content -LiteralPath (Join-Path $execution "$diagnostic/runs.json") -Raw | ConvertFrom-Json
     if ($record.successful_runs -ne 1 -or $record.requested_runs -ne 1 -or $record.mode -ne 'single_order') { throw 'Count=1 validation did not complete' }
     $archive = [string]$record.runs[0].archive_path
-    & python -B (Join-Path $root 'tools/show_archive_samples.py') --json --all-languages $archive | Out-Null
+    & python -B (Join-Path $execution 'tools/show_archive_samples.py') --json --all-languages $archive | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'archive validation failed' }
     $identityPath = Join-Path $env:RUNNER_TEMP "$id-identity.json"
-    [ordered]@{ issue=74; run_id=$RunId; run_attempt=$RunAttempt; trusted_sha=$TrustedSha; sync_required=$false;
+    if (Test-Path -LiteralPath $identityPath) { throw 'identity output already exists' }
+    [ordered]@{ issue=74; run_id=$RunId; run_attempt=$RunAttempt; trusted_sha=$TrustedSha; sync_run_id=$SyncRunId;
         count=1; balanced_order=$false; measurement_order='direct_first'; protected_untracked_count=$untracked.Count;
         protected_ignored_count=$ignored.Count } | ConvertTo-Json | Set-Content -LiteralPath $identityPath -Encoding utf8
-    & python -B (Join-Path $root 'tools/build_measurement_validation_evidence.py') $archive $output --identity $identityPath
+    & python -B (Join-Path $execution 'tools/build_measurement_validation_evidence.py') $archive $output --identity $identityPath
     if ($LASTEXITCODE -ne 0) { throw 'evidence construction failed' }
+    & python -B (Join-Path $execution 'tools/check_function_call_artifact_safety.py') $output
+    if ($LASTEXITCODE -ne 0) { throw 'artifact safety validation failed' }
     if ((Git $shared @('rev-parse','HEAD')).Trim() -cne $TrustedSha -or @(Git $shared @('status','--porcelain','--untracked-files=no')).Count) {
         throw 'shared working copy changed during validation'
     }
@@ -83,5 +129,6 @@ try {
     $remoteAfter = ((Git $shared @('ls-remote','origin','refs/heads/main')) -split '\s+')[0]
     if ($remoteAfter -cne $TrustedSha) { throw 'remote main changed during validation' }
 } finally {
+    if ($measurementLock) { $measurementLock.Dispose() }
     if ($sharedLock) { $sharedLock.Dispose() }
 }

@@ -1,43 +1,80 @@
+import copy
+import hashlib
 import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
-from tools.build_measurement_validation_evidence import build
-
-
-def archive_value():
-    current = {"implementation": {"name": "x", "version": "1"}, "options": [], "source_sha256": "a" * 64}
-    result = lambda language: {"environment": {"os": "Windows", "os_version": "10", "cpu": "cpu", "architecture": "x64"},
-        "engine": {"runtime": language, "runtime_version": "1",
-                   **({"v8_version": "1"} if language == "javascript" else {}),
-                   **({"python_implementation": "CPython"} if language == "python" else {})},
-        "build": {"compiler": "gcc", "compiler_version": "1"},
-        "optimization_analysis": {"provenance": {"current": dict(current)}}}
-    return {"definition": {"benchmark": "function_call_numeric_sum", "schema_version": "1.0", "config": {},
-                            "expected_checksum": 1, "measurement_order": ["direct", "function_call"]},
-            "results": {name: result(name) for name in ("c", "python", "javascript")}}
+from tests.test_result_schema import build_optimization_analysis, function_call_document
+from tools.archive_results import archive_results
+from tools.build_measurement_validation_evidence import MANIFEST, build
 
 
 class MeasurementValidationEvidenceTests(unittest.TestCase):
-    def test_controls_hashes_and_collision_refusal(self):
+    def make_archive(self, root: Path, unsafe_option: str | None = None) -> Path:
+        base = function_call_document("python")
+        definition = root / "experiment-definition.json"
+        definition.write_text(json.dumps({"schema_version": "1.0", "benchmark": "function_call_numeric_sum",
+            "languages": ["c", "javascript", "python"], "config": base["config"],
+            "expected_checksum": base["validation"]["expected_checksum"]}), encoding="utf-8")
+        paths = []
+        for language in ("python", "javascript", "c"):
+            document = function_call_document(language); document["environment"].update(os="Windows", architecture="x64")
+            if language == "python": document["engine"].update(runtime_version="3.14.7", python_implementation="CPython", python_optimize=0)
+            if language == "javascript": document["engine"].update(runtime_version="v24.20.0", v8_version="13.6", exec_argv=[], node_options=unsafe_option or "")
+            optimization = build_optimization_analysis(); condition = optimization["provenance"]["current"]
+            if language == "c":
+                condition["implementation"] = {"name": "GCC", "version": "gcc 15"}; condition["options"] = ["-O2"]
+                optimization["jit"] = {"applicable": False, "result": "not_applicable"}
+            if language == "javascript":
+                optimization["provenance"]["applies_to"].insert(0, "jit")
+                optimization["provenance"]["artifact_findings"]["jit"] = {"result": "not_detected"}
+                if unsafe_option: condition["options"] = [unsafe_option]
+            optimization["provenance"]["analysis"] = copy.deepcopy(condition); optimization["implementation"] = condition["implementation"]
+            document = {**dict(list(document.items())[:13]), "optimization_analysis": optimization, **dict(list(document.items())[13:])}
+            path = root / f"{language}.json"; path.write_text(json.dumps(document) + "\n", encoding="utf-8"); paths.append(path)
+        runners = {name: {"path": name, "sha256": "c" * 64} for name in ("orchestrator", "c", "python", "javascript")}
+        capture = {"schema_version": "1.0", "experiment_id": base["experiment_id"],
+            "run_ids": {language: function_call_document(language)["run_id"] for language in ("c", "python", "javascript")},
+            "measurement_git_sha": "b" * 40, "runners": runners,
+            "sources": {language: {"path": f"main.{language}", "sha256": "a" * 64} for language in ("c", "python", "javascript")}}
+        captured = root / "capture.json"; captured.write_text(json.dumps(capture), encoding="utf-8")
+        return archive_results(paths, base["experiment_id"], root / "history", definition, captured)
+
+    def test_formal_archive_controls_hashes_and_collision_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary); archive = root / "archive"; archive.mkdir()
-            (archive / "measurement-manifest.json").write_text('{"schema_version":"2.0"}\n', encoding="utf-8")
-            destination = root / "evidence"
-            with patch("tools.build_measurement_validation_evidence.load_archive", return_value=archive_value()):
-                build(archive, destination, {"issue": 74})
-                controls = json.loads((destination / "comparison-controls.json").read_text())
-                self.assertEqual("comparable", controls["controls"]["match"]["verdict"])
-                self.assertTrue(all(controls["controls"][name]["verdict"] != "comparable"
+            root = Path(temporary); archive = self.make_archive(root); destination = root / "evidence"
+            build(archive, destination, {"issue": 74, "sync_run_id": 123})
+            controls = json.loads((destination / "comparison-controls.json").read_text(encoding="utf-8"))
+            for language in ("c", "python", "javascript"):
+                self.assertTrue(controls["languages"][language]["match"]["exact_applicability"])
+                self.assertTrue(all(not controls["languages"][language][name]["exact_applicability"]
                                     for name in ("missing", "mismatch", "unknown")))
-                hashes = json.loads((destination / "files.sha256.json").read_text())
-                self.assertEqual({"README.md", "comparison-controls.json", "execution.json",
-                                  "measurement-manifest.json", "validation.json"},
-                                 {item["file"] for item in hashes["files"]})
-                with self.assertRaisesRegex(ValueError, "already exists"):
-                    build(archive, destination, {"issue": 74})
+            hashes = json.loads((destination / "files.sha256.json").read_text(encoding="utf-8"))
+            self.assertIn(MANIFEST, {item["file"] for item in hashes["files"]})
+            self.assertEqual((archive / MANIFEST).read_bytes(), (destination / MANIFEST).read_bytes())
+            manifest_entry = json.loads((destination / "archive.json").read_text(encoding="utf-8"))["measurement_manifest"]
+            self.assertEqual(hashlib.sha256((destination / MANIFEST).read_bytes()).hexdigest(), manifest_entry["sha256"])
+            with self.assertRaisesRegex(ValueError, "already exists"): build(archive, destination, {"issue": 74})
+
+    def test_secret_in_formal_manifest_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); archive = self.make_archive(root, "token=dummy-secret")
+            with self.assertRaisesRegex(ValueError, "unsafe artifact content"):
+                build(archive, root / "evidence", {"issue": 74})
+
+    def test_tampered_manifest_validator_failure_is_not_a_success_bundle(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); archive = self.make_archive(root)
+            manifest_path = archive / MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8")); manifest["schema_version"] = "broken"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            index_path = archive / "archive.json"; index = json.loads(index_path.read_text(encoding="utf-8"))
+            index["measurement_manifest"]["sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+            index_path.write_text(json.dumps(index), encoding="utf-8")
+            with self.assertRaisesRegex(Exception, "schema_version"):
+                build(archive, root / "evidence", {"issue": 74})
+            self.assertFalse((root / "evidence" / "files.sha256.json").exists())
 
 
 if __name__ == "__main__": unittest.main()

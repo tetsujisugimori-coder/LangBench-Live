@@ -33,7 +33,13 @@ jobs:
           set -euo pipefail
           test '${{ github.repository }}' = 'tetsujisugimori-coder/LangBench-Live'
           main_before=$(gh api '/repos/${{ github.repository }}/git/ref/heads/main' --jq .object.sha)
-          gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/commits/$RUN_SHA/pulls" > "$RUNNER_TEMP/pulls.json"
+          gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/commits/$RUN_SHA/pulls" > "$RUNNER_TEMP/pull-candidates.json"
+          jq -n '[]' > "$RUNNER_TEMP/pulls.json"
+          while read -r number; do
+            gh api "/repos/${{ github.repository }}/pulls/$number" > "$RUNNER_TEMP/pull.json"
+            jq --slurpfile value "$RUNNER_TEMP/pull.json" '. + $value' "$RUNNER_TEMP/pulls.json" > "$RUNNER_TEMP/pulls.next"
+            mv "$RUNNER_TEMP/pulls.next" "$RUNNER_TEMP/pulls.json"
+          done < <(jq -r '.[].number' "$RUNNER_TEMP/pull-candidates.json")
           gh api "/repos/${{ github.repository }}/actions/workflows/pull-local-main.yml/runs?branch=main&status=completed&per_page=100" > "$RUNNER_TEMP/runs.json"
           jq -n '{}' > "$RUNNER_TEMP/jobs.json"
           while read -r id; do
@@ -58,18 +64,21 @@ jobs:
         with:
           ref: ${{ needs.authorize.outputs.trusted_sha }}
           persist-credentials: false
-          clean: true
+          clean: false
       - name: Run Count=1 validation in the runner checkout
         id: validation
         shell: pwsh
         env:
           TRUSTED_SHA: ${{ needs.authorize.outputs.trusted_sha }}
+          SYNC_RUN_ID: ${{ needs.authorize.outputs.sync_run_id }}
         run: |
           $ErrorActionPreference = 'Stop'
           $id = "issue74-run${{ github.run_id }}-attempt${{ github.run_attempt }}-$($env:TRUSTED_SHA.Substring(0,12))"
           $destination = Join-Path $env:RUNNER_TEMP $id
-          ./tools/run_measurement_validation.ps1 -TrustedSha $env:TRUSTED_SHA -RunId ${{ github.run_id }} `
-            -RunAttempt ${{ github.run_attempt }} -OutputDirectory $destination `
+          $execution = Join-Path $env:RUNNER_TEMP "$id-checkout"
+          ./tools/run_measurement_validation.ps1 -TrustedSha $env:TRUSTED_SHA -SyncRunId $env:SYNC_RUN_ID `
+            -RunId ${{ github.run_id }} -RunAttempt ${{ github.run_attempt }} -OutputDirectory $destination `
+            -ExecutionDirectory $execution `
             -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live'
           "destination=$destination" >> $env:GITHUB_OUTPUT
           "artifact=measurement-validation-$id" >> $env:GITHUB_OUTPUT

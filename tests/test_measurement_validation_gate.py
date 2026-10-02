@@ -8,6 +8,7 @@ REPO = "tetsujisugimori-coder/LangBench-Live"
 
 
 def fixtures():
+    # Shape of hydrated pulls/{number}, not the smaller commits/{sha}/pulls item.
     pulls = [{"number": 72, "merged_at": "now", "merge_commit_sha": SHA,
               "base": {"ref": "main", "repo": {"full_name": REPO}},
               "merged_by": {"type": "User"}}]
@@ -20,6 +21,11 @@ def fixtures():
 
 
 class MeasurementValidationGateTests(unittest.TestCase):
+    def test_unhydrated_commit_pull_response_is_rejected(self):
+        pulls, runs, jobs = fixtures(); pulls[0].pop("merged_by")
+        with self.assertRaisesRegex(ValueError, "human-merged"):
+            verify(REPO, "refs/heads/main", "workflow_dispatch", SHA, SHA, SHA, pulls, runs, jobs)
+
     def test_accepts_exact_main_and_official_successful_sync(self):
         pulls, runs, jobs = fixtures()
         self.assertEqual(123, verify(REPO, "refs/heads/main", "workflow_dispatch", SHA, SHA, SHA,
