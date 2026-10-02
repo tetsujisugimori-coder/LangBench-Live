@@ -62,6 +62,23 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
             broken=copy.deepcopy(provenance); broken["order_coverage"]["c"].update(basis="bad",unconfirmed=["direct_first"])
             rejected=build_v2_comparison(measurement,analysis,broken)
             self.assertFalse(next(row for row in rejected["languages"] if row["language"]=="c")["exact_applicability"])
+            invalid_analyses = {
+                "languages-null": {**analysis, "languages": None},
+                "languages-array": {**analysis, "languages": []},
+                "entry-null": {**analysis, "languages": {**analysis["languages"], "c": None}},
+                "entry-array": {**analysis, "languages": {**analysis["languages"], "c": []}},
+                "condition-null": {**analysis, "languages": {**analysis["languages"], "c": {**analysis["languages"]["c"], "condition": None}}},
+                "condition-array": {**analysis, "languages": {**analysis["languages"], "c": {**analysis["languages"]["c"], "condition": []}}},
+                "schema-bad": {**analysis, "schema_version": "bad"},
+            }
+            for name, invalid in invalid_analyses.items():
+                with self.subTest(name=name):
+                    with self.assertRaisesRegex(ValueError, "invalid analysis input"):
+                        build_v2_comparison(measurement, invalid, provenance)
+                    analysis_path.write_text(json.dumps(invalid),encoding="utf-8")
+                    invalid_args=[*args[:-4],"--json-output",str(base/name/"comparison.json"),"--markdown-output",str(base/name/"comparison.md")]
+                    with patch.object(sys,"argv",invalid_args), self.assertRaisesRegex(SystemExit,"analysis v2 validation failed"):
+                        main()
         finally: shutil.rmtree(base)
 
     def test_public_manifest_has_canonical_lf_digest(self):

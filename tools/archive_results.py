@@ -26,7 +26,28 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 def build_measurement_manifest(documents: dict[str, dict], measurement_order: list[str], capture: dict) -> dict:
     """Build v2 only from values actually observed by each benchmark process."""
     python, javascript, c = (documents[name] for name in ("python", "javascript", "c"))
-    py_engine, js_engine, c_build = python["engine"], javascript["engine"], c["build"]
+    py_engine, js_engine, c_build = python.get("engine"), javascript.get("engine"), c.get("build")
+    if not isinstance(py_engine, dict): raise ValueError("python engine must be an object")
+    if not isinstance(js_engine, dict): raise ValueError("javascript engine must be an object")
+    if not isinstance(c_build, dict): raise ValueError("C build must be an object")
+    observations = {
+        "python runtime_version": (py_engine.get("runtime_version"), str),
+        "python implementation": (py_engine.get("python_implementation"), str),
+        "python optimize": (py_engine.get("python_optimize"), int),
+        "javascript Node version": (js_engine.get("runtime_version"), str),
+        "javascript V8 version": (js_engine.get("v8_version"), str),
+        "javascript exec_argv": (js_engine.get("exec_argv"), list),
+        "javascript NODE_OPTIONS": (js_engine.get("node_options"), str),
+        "C compiler": (c_build.get("compiler"), str),
+        "C compiler version": (c_build.get("compiler_version"), str),
+    }
+    for label, (value, expected_type) in observations.items():
+        if type(value) is not expected_type or (expected_type is str and label != "javascript NODE_OPTIONS" and not value):
+            raise ValueError(f"{label} has invalid or missing type")
+    if type(py_engine["python_optimize"]) is not int or py_engine["python_optimize"] < 0:
+        raise ValueError("python optimize has invalid value")
+    if not all(isinstance(value, str) for value in js_engine["exec_argv"]):
+        raise ValueError("javascript exec_argv must contain strings")
     capture_errors = validate_capture(capture)
     if capture_errors: raise ValueError("; ".join(capture_errors))
     if capture["experiment_id"] != python["experiment_id"]: raise ValueError("capture experiment_id differs from results")

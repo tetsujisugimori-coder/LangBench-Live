@@ -768,6 +768,19 @@ class ArchiveResultsTests(unittest.TestCase):
             runners={name:{"path":name,"sha256":"c"*64} for name in ("orchestrator","c","python","javascript")}
             capture={"schema_version":"1.0","experiment_id":function_call_document("python")["experiment_id"],"run_ids":run_ids,"measurement_git_sha":"b"*40,"runners":runners,"sources":{language:{"path":f"main.{language}","sha256":"a"*64} for language in ("c","python","javascript")}}
             captured=root/"capture.json"; captured.write_text(json.dumps(capture))
+            javascript_document=json.loads(paths[1].read_text())
+            invalid_observations = {
+                "NODE_OPTIONS": lambda value: value["engine"].update(node_options=123),
+                "exec_argv": lambda value: value["engine"].update(exec_argv="--jitless"),
+                "runtime": lambda value: value["engine"].pop("runtime_version"),
+            }
+            for label, mutate in invalid_observations.items():
+                with self.subTest(observation=label):
+                    invalid=copy.deepcopy(javascript_document); mutate(invalid)
+                    paths[1].write_text(json.dumps(invalid)+"\n")
+                    with self.assertRaisesRegex(ValueError,"invalid or missing type"):
+                        archive_results(paths,function_call_document("python")["experiment_id"],root/"history",definition,captured)
+            paths[1].write_text(json.dumps(javascript_document)+"\n")
             archive=archive_results(paths,function_call_document("python")["experiment_id"],root/"history",definition,captured)
             loaded=load_archive(archive); self.assertEqual("2.0",loaded["measurement_manifest"]["schema_version"])
             manifest=archive/"measurement-manifest-v2.json"; manifest.write_text(manifest.read_text()+" ")

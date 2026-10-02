@@ -35,6 +35,9 @@ def build_v2_comparison(measurement: dict, analysis: dict, provenance: dict) -> 
     errors = validate_manifest_v2(measurement)
     if errors:
         raise ValueError("invalid measurement manifest v2: " + "; ".join(errors))
+    analysis_errors = validate_v2_analysis(analysis, provenance)
+    if analysis_errors:
+        raise ValueError("invalid analysis input: " + "; ".join(analysis_errors))
     rows = []
     for language in LANGUAGES:
         entry = analysis.get("languages", {}).get(language, {})
@@ -58,10 +61,23 @@ def build_v2_comparison(measurement: dict, analysis: dict, provenance: dict) -> 
 
 def validate_v2_analysis(analysis: object, provenance: object) -> list[str]:
     errors = []
-    if not isinstance(analysis, dict) or analysis.get("schema_version") != "2.0" or not isinstance(analysis.get("languages"), dict) or set(analysis["languages"]) != set(LANGUAGES):
-        errors.append("analysis manifest v2 is invalid")
-    if not isinstance(provenance, dict) or provenance.get("schema_version") != "2.0" or not isinstance(provenance.get("operating_system"), str) or not isinstance(provenance.get("order_coverage"), dict) or set(provenance["order_coverage"]) != set(LANGUAGES):
-        errors.append("analysis provenance v2 is invalid")
+    if not isinstance(analysis, dict) or analysis.get("schema_version") not in {"1.0", "2.0"}:
+        return ["analysis manifest schema is invalid"]
+    languages = analysis.get("languages")
+    if not isinstance(languages, dict) or set(languages) != set(LANGUAGES):
+        return ["analysis manifest languages are invalid"]
+    for language, entry in languages.items():
+        if not isinstance(entry, dict):
+            errors.append(f"analysis manifest {language} entry is invalid")
+            continue
+        if not isinstance(entry.get("condition"), dict):
+            errors.append(f"analysis manifest {language} condition is invalid")
+    if not isinstance(provenance, dict) or provenance.get("schema_version") not in {"1.0", "2.0"}:
+        errors.append("analysis provenance schema is invalid")
+    else:
+        if not isinstance(provenance.get("operating_system"), str): errors.append("analysis operating_system is invalid")
+        coverage = provenance.get("order_coverage")
+        if not isinstance(coverage, dict) or set(coverage) != set(LANGUAGES): errors.append("analysis order_coverage is invalid")
     return errors
 
 
