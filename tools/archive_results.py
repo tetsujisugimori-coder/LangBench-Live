@@ -7,16 +7,15 @@ import os
 import shutil
 import tempfile
 import uuid
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 if __package__:
     from .validate_result_json import validate
-    from .measurement_provenance import sha256, validate_manifest_v2
+    from .measurement_provenance import validate_capture, validate_manifest_v2
 else:
     from validate_result_json import validate
-    from measurement_provenance import sha256, validate_manifest_v2
+    from measurement_provenance import validate_capture, validate_manifest_v2
 
 BENCHMARK = "function_call_numeric_sum"
 LANGUAGES = {"c", "python", "javascript"}
@@ -24,25 +23,22 @@ DEFAULT_EXPERIMENT_MANIFEST = Path(__file__).resolve().parents[1] / "experiments
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def build_measurement_manifest(documents: dict[str, dict], measurement_order: list[str]) -> dict:
+def build_measurement_manifest(documents: dict[str, dict], measurement_order: list[str], capture: dict) -> dict:
     """Build v2 only from values actually observed by each benchmark process."""
     python, javascript, c = (documents[name] for name in ("python", "javascript", "c"))
     py_engine, js_engine, c_build = python["engine"], javascript["engine"], c["build"]
-    git_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, check=True,
-                             capture_output=True, text=True).stdout.strip().lower()
-    sources = {name: PROJECT_ROOT / "benchmarks" / BENCHMARK / name / ("main.js" if name == "javascript" else "main.py" if name == "python" else "main.c") for name in LANGUAGES}
-    source = lambda name: {"path": sources[name].relative_to(PROJECT_ROOT).as_posix(), "sha256": sha256(sources[name])}
-    runner = PROJECT_ROOT / "benchmarks" / BENCHMARK / "run_all.ps1"
+    capture_errors = validate_capture(capture)
+    if capture_errors: raise ValueError("; ".join(capture_errors))
+    if capture["experiment_id"] != python["experiment_id"]: raise ValueError("capture experiment_id differs from results")
     manifest = {
-        "schema_version": "2.0", "measurement_git_sha": git_sha,
+        "schema_version": "2.0", "measurement_git_sha": capture["measurement_git_sha"],
         "benchmark": BENCHMARK, "experiment_id": python["experiment_id"],
-        "runner": {"path": runner.relative_to(PROJECT_ROOT).as_posix(), "sha256": sha256(runner)},
-        "os": python["environment"]["os"], "architecture": python["environment"]["architecture"],
+        "runner": capture["runner"],
         "measurement_order": measurement_order,
         "languages": {
-            "c": {"source": source("c"), "runtime": {"name": "native", "version": c["engine"].get("runtime_version") or "native"}, "compiler": {"name": c_build["compiler"], "version": c_build["compiler_version"]}, "options": c["optimization_analysis"]["provenance"]["current"]["options"]},
-            "python": {"source": source("python"), "runtime": {"name": "Python", "version": py_engine["runtime_version"]}, "implementation": {"name": py_engine["python_implementation"], "version": py_engine["runtime_version"]}, "optimize": py_engine["python_optimize"], "options": [f"optimize={py_engine['python_optimize']}"]},
-            "javascript": {"source": source("javascript"), "runtime": {"name": "Node.js", "version": js_engine["runtime_version"]}, "implementation": {"name": "V8", "version": js_engine["v8_version"]}, "exec_argv": list(js_engine["exec_argv"]), "node_options": js_engine["node_options"], "options": [*js_engine["exec_argv"], *js_engine["node_options"].split()]},
+            "c": {"source": capture["sources"]["c"], "os":c["environment"]["os"], "architecture":c["environment"]["architecture"], "runtime": {"name": "native", "version": c["engine"].get("runtime_version") or "native"}, "compiler": {"name": c_build["compiler"], "version": c_build["compiler_version"]}, "options": c["optimization_analysis"]["provenance"]["current"]["options"]},
+            "python": {"source": capture["sources"]["python"], "os":python["environment"]["os"], "architecture":python["environment"]["architecture"], "runtime": {"name": "Python", "version": py_engine["runtime_version"]}, "implementation": {"name": py_engine["python_implementation"], "version": py_engine["runtime_version"]}, "optimize": py_engine["python_optimize"], "options": [f"optimize={py_engine['python_optimize']}"]},
+            "javascript": {"source": capture["sources"]["javascript"], "os":javascript["environment"]["os"], "architecture":javascript["environment"]["architecture"], "runtime": {"name": "Node.js", "version": js_engine["runtime_version"]}, "implementation": {"name": "V8", "version": js_engine["v8_version"]}, "exec_argv": list(js_engine["exec_argv"]), "node_options": js_engine["node_options"], "options": [*js_engine["exec_argv"], *js_engine["node_options"].split()]},
         },
     }
     errors = validate_manifest_v2(manifest)
@@ -79,7 +75,7 @@ def load_experiment_manifest(path: Path) -> tuple[bytes, dict]:
 
 def archive_results(
     paths: list[Path], experiment_id: str, history_root: Path,
-    manifest_path: Path = DEFAULT_EXPERIMENT_MANIFEST,
+    manifest_path: Path = DEFAULT_EXPERIMENT_MANIFEST, provenance_path: Path | None = None,
 ) -> Path:
     if len(paths) != len(LANGUAGES):
         raise ValueError("exactly three result files are required")
@@ -129,8 +125,9 @@ def archive_results(
         and isinstance(documents["c"].get("optimization_analysis"), dict)
     )
     provenance_raw = None
-    if has_v2_observations:
-        provenance_manifest = build_measurement_manifest(documents, measurement_order)
+    if has_v2_observations and provenance_path is not None:
+        capture = json.loads(provenance_path.read_text(encoding="utf-8"))
+        provenance_manifest = build_measurement_manifest(documents, measurement_order, capture)
         provenance_raw = (json.dumps(provenance_manifest, ensure_ascii=False, indent=2) + "\n").encode()
 
     # Store the actual case order as part of the hashed experiment definition.
@@ -190,10 +187,11 @@ def main() -> int:
     parser.add_argument("--experiment-id", required=True)
     parser.add_argument("--history-root", type=Path, default=Path("results/history"))
     parser.add_argument("--experiment-manifest", type=Path, default=DEFAULT_EXPERIMENT_MANIFEST)
+    parser.add_argument("--measurement-provenance", type=Path)
     parser.add_argument("paths", nargs=3, type=Path)
     args = parser.parse_args()
     try:
-        destination = archive_results(args.paths, args.experiment_id, args.history_root, args.experiment_manifest)
+        destination = archive_results(args.paths, args.experiment_id, args.history_root, args.experiment_manifest, args.measurement_provenance)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"archive_error={error}")
         return 1

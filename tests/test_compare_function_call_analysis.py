@@ -11,9 +11,10 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from compare_function_call_analysis import (
-    ANALYSIS_CODE_SHA, MEASUREMENT_SHA256, build_comparison, main,
+    ANALYSIS_CODE_SHA, MEASUREMENT_SHA256, build_comparison, build_v2_comparison, main,
     publish_outputs, render_markdown, validate_measurement,
 )
+from tests.test_measurement_provenance import manifest as measurement_manifest_v2
 
 PACKAGE = ROOT / "artifacts/function-call-analysis-issue68-prb/analysis-package"
 MEASUREMENT = ROOT / "artifacts/direct-function-call-balanced-order/manifest.json"
@@ -30,6 +31,12 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
         result = build_comparison(self.measurement, self.analysis, self.provenance,
                                   MEASUREMENT_SHA256)
         return {row["language"]: row for row in result["languages"]}
+
+    def test_v2_adapter_uses_fail_closed_comparison(self):
+        result = build_v2_comparison(measurement_manifest_v2(), self.analysis, self.provenance)
+        self.assertTrue(all(not row["exact_applicability"] for row in result["languages"]))
+        javascript = next(row for row in result["languages"] if row["language"] == "javascript")
+        self.assertEqual("missing", javascript["checks"]["exec_argv"])
 
     def test_public_manifest_has_canonical_lf_digest(self):
         contents = MEASUREMENT.read_bytes()

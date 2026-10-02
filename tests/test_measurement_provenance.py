@@ -6,16 +6,17 @@ from tools.measurement_provenance import compare_conditions, validate_manifest_v
 
 def manifest():
     source = lambda p: {"path": p, "sha256": "a" * 64}
-    return {"schema_version":"2.0","measurement_git_sha":"b"*40,"benchmark":"function_call_numeric_sum","experiment_id":"run","runner":{"path":"run.ps1","sha256":"c"*64},"os":"Windows","architecture":"x64","measurement_order":["direct","function_call"],"languages":{
-        "c":{"source":source("main.c"),"runtime":{"name":"native","version":"native"},"compiler":{"name":"gcc","version":"16.1.0"},"options":["-O2"]},
-        "python":{"source":source("main.py"),"runtime":{"name":"Python","version":"3.14.7"},"implementation":{"name":"CPython","version":"3.14.7"},"optimize":0,"options":["optimize=0"]},
-        "javascript":{"source":source("main.js"),"runtime":{"name":"Node.js","version":"v24.20.0"},"implementation":{"name":"V8","version":"13.6"},"exec_argv":[],"node_options":"","options":[]}}}
+    common={"os":"Windows","architecture":"x64"}
+    return {"schema_version":"2.0","measurement_git_sha":"b"*40,"benchmark":"function_call_numeric_sum","experiment_id":"run","runner":{"path":"run.ps1","sha256":"c"*64},"measurement_order":["direct","function_call"],"languages":{
+        "c":{"source":source("main.c"),**common,"runtime":{"name":"native","version":"native"},"compiler":{"name":"gcc","version":"16.1.0"},"options":["-O2"]},
+        "python":{"source":source("main.py"),**common,"runtime":{"name":"Python","version":"3.14.7"},"implementation":{"name":"CPython","version":"3.14.7"},"optimize":0,"options":["optimize=0"]},
+        "javascript":{"source":source("main.js"),**common,"runtime":{"name":"Node.js","version":"v24.20.0"},"implementation":{"name":"V8","version":"13.6"},"exec_argv":[],"node_options":"","options":[]}}}
 
 
 class MeasurementProvenanceTests(unittest.TestCase):
     def setUp(self):
         self.m = manifest()
-        self.js = {"source_sha256":"a"*64,"architecture":"x64","options":[],"runtime":{"name":"Node.js","version":"v24.20.0"},"implementation":{"name":"V8","version":"13.6"}}
+        self.js = {"source_sha256":"a"*64,"os":"Windows","architecture":"x64","options":[],"runtime":{"name":"Node.js","version":"v24.20.0"},"implementation":{"name":"V8","version":"13.6"},"exec_argv":[],"node_options":"","order_coverage":["direct_first","function_call_first"]}
 
     def test_v2_validates_all_recorded_identities(self):
         self.assertEqual([], validate_manifest_v2(self.m))
@@ -33,7 +34,7 @@ class MeasurementProvenanceTests(unittest.TestCase):
         for field in ("implementation", "runtime"):
             a=copy.deepcopy(self.js); a[field]["version"]="other"; cases.append(a) # 2,4
         a=copy.deepcopy(self.m); del a["languages"]["javascript"]["implementation"]; cases.append((a,self.js,"javascript")) # 3
-        py={"source_sha256":"a"*64,"architecture":"x64","options":["optimize=0"],"implementation":{"name":"CPython","version":"3.14.7"},"optimize":0}
+        py={"source_sha256":"a"*64,"os":"Windows","architecture":"x64","options":["optimize=0"],"runtime":{"name":"Python","version":"3.14.7"},"implementation":{"name":"CPython","version":"3.14.7"},"optimize":0,"order_coverage":["direct_first","function_call_first"]}
         for value in (1,None):
             a=copy.deepcopy(py); a["optimize"]=value; cases.append((self.m,a,"python")) # 5,6
         for field,value in (("source_sha256","d"*64),("architecture","arm64"),("options",["--jitless"])):
@@ -41,11 +42,11 @@ class MeasurementProvenanceTests(unittest.TestCase):
         for item in cases:
             m,a,l=(item if isinstance(item,tuple) else (self.m,item,"javascript"))
             self.assertFalse(compare_conditions(m,a,l)["exact_applicability"])
-        # 10 order coverage is independently required by callers; invalid coverage is rejected.
+        # 10 order coverage is compared, not merely validated.
         old=copy.deepcopy(self.m); old["measurement_order"]=["direct","function_call","direct"]
-        self.assertTrue(validate_manifest_v2(old))
+        self.assertFalse(compare_conditions(old,self.js,"javascript")["exact_applicability"])
         # 11-13 old/missing values are readable by comparator, never inferred, never exact.
-        legacy={"languages":{"javascript":{"runtime":self.m["languages"]["javascript"]["runtime"],"source":{"sha256":"a"*64},"options":[]}},"architecture":"x64"}
+        legacy={"languages":{"javascript":{"runtime":self.m["languages"]["javascript"]["runtime"],"source":{"sha256":"a"*64},"options":[]}}}
         result=compare_conditions(legacy,self.js,"javascript")
         self.assertEqual("missing",result["checks"]["v8"]); self.assertFalse(result["exact_applicability"])
 

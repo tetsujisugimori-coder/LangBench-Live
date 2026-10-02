@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path, PurePosixPath
 
 from validate_function_call_analysis import validate_package
+from measurement_provenance import compare_conditions, validate_manifest_v2
 
 LANGUAGES = ("c", "python", "javascript")
 ORDERS = {"direct_first", "function_call_first"}
@@ -27,6 +28,30 @@ SOURCE_PATHS = {
     "python": "benchmarks/function_call_numeric_sum/python/main.py",
     "javascript": "benchmarks/function_call_numeric_sum/javascript/main.js",
 }
+
+
+def build_v2_comparison(measurement: dict, analysis: dict, provenance: dict) -> dict:
+    """Versioned adapter for measurement manifest v2; legacy analysis gaps stay missing."""
+    errors = validate_manifest_v2(measurement)
+    if errors:
+        raise ValueError("invalid measurement manifest v2: " + "; ".join(errors))
+    rows = []
+    for language in LANGUAGES:
+        entry = analysis.get("languages", {}).get(language, {})
+        condition = entry.get("condition", {}) if isinstance(entry, dict) else {}
+        coverage = provenance.get("order_coverage", {}).get(language, {})
+        adapted = {
+            "source_sha256": condition.get("source_sha256"),
+            "os": entry.get("os"), "architecture": condition.get("architecture"),
+            "runtime": entry.get("runtime", condition.get("implementation")),
+            "implementation": condition.get("implementation"), "options": condition.get("options"),
+            "order_coverage": coverage.get("confirmed") if isinstance(coverage, dict) else None,
+            "optimize": entry.get("python_optimize"), "exec_argv": entry.get("exec_argv"),
+            "node_options": entry.get("node_options"),
+        }
+        compared = compare_conditions(measurement, adapted, language)
+        rows.append({"language": language, **compared})
+    return {"schema_version": "2.0", "measurement_git_sha": measurement["measurement_git_sha"], "analysis_id": analysis.get("analysis_id"), "languages": rows}
 
 
 def _sha256(path: Path) -> str:
@@ -298,7 +323,14 @@ def publish_outputs(json_output: Path, markdown_output: Path, result: dict) -> N
     try:
         (temporary / json_output.name).write_text(
             json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        (temporary / markdown_output.name).write_text(render_markdown(result), encoding="utf-8")
+        if result.get("measurement_git_sha") and "measurement_identity" not in result:
+            lines = ["# Measurement manifest v2 comparison", ""]
+            for row in result["languages"]:
+                lines += [f"## {row['language']}", f"- exact_applicability: `{str(row['exact_applicability']).lower()}`", f"- checks: `{json.dumps(row['checks'], sort_keys=True)}`", ""]
+            markdown = "\n".join(lines)
+        else:
+            markdown = render_markdown(result)
+        (temporary / markdown_output.name).write_text(markdown, encoding="utf-8")
         if destination.exists():
             raise FileExistsError(f"output directory already exists: {destination}")
         temporary.rename(destination)
@@ -326,8 +358,11 @@ def main() -> int:
     measurement = json.loads(measurement_bytes)
     analysis = json.loads((args.analysis_package / "manifest.json").read_text(encoding="utf-8"))
     provenance = json.loads((args.analysis_package / "provenance.json").read_text(encoding="utf-8"))
-    result = build_comparison(measurement, analysis, provenance,
-                              hashlib.sha256(measurement_bytes).hexdigest())
+    if measurement.get("schema_version") == "2.0" and "languages" in measurement and "measurement_git_sha" in measurement:
+        result = build_v2_comparison(measurement, analysis, provenance)
+    else:
+        result = build_comparison(measurement, analysis, provenance,
+                                  hashlib.sha256(measurement_bytes).hexdigest())
     publish_outputs(args.json_output, args.markdown_output, result)
     return 0
 

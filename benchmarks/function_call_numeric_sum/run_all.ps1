@@ -29,6 +29,9 @@ try {
         [System.IO.FileShare]::None
     )
     $pythonRunId = "$(New-TimestampId)_python_$benchmark"
+    $provenancePath = Join-Path $projectRoot "results/$ExperimentId-measurement-provenance.json"
+    & python tools/capture_measurement_provenance.py --experiment-id $ExperimentId --output $provenancePath
+    if ($LASTEXITCODE -ne 0) { throw "Measurement provenance capture failed with exit code $LASTEXITCODE" }
     $resultPaths = @(
         'results/function_call_numeric_sum_python_result.json',
         'results/function_call_numeric_sum_javascript_result.json',
@@ -64,7 +67,7 @@ try {
         $resultPaths[0] $resultPaths[1] $resultPaths[2]
     if ($LASTEXITCODE -ne 0) { throw "Result validation failed with exit code $LASTEXITCODE" }
 
-    & python tools/archive_results.py --experiment-id $ExperimentId `
+    & python tools/archive_results.py --experiment-id $ExperimentId --measurement-provenance $provenancePath `
         $resultPaths[0] $resultPaths[1] $resultPaths[2]
     if ($LASTEXITCODE -ne 0) { throw "Result archival failed with exit code $LASTEXITCODE" }
 } finally {
