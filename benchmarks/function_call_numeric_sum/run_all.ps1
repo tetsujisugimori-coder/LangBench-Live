@@ -29,6 +29,11 @@ try {
         [System.IO.FileShare]::None
     )
     $pythonRunId = "$(New-TimestampId)_python_$benchmark"
+    $javascriptRunId = "$(New-TimestampId)_javascript_$benchmark"
+    $cRunId = "$(New-TimestampId)_c_$benchmark"
+    $provenancePath = Join-Path $projectRoot "results/$ExperimentId-measurement-provenance.json"
+    & python tools/capture_measurement_provenance.py --experiment-id $ExperimentId --python-run-id $pythonRunId --javascript-run-id $javascriptRunId --c-run-id $cRunId --output $provenancePath
+    if ($LASTEXITCODE -ne 0) { throw "Measurement provenance capture failed with exit code $LASTEXITCODE" }
     $resultPaths = @(
         'results/function_call_numeric_sum_python_result.json',
         'results/function_call_numeric_sum_javascript_result.json',
@@ -48,13 +53,11 @@ try {
     & python "benchmarks/function_call_numeric_sum/python/main.py" @pythonArguments
     if ($LASTEXITCODE -ne 0) { throw "Python benchmark failed with exit code $LASTEXITCODE" }
 
-    $javascriptRunId = "$(New-TimestampId)_javascript_$benchmark"
     $javascriptArguments = @("--experiment-id=$ExperimentId", "--run-id=$javascriptRunId", "--measurement-order=$MeasurementOrder")
     if ($MeasurementOrder -eq 'function_call_first') { $javascriptArguments += @("--result-path=$($resultPaths[1])", '--exclusive-result') }
     & node "benchmarks/function_call_numeric_sum/javascript/main.js" @javascriptArguments
     if ($LASTEXITCODE -ne 0) { throw "JavaScript benchmark failed with exit code $LASTEXITCODE" }
 
-    $cRunId = "$(New-TimestampId)_c_$benchmark"
     $cArguments = @{ ExperimentId = $ExperimentId; RunId = $cRunId; MeasurementOrder = $MeasurementOrder }
     if ($MeasurementOrder -eq 'function_call_first') { $cArguments.DiagnosticResultPath = $resultPaths[2] }
     & "benchmarks/function_call_numeric_sum/c/run_c.ps1" @cArguments
@@ -64,7 +67,7 @@ try {
         $resultPaths[0] $resultPaths[1] $resultPaths[2]
     if ($LASTEXITCODE -ne 0) { throw "Result validation failed with exit code $LASTEXITCODE" }
 
-    & python tools/archive_results.py --experiment-id $ExperimentId `
+    & python tools/archive_results.py --experiment-id $ExperimentId --measurement-provenance $provenancePath `
         $resultPaths[0] $resultPaths[1] $resultPaths[2]
     if ($LASTEXITCODE -ne 0) { throw "Result archival failed with exit code $LASTEXITCODE" }
 } finally {

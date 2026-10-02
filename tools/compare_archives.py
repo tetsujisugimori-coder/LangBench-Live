@@ -10,8 +10,10 @@ from typing import Any
 
 if __package__:
     from .validate_result_json import validate
+    from .measurement_provenance import validate_manifest_v2
 else:
     from validate_result_json import validate
+    from measurement_provenance import validate_manifest_v2
 
 BENCHMARK = "function_call_numeric_sum"
 LANGUAGES = ("c", "javascript", "python")
@@ -85,7 +87,8 @@ def load_archive(folder: Path) -> dict:
     if not folder.is_dir() or folder.is_symlink():
         raise ArchiveError("MISSING_ARCHIVE", f"missing or linked archive directory: {folder}")
     _, index = read_json(folder / "archive.json")
-    if not isinstance(index, dict) or set(index) != {"archive_id", "archived_at", "benchmark", "experiment_id", "experiment_manifest", "results"}:
+    legacy_keys = {"archive_id", "archived_at", "benchmark", "experiment_id", "experiment_manifest", "results"}
+    if not isinstance(index, dict) or set(index) not in (legacy_keys, legacy_keys | {"measurement_manifest"}):
         raise ArchiveError("INVALID_ARCHIVE", f"invalid archive index: {folder}")
     if (not isinstance(index["archive_id"], str) or not ARCHIVE_ID.fullmatch(index["archive_id"])
             or index["archive_id"] != folder.name or index["benchmark"] != BENCHMARK
@@ -101,6 +104,18 @@ def load_archive(folder: Path) -> dict:
     check_definition(definition, definition_path)
     if definition["benchmark"] != index["benchmark"]:
         raise ArchiveError("DEFINITION_MISMATCH", f"benchmark differs from archive index: {definition_path}")
+    measurement_manifest = None
+    if "measurement_manifest" in index:
+        entry = index["measurement_manifest"]
+        if not isinstance(entry, dict) or set(entry) != {"file", "schema_version", "sha256"} or entry.get("schema_version") != "2.0":
+            raise ArchiveError("INVALID_ARCHIVE", f"invalid measurement manifest reference: {folder}")
+        manifest_path = require_file(folder, entry["file"], "measurement-manifest-v2.json")
+        manifest_raw, measurement_manifest = read_json(manifest_path)
+        check_hash(manifest_raw, entry["sha256"], manifest_path)
+        errors = validate_manifest_v2(measurement_manifest)
+        if errors: raise ArchiveError("MEASUREMENT_MANIFEST_INVALID", "; ".join(errors))
+        if measurement_manifest["benchmark"] != index["benchmark"] or measurement_manifest["experiment_id"] != index["experiment_id"] or measurement_manifest["measurement_order"] != definition.get("measurement_order", ["direct", "function_call"]):
+            raise ArchiveError("MEASUREMENT_MANIFEST_MISMATCH", f"measurement manifest differs from archive: {manifest_path}")
     entries = index["results"]
     if not isinstance(entries, list) or len(entries) != 3:
         raise ArchiveError("INVALID_ARCHIVE", f"exactly three result references required: {folder}")
@@ -147,7 +162,7 @@ def load_archive(folder: Path) -> dict:
         results[language] = document
     if set(results) != set(LANGUAGES):
         raise ArchiveError("MISSING_LANGUAGE", f"missing language result: {folder}")
-    return {"index": index, "definition": definition, "results": results}
+    return {"index": index, "definition": definition, "results": results, "measurement_manifest": measurement_manifest}
 
 
 def reason(code: str, field: str, message: str, language: str | None = None) -> dict:

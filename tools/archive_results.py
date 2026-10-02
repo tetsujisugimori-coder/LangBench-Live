@@ -12,12 +12,68 @@ from pathlib import Path
 
 if __package__:
     from .validate_result_json import validate
+    from .measurement_provenance import validate_capture, validate_manifest_v2
 else:
     from validate_result_json import validate
+    from measurement_provenance import validate_capture, validate_manifest_v2
 
 BENCHMARK = "function_call_numeric_sum"
 LANGUAGES = {"c", "python", "javascript"}
 DEFAULT_EXPERIMENT_MANIFEST = Path(__file__).resolve().parents[1] / "experiments" / f"{BENCHMARK}.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def build_measurement_manifest(documents: dict[str, dict], measurement_order: list[str], capture: dict) -> dict:
+    """Build v2 only from values actually observed by each benchmark process."""
+    python, javascript, c = (documents[name] for name in ("python", "javascript", "c"))
+    py_engine, js_engine, c_build = python.get("engine"), javascript.get("engine"), c.get("build")
+    if not isinstance(py_engine, dict): raise ValueError("python engine must be an object")
+    if not isinstance(js_engine, dict): raise ValueError("javascript engine must be an object")
+    if not isinstance(c_build, dict): raise ValueError("C build must be an object")
+    observations = {
+        "python runtime_version": (py_engine.get("runtime_version"), str),
+        "python implementation": (py_engine.get("python_implementation"), str),
+        "python optimize": (py_engine.get("python_optimize"), int),
+        "javascript Node version": (js_engine.get("runtime_version"), str),
+        "javascript V8 version": (js_engine.get("v8_version"), str),
+        "javascript exec_argv": (js_engine.get("exec_argv"), list),
+        "javascript NODE_OPTIONS": (js_engine.get("node_options"), str),
+        "C compiler": (c_build.get("compiler"), str),
+        "C compiler version": (c_build.get("compiler_version"), str),
+    }
+    for label, (value, expected_type) in observations.items():
+        if type(value) is not expected_type or (expected_type is str and label != "javascript NODE_OPTIONS" and not value):
+            raise ValueError(f"{label} has invalid or missing type")
+    if type(py_engine["python_optimize"]) is not int or py_engine["python_optimize"] < 0:
+        raise ValueError("python optimize has invalid value")
+    if not all(isinstance(value, str) for value in js_engine["exec_argv"]):
+        raise ValueError("javascript exec_argv must contain strings")
+    capture_errors = validate_capture(capture)
+    if capture_errors: raise ValueError("; ".join(capture_errors))
+    if capture["experiment_id"] != python["experiment_id"]: raise ValueError("capture experiment_id differs from results")
+    for language, document in documents.items():
+        if capture["run_ids"].get(language) != document.get("run_id"):
+            raise ValueError(f"capture run_id differs from {language} result")
+        current = document.get("optimization_analysis", {}).get("provenance", {}).get("current", {})
+        observed_hash = current.get("source_sha256") if isinstance(current, dict) else None
+        captured_source = capture["sources"].get(language)
+        captured_hash = captured_source.get("sha256") if isinstance(captured_source, dict) else None
+        if observed_hash is None or observed_hash != captured_hash:
+            raise ValueError(f"capture source_sha256 differs from {language} result")
+    manifest = {
+        "schema_version": "2.0", "measurement_git_sha": capture["measurement_git_sha"],
+        "benchmark": BENCHMARK, "experiment_id": python["experiment_id"],
+        "run_ids": capture["run_ids"], "runners": capture["runners"],
+        "measurement_order": measurement_order,
+        "languages": {
+            "c": {"source": capture["sources"]["c"], "os":c["environment"]["os"], "architecture":c["environment"]["architecture"], "runtime": {"name": "native", "version": c["engine"].get("runtime_version") or "native"}, "compiler": {"name": c_build["compiler"], "version": c_build["compiler_version"]}, "options": c["optimization_analysis"]["provenance"]["current"]["options"]},
+            "python": {"source": capture["sources"]["python"], "os":python["environment"]["os"], "architecture":python["environment"]["architecture"], "runtime": {"name": "Python", "version": py_engine["runtime_version"]}, "implementation": {"name": py_engine["python_implementation"], "version": py_engine["runtime_version"]}, "optimize": py_engine["python_optimize"], "options": [f"optimize={py_engine['python_optimize']}"]},
+            "javascript": {"source": capture["sources"]["javascript"], "os":javascript["environment"]["os"], "architecture":javascript["environment"]["architecture"], "runtime": {"name": "Node.js", "version": js_engine["runtime_version"]}, "implementation": {"name": "V8", "version": js_engine["v8_version"]}, "exec_argv": list(js_engine["exec_argv"]), "node_options": js_engine["node_options"], "options": [*js_engine["exec_argv"], *js_engine["node_options"].split()]},
+        },
+    }
+    errors = validate_manifest_v2(manifest)
+    if errors: raise ValueError("; ".join(errors))
+    return manifest
 
 
 def load_experiment_manifest(path: Path) -> tuple[bytes, dict]:
@@ -49,7 +105,7 @@ def load_experiment_manifest(path: Path) -> tuple[bytes, dict]:
 
 def archive_results(
     paths: list[Path], experiment_id: str, history_root: Path,
-    manifest_path: Path = DEFAULT_EXPERIMENT_MANIFEST,
+    manifest_path: Path = DEFAULT_EXPERIMENT_MANIFEST, provenance_path: Path | None = None,
 ) -> Path:
     if len(paths) != len(LANGUAGES):
         raise ValueError("exactly three result files are required")
@@ -90,11 +146,27 @@ def archive_results(
         raise ValueError("experiment config differs between language results")
     if len(measurement_orders) != 1:
         raise ValueError("measurement_order differs between language results")
+    measurement_order = list(next(iter(measurement_orders)))
+    documents = {name: value[1] for name, value in source_files.items()}
+    provenance_raw = None
+    if provenance_path is not None:
+        required_observations = {
+            "python optimize": documents["python"].get("engine", {}).get("python_optimize"),
+            "javascript V8": documents["javascript"].get("engine", {}).get("v8_version"),
+            "javascript exec_argv": documents["javascript"].get("engine", {}).get("exec_argv"),
+            "javascript NODE_OPTIONS": documents["javascript"].get("engine", {}).get("node_options"),
+            "C current provenance": documents["c"].get("optimization_analysis", {}).get("provenance", {}).get("current"),
+        }
+        missing = [name for name, value in required_observations.items() if value is None]
+        if missing: raise ValueError("v2 observations are missing: " + ", ".join(missing))
+        capture = json.loads(provenance_path.read_text(encoding="utf-8"))
+        provenance_manifest = build_measurement_manifest(documents, measurement_order, capture)
+        provenance_raw = (json.dumps(provenance_manifest, ensure_ascii=False, indent=2) + "\n").encode()
 
     # Store the actual case order as part of the hashed experiment definition.
     # Older archives omit this field and therefore retain their known direct-first meaning.
     archived_manifest = dict(manifest)
-    archived_manifest["measurement_order"] = list(next(iter(measurement_orders)))
+    archived_manifest["measurement_order"] = measurement_order
     archived_manifest_raw = (json.dumps(archived_manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
     # validate() constrains experiment_id to a timestamp and a known benchmark.
@@ -106,6 +178,8 @@ def archive_results(
     try:
         entries = []
         (staging / "experiment.json").write_bytes(archived_manifest_raw)
+        if provenance_raw is not None:
+            (staging / "measurement-manifest-v2.json").write_bytes(provenance_raw)
         for language in sorted(source_files):
             raw, document = source_files[language]
             name = f"{language}.json"
@@ -127,6 +201,8 @@ def archive_results(
             },
             "results": entries,
         }
+        if provenance_raw is not None:
+            index["measurement_manifest"] = {"file": "measurement-manifest-v2.json", "schema_version": "2.0", "sha256": hashlib.sha256(provenance_raw).hexdigest()}
         (staging / "archive.json").write_text(
             json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
@@ -144,10 +220,11 @@ def main() -> int:
     parser.add_argument("--experiment-id", required=True)
     parser.add_argument("--history-root", type=Path, default=Path("results/history"))
     parser.add_argument("--experiment-manifest", type=Path, default=DEFAULT_EXPERIMENT_MANIFEST)
+    parser.add_argument("--measurement-provenance", type=Path)
     parser.add_argument("paths", nargs=3, type=Path)
     args = parser.parse_args()
     try:
-        destination = archive_results(args.paths, args.experiment_id, args.history_root, args.experiment_manifest)
+        destination = archive_results(args.paths, args.experiment_id, args.history_root, args.experiment_manifest, args.measurement_provenance)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"archive_error={error}")
         return 1

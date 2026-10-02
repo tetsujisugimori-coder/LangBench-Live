@@ -10,6 +10,7 @@ from pathlib import Path
 
 from tools import validate_result_json
 from tools.archive_results import archive_results
+from tools.compare_archives import ArchiveError, load_archive
 from tools.extract_function_call_findings import (
     analyze_c_artifacts,
     analyze_python_bytecode,
@@ -744,6 +745,64 @@ class ArchiveResultsTests(unittest.TestCase):
                     raw = (folder / entry["file"]).read_bytes()
                     self.assertEqual(hashlib.sha256(raw).hexdigest(), entry["sha256"])
                     self.assertEqual([], validate(json.loads(raw), folder / entry["file"]))
+
+    def test_v2_archive_round_trip_and_tamper_detection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); definition = self.write_fixture_manifest(root); paths=[]
+            for language in ("python", "javascript", "c"):
+                document=function_call_document(language)
+                document["environment"].update(os="Windows", architecture="x64")
+                if language == "python": document["engine"].update(runtime_version="3.14.7",python_implementation="CPython",python_optimize=0)
+                if language == "javascript": document["engine"].update(runtime_version="v24.20.0",v8_version="13.6",exec_argv=[],node_options="")
+                optimization=build_optimization_analysis(); condition=optimization["provenance"]["current"]
+                if language == "c":
+                    condition["implementation"]={"name":"GCC","version":"gcc 15"}; condition["options"]=["-O2"]
+                    optimization["jit"]={"applicable":False,"result":"not_applicable"}
+                if language == "javascript":
+                    optimization["provenance"]["applies_to"].insert(0,"jit")
+                    optimization["provenance"]["artifact_findings"]["jit"]={"result":"not_detected"}
+                optimization["provenance"]["analysis"]=copy.deepcopy(condition); optimization["implementation"]=condition["implementation"]
+                document={**dict(list(document.items())[:13]),"optimization_analysis":optimization,**dict(list(document.items())[13:])}
+                path=root/f"{language}.json"; path.write_text(json.dumps(document)+"\n"); paths.append(path)
+            run_ids={language:function_call_document(language)["run_id"] for language in ("c","python","javascript")}
+            runners={name:{"path":name,"sha256":"c"*64} for name in ("orchestrator","c","python","javascript")}
+            capture={"schema_version":"1.0","experiment_id":function_call_document("python")["experiment_id"],"run_ids":run_ids,"measurement_git_sha":"b"*40,"runners":runners,"sources":{language:{"path":f"main.{language}","sha256":"a"*64} for language in ("c","python","javascript")}}
+            captured=root/"capture.json"; captured.write_text(json.dumps(capture))
+            javascript_document=json.loads(paths[1].read_text())
+            invalid_observations = {
+                "NODE_OPTIONS": lambda value: value["engine"].update(node_options=123),
+                "exec_argv": lambda value: value["engine"].update(exec_argv="--jitless"),
+                "runtime": lambda value: value["engine"].pop("runtime_version"),
+            }
+            for label, mutate in invalid_observations.items():
+                with self.subTest(observation=label):
+                    invalid=copy.deepcopy(javascript_document); mutate(invalid)
+                    paths[1].write_text(json.dumps(invalid)+"\n")
+                    with self.assertRaisesRegex(ValueError,"invalid or missing type"):
+                        archive_results(paths,function_call_document("python")["experiment_id"],root/"history",definition,captured)
+            paths[1].write_text(json.dumps(javascript_document)+"\n")
+            archive=archive_results(paths,function_call_document("python")["experiment_id"],root/"history",definition,captured)
+            loaded=load_archive(archive); self.assertEqual("2.0",loaded["measurement_manifest"]["schema_version"])
+            manifest=archive/"measurement-manifest-v2.json"; manifest.write_text(manifest.read_text()+" ")
+            with self.assertRaisesRegex(ArchiveError,"SHA-256 mismatch"): load_archive(archive)
+
+    def test_v2_keeps_each_language_architecture(self) -> None:
+        from tools.archive_results import build_measurement_manifest
+        documents={language:function_call_document(language) for language in ("c","python","javascript")}
+        for document in documents.values(): document["environment"].update(os="Windows",architecture="x64")
+        documents["python"]["engine"].update(runtime_version="3",python_implementation="CPython",python_optimize=0)
+        documents["javascript"]["engine"].update(runtime_version="v24",v8_version="13",exec_argv=[],node_options="")
+        documents["javascript"]["environment"]["architecture"]="arm64"
+        for document in documents.values(): document["optimization_analysis"]={"provenance":{"current":{"source_sha256":"a"*64,"options":[]}}}
+        capture={"schema_version":"1.0","experiment_id":documents["python"]["experiment_id"],"run_ids":{x:documents[x]["run_id"] for x in ("c","python","javascript")},"measurement_git_sha":"b"*40,"runners":{x:{"path":x,"sha256":"c"*64} for x in ("orchestrator","c","python","javascript")},"sources":{x:{"path":x,"sha256":"a"*64} for x in ("c","python","javascript")}}
+        result=build_measurement_manifest(documents,["direct","function_call"],capture)
+        self.assertNotEqual(result["languages"]["python"]["architecture"],result["languages"]["javascript"]["architecture"])
+        capture["sources"]["python"]["sha256"]="d"*64
+        with self.assertRaisesRegex(ValueError,"source_sha256 differs from python result"):
+            build_measurement_manifest(documents,["direct","function_call"],capture)
+        capture["sources"]["python"]["sha256"]="a"*64; capture["run_ids"]["python"]="other"
+        with self.assertRaisesRegex(ValueError,"run_id differs from python result"):
+            build_measurement_manifest(documents,["direct","function_call"],capture)
 
     def test_mismatched_or_invalid_results_do_not_create_an_archive(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
