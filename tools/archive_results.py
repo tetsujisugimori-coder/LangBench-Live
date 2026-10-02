@@ -7,17 +7,47 @@ import os
 import shutil
 import tempfile
 import uuid
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 if __package__:
     from .validate_result_json import validate
+    from .measurement_provenance import sha256, validate_manifest_v2
 else:
     from validate_result_json import validate
+    from measurement_provenance import sha256, validate_manifest_v2
 
 BENCHMARK = "function_call_numeric_sum"
 LANGUAGES = {"c", "python", "javascript"}
 DEFAULT_EXPERIMENT_MANIFEST = Path(__file__).resolve().parents[1] / "experiments" / f"{BENCHMARK}.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def build_measurement_manifest(documents: dict[str, dict], measurement_order: list[str]) -> dict:
+    """Build v2 only from values actually observed by each benchmark process."""
+    python, javascript, c = (documents[name] for name in ("python", "javascript", "c"))
+    py_engine, js_engine, c_build = python["engine"], javascript["engine"], c["build"]
+    git_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, check=True,
+                             capture_output=True, text=True).stdout.strip().lower()
+    sources = {name: PROJECT_ROOT / "benchmarks" / BENCHMARK / name / ("main.js" if name == "javascript" else "main.py" if name == "python" else "main.c") for name in LANGUAGES}
+    source = lambda name: {"path": sources[name].relative_to(PROJECT_ROOT).as_posix(), "sha256": sha256(sources[name])}
+    runner = PROJECT_ROOT / "benchmarks" / BENCHMARK / "run_all.ps1"
+    manifest = {
+        "schema_version": "2.0", "measurement_git_sha": git_sha,
+        "benchmark": BENCHMARK, "experiment_id": python["experiment_id"],
+        "runner": {"path": runner.relative_to(PROJECT_ROOT).as_posix(), "sha256": sha256(runner)},
+        "os": python["environment"]["os"], "architecture": python["environment"]["architecture"],
+        "measurement_order": measurement_order,
+        "languages": {
+            "c": {"source": source("c"), "runtime": {"name": "native", "version": c["engine"].get("runtime_version") or "native"}, "compiler": {"name": c_build["compiler"], "version": c_build["compiler_version"]}, "options": c["optimization_analysis"]["provenance"]["current"]["options"]},
+            "python": {"source": source("python"), "runtime": {"name": "Python", "version": py_engine["runtime_version"]}, "implementation": {"name": py_engine["python_implementation"], "version": py_engine["runtime_version"]}, "optimize": py_engine["python_optimize"], "options": [f"optimize={py_engine['python_optimize']}"]},
+            "javascript": {"source": source("javascript"), "runtime": {"name": "Node.js", "version": js_engine["runtime_version"]}, "implementation": {"name": "V8", "version": js_engine["v8_version"]}, "exec_argv": list(js_engine["exec_argv"]), "node_options": js_engine["node_options"], "options": [*js_engine["exec_argv"], *js_engine["node_options"].split()]},
+        },
+    }
+    errors = validate_manifest_v2(manifest)
+    if errors: raise ValueError("; ".join(errors))
+    return manifest
 
 
 def load_experiment_manifest(path: Path) -> tuple[bytes, dict]:
@@ -90,11 +120,23 @@ def archive_results(
         raise ValueError("experiment config differs between language results")
     if len(measurement_orders) != 1:
         raise ValueError("measurement_order differs between language results")
+    measurement_order = list(next(iter(measurement_orders)))
+    documents = {name: value[1] for name, value in source_files.items()}
+    has_v2_observations = (
+        isinstance(documents["python"].get("engine", {}).get("python_optimize"), int)
+        and isinstance(documents["javascript"].get("engine", {}).get("v8_version"), str)
+        and isinstance(documents["javascript"].get("engine", {}).get("node_options"), str)
+        and isinstance(documents["c"].get("optimization_analysis"), dict)
+    )
+    provenance_raw = None
+    if has_v2_observations:
+        provenance_manifest = build_measurement_manifest(documents, measurement_order)
+        provenance_raw = (json.dumps(provenance_manifest, ensure_ascii=False, indent=2) + "\n").encode()
 
     # Store the actual case order as part of the hashed experiment definition.
     # Older archives omit this field and therefore retain their known direct-first meaning.
     archived_manifest = dict(manifest)
-    archived_manifest["measurement_order"] = list(next(iter(measurement_orders)))
+    archived_manifest["measurement_order"] = measurement_order
     archived_manifest_raw = (json.dumps(archived_manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
     # validate() constrains experiment_id to a timestamp and a known benchmark.
@@ -106,6 +148,8 @@ def archive_results(
     try:
         entries = []
         (staging / "experiment.json").write_bytes(archived_manifest_raw)
+        if provenance_raw is not None:
+            (staging / "measurement-manifest-v2.json").write_bytes(provenance_raw)
         for language in sorted(source_files):
             raw, document = source_files[language]
             name = f"{language}.json"
@@ -127,6 +171,8 @@ def archive_results(
             },
             "results": entries,
         }
+        if provenance_raw is not None:
+            index["measurement_manifest"] = {"file": "measurement-manifest-v2.json", "schema_version": "2.0", "sha256": hashlib.sha256(provenance_raw).hexdigest()}
         (staging / "archive.json").write_text(
             json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
