@@ -116,10 +116,16 @@ try {
     }
     $id = "issue74-run$RunId-attempt$RunAttempt-$($TrustedSha.Substring(0,12))"
     $diagnostic = "results/diagnostics/$id"
-    & git.exe -c core.hooksPath=NUL -c core.fsmonitor=false -c submodule.recurse=false clone --no-local --no-hardlinks --no-checkout $sourceRoot $execution
-    if ($LASTEXITCODE -ne 0) { throw 'independent trusted checkout clone failed' }
-    & git.exe -c core.hooksPath=NUL -c core.fsmonitor=false -C $execution checkout --detach $TrustedSha
-    if ($LASTEXITCODE -ne 0 -or (Git $execution @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'independent trusted checkout failed' }
+    $attributeFiles = @(Git $sourceRoot @('ls-tree','-r','--name-only',$TrustedSha) | Where-Object { $_ -eq '.gitattributes' -or $_ -like '*/.gitattributes' })
+    foreach ($attributeFile in $attributeFiles) {
+        $attributes = @(Git $sourceRoot @('show',"${TrustedSha}:$attributeFile"))
+        if (@($attributes | Where-Object { $_ -match '(?:^|\s)(?:-?filter|filter=)(?:\s|$|\S+)' }).Count) {
+            throw "trusted checkout .gitattributes contains a filter attribute: $attributeFile"
+        }
+    }
+    Git $sourceRoot @('clone','--no-local','--no-hardlinks','--no-checkout',$sourceRoot,$execution) | Out-Null
+    Git $execution @('checkout','--detach',$TrustedSha) | Out-Null
+    if ((Git $execution @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'independent trusted checkout failed' }
     $executionCommon = (Git $execution @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
     if ([IO.Path]::GetFullPath($executionCommon) -ieq [IO.Path]::GetFullPath($sharedCommon)) { throw 'execution checkout shares the user Git common directory' }
     Push-Location $execution

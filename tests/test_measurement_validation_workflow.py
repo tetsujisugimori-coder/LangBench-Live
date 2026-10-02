@@ -42,6 +42,8 @@ class MeasurementValidationWorkflowTests(unittest.TestCase):
         self.assertIn("GIT_ATTR_NOSYSTEM", self.runner)
         self.assertIn("Count=1 measurement failed with exit code", self.runner)
         self.assertIn("& pwsh -NoProfile -Command 'exit 23'", self.runner)
+        self.assertEqual(1, self.runner.count("& git.exe"))  # hardened wrapper only
+        self.assertIn("trusted checkout .gitattributes contains a filter attribute", self.runner)
 
     def test_upload_only_follows_successful_validation_and_checkout_is_not_cleaned(self):
         self.assertIn("clean: false", self.workflow)

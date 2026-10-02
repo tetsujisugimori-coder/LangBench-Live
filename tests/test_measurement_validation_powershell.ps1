@@ -7,6 +7,7 @@ if (@($errors).Count) { throw ($errors | ForEach-Object Message | Out-String) }
 
 $fixture = Join-Path $env:RUNNER_TEMP "measurement-validation-fixture-$([guid]::NewGuid().ToString('N'))"
 $bare = Join-Path $fixture 'remote.git'; $shared = Join-Path $fixture 'shared'
+$oldGitConfigGlobal = $env:GIT_CONFIG_GLOBAL
 New-Item -ItemType Directory -Path $fixture | Out-Null
 try {
     $sha = (& git -C $root rev-parse HEAD).Trim()
@@ -91,17 +92,38 @@ try {
         throw 'preflight fixture did not preserve untracked data'
     }
     $env:LANGBENCH_HOSTED_FIXTURE = '1'
+    $globalConfig = Join-Path $fixture 'fixture-global.gitconfig'
+    $globalAttributes = Join-Path $fixture 'fixture-global-attributes'
+    $filterScript = Join-Path $fixture 'fixture-smudge.py'
+    $filterMarker = Join-Path $fixture 'filter-executed.txt'
+    Set-Content -LiteralPath $globalAttributes -Value '* filter=lfs' -Encoding ascii
+    @"
+import pathlib, sys
+data = sys.stdin.buffer.read()
+pathlib.Path(r'$filterMarker').write_text('executed', encoding='utf-8')
+sys.stdout.buffer.write(data + b'changed-by-unsafe-filter')
+"@ | Set-Content -LiteralPath $filterScript -Encoding utf8
+    & git config --file $globalConfig core.attributesFile $globalAttributes
+    & git config --file $globalConfig filter.lfs.smudge "python `"$filterScript`""
+    & git config --file $globalConfig filter.lfs.required true
+    $env:GIT_CONFIG_GLOBAL = $globalConfig
     $failedOutput = Join-Path $fixture 'out-generation-failure'
+    $failedExecution = Join-Path $fixture 'exec-generation-failure'
     try {
         & $script -TrustedSha $sha -SyncRunId 1 -RunId 6 -RunAttempt 1 -OutputDirectory $failedOutput `
-            -ExecutionDirectory (Join-Path $fixture 'exec-generation-failure') -SharedRepositoryPath $shared `
+            -ExecutionDirectory $failedExecution -SharedRepositoryPath $shared `
             -AllowedRemote @($bare) -TestFailureStage generation
         throw 'generation failure fixture unexpectedly succeeded'
     } catch { if ($_ -notmatch 'Count=1 measurement failed with exit code 23') { throw } }
     if (Test-Path -LiteralPath (Join-Path $failedOutput 'files.sha256.json')) { throw 'failed generation produced a successful bundle' }
+    if (Test-Path -LiteralPath $filterMarker) { throw 'global smudge filter executed during independent checkout' }
+    $expectedBlob = (& git -C $root show "${sha}:README.md") -join "`n"
+    $actualBlob = (Get-Content -LiteralPath (Join-Path $failedExecution 'README.md') -Raw).Replace("`r`n", "`n").TrimEnd("`n")
+    if ($actualBlob -cne $expectedBlob) { throw 'independent checkout tracked blob differs from trusted Git blob' }
 } finally {
     $env:LANGBENCH_TEST_PREFLIGHT = $null
     $env:LANGBENCH_HOSTED_FIXTURE = $null
+    $env:GIT_CONFIG_GLOBAL = $oldGitConfigGlobal
     if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
 }
 Write-Host 'measurement validation PowerShell fixtures: valid'
