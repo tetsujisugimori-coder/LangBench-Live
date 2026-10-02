@@ -1,16 +1,30 @@
 import copy
 import hashlib
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from tests.test_result_schema import build_optimization_analysis, function_call_document
 from tools.archive_results import archive_results
-from tools.build_measurement_validation_evidence import MANIFEST, build
+from tools.build_measurement_validation_evidence import MANIFEST, build, comparison_controls
 
 
 class MeasurementValidationEvidenceTests(unittest.TestCase):
+    def run_builder(self, archive: Path, destination: Path, root: Path, stage: str | None = None):
+        identity = root / "identity.json"
+        identity.write_text(json.dumps({"issue": 74}), encoding="utf-8")
+        env = os.environ.copy()
+        if stage:
+            env.update(LANGBENCH_HOSTED_FIXTURE="1", LANGBENCH_HOSTED_FAILURE_STAGE=stage)
+        return subprocess.run([sys.executable, "-B", "tools/build_measurement_validation_evidence.py",
+                               str(archive), str(destination), "--identity", str(identity)],
+                              cwd=Path(__file__).resolve().parents[1], env=env,
+                              capture_output=True, text=True, encoding="utf-8", check=False)
+
     def make_archive(self, root: Path, unsafe_option: str | None = None) -> Path:
         base = function_call_document("python")
         definition = root / "experiment-definition.json"
@@ -44,6 +58,7 @@ class MeasurementValidationEvidenceTests(unittest.TestCase):
     def test_formal_archive_controls_hashes_and_collision_refusal(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); archive = self.make_archive(root); destination = root / "evidence"
+            originals = {path.name: path.read_bytes() for path in archive.iterdir() if path.is_file()}
             build(archive, destination, {"issue": 74, "sync_run_id": 123})
             controls = json.loads((destination / "comparison-controls.json").read_text(encoding="utf-8"))
             for language in ("c", "python", "javascript"):
@@ -55,6 +70,13 @@ class MeasurementValidationEvidenceTests(unittest.TestCase):
             self.assertEqual((archive / MANIFEST).read_bytes(), (destination / MANIFEST).read_bytes())
             manifest_entry = json.loads((destination / "archive.json").read_text(encoding="utf-8"))["measurement_manifest"]
             self.assertEqual(hashlib.sha256((destination / MANIFEST).read_bytes()).hexdigest(), manifest_entry["sha256"])
+            for item in hashes["files"]:
+                self.assertEqual(hashlib.sha256((destination / item["file"]).read_bytes()).hexdigest(), item["sha256"])
+            self.assertFalse({"c.json", "python.json", "javascript.json"} & {path.name for path in destination.iterdir()})
+            self.assertEqual(originals, {path.name: path.read_bytes() for path in archive.iterdir() if path.is_file()})
+            manifest = json.loads((destination / MANIFEST).read_text(encoding="utf-8"))
+            recalculated = comparison_controls(manifest)
+            self.assertEqual(recalculated["languages"], controls["languages"])
             with self.assertRaisesRegex(ValueError, "already exists"): build(archive, destination, {"issue": 74})
 
     def test_secret_in_formal_manifest_fails_closed(self):
@@ -62,6 +84,24 @@ class MeasurementValidationEvidenceTests(unittest.TestCase):
             root = Path(temporary); archive = self.make_archive(root, "token=dummy-secret")
             with self.assertRaisesRegex(ValueError, "unsafe artifact content"):
                 build(archive, root / "evidence", {"issue": 74})
+
+    def test_signed_url_and_private_or_credential_identity_fail_closed(self):
+        cases = [
+            ({"download": "https://example.invalid/a?X-Amz-Signature=dummy"}, "signed URL"),
+            ({"download": "https://example.invalid/a?sig=dummy"}, "signed URL"),
+            ({"path": r"C:\\Users\\alice\\private"}, "unsafe artifact content"),
+            ({"credential": "dummy-secret"}, "unsafe artifact content"),
+        ]
+        for identity, reason in cases:
+            with self.subTest(identity=identity), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary); archive = self.make_archive(root)
+                with self.assertRaisesRegex(ValueError, reason): build(archive, root / "evidence", identity)
+
+    def test_signed_url_in_manifest_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = self.make_archive(root, "https://example.invalid/a?X-Amz-Signature=dummy")
+            with self.assertRaisesRegex(ValueError, "signed URL"): build(archive, root / "evidence", {"issue": 74})
 
     def test_tampered_manifest_validator_failure_is_not_a_success_bundle(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -72,9 +112,18 @@ class MeasurementValidationEvidenceTests(unittest.TestCase):
             index_path = archive / "archive.json"; index = json.loads(index_path.read_text(encoding="utf-8"))
             index["measurement_manifest"]["sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
             index_path.write_text(json.dumps(index), encoding="utf-8")
-            with self.assertRaisesRegex(Exception, "schema_version"):
-                build(archive, root / "evidence", {"issue": 74})
+            completed = self.run_builder(archive, root / "evidence", root)
+            self.assertNotEqual(0, completed.returncode)
+            self.assertIn("schema_version", completed.stderr)
             self.assertFalse((root / "evidence" / "files.sha256.json").exists())
+
+    def test_control_and_safety_stage_failures_are_nonzero_without_success_bundle(self):
+        for stage in ("control", "safety"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary); archive = self.make_archive(root); destination = root / "evidence"
+                completed = self.run_builder(archive, destination, root, stage)
+                self.assertNotEqual(0, completed.returncode)
+                self.assertFalse((destination / "files.sha256.json").exists())
 
 
 if __name__ == "__main__": unittest.main()

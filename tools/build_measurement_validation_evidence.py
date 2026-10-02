@@ -4,6 +4,8 @@ import argparse
 import copy
 import hashlib
 import json
+import os
+import re
 import shutil
 from pathlib import Path
 
@@ -17,6 +19,7 @@ else:
     from measurement_provenance import compare_conditions, validate_manifest_v2
 
 MANIFEST = "measurement-manifest-v2.json"
+SIGNED_URL = re.compile(r"(?i)https?://[^\s\"']*[?&](?:x-amz-signature|x-goog-signature|signature|sig|token|access_token)=[^\s&\"']+")
 
 
 def digest(path: Path) -> str:
@@ -25,6 +28,23 @@ def digest(path: Path) -> str:
 
 def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def signed_url_issues(root: Path) -> list[str]:
+    errors = []
+    for path in sorted(root.rglob("*")):
+        if not path.is_file(): continue
+        content = path.read_text(encoding="utf-8")
+        if SIGNED_URL.search(content): errors.append(f"{path.relative_to(root).as_posix()}: signed URL")
+        try: value = json.loads(content)
+        except (ValueError, TypeError): continue
+        def credential_field(item: object) -> bool:
+            if isinstance(item, dict):
+                return any(key.casefold() in {"credential", "api_key", "apikey"} or credential_field(child)
+                           for key, child in item.items())
+            return isinstance(item, list) and any(credential_field(child) for child in item)
+        if credential_field(value): errors.append(f"{path.relative_to(root).as_posix()}: credential field")
+    return errors
 
 
 def analysis_from_manifest(manifest: dict, language: str) -> dict:
@@ -72,7 +92,11 @@ def build(archive: Path, destination: Path, identity: dict) -> None:
     manifest = original.get("measurement_manifest")
     errors = validate_manifest_v2(manifest)
     if errors: raise ValueError("manifest v2 validation failed: " + "; ".join(errors))
+    fixture_stage = os.environ.get("LANGBENCH_HOSTED_FAILURE_STAGE")
+    if fixture_stage and os.environ.get("LANGBENCH_HOSTED_FIXTURE") != "1":
+        raise ValueError("hosted failure fixture is disabled")
     controls = comparison_controls(manifest)
+    if fixture_stage == "control": raise ValueError("fixed hosted control failure")
     controls["archive_identity_control"] = compare_archives(original, copy.deepcopy(original))
     controls["archive_identity_note"] = "legacy archive comparison is recorded separately; caution/missing stays visible and is not upgraded"
 
@@ -87,18 +111,20 @@ def build(archive: Path, destination: Path, identity: dict) -> None:
         "archive_id": original["index"]["archive_id"], "measurement_manifest_sha256": digest(archive / MANIFEST),
     })
     write_json(destination / "execution.json", identity)
+    if fixture_stage == "safety":
+        write_json(destination / "hosted-safety-failure.json", {"download": "https://example.invalid/a?sig=fixed-fixture"})
     (destination / "README.md").write_text(
         "# Windows measurement provenance validation\n\n"
         "Count=1 validates provenance, archive, manifest v2, and fail-closed comparator behavior. "
         "Controls are synthetic comparator inputs and do not establish observed order coverage, optimization, or performance. "
         "archive.json preserves hashes for excluded raw result files; the bundle itself can re-run manifest validation and controls. "
         "The artifact ZIP digest is separate from the SHA-256 values of expanded files.\n", encoding="utf-8")
-    unsafe = scan(destination)
+    unsafe = scan(destination) + signed_url_issues(destination)
     if unsafe: raise ValueError("unsafe artifact content: " + "; ".join(unsafe))
     files = [{"file": path.name, "sha256": digest(path)} for path in sorted(destination.iterdir())
              if path.name != "files.sha256.json"]
     write_json(destination / "files.sha256.json", {"algorithm": "sha256", "scope": "expanded artifact files", "files": files})
-    unsafe = scan(destination)
+    unsafe = scan(destination) + signed_url_issues(destination)
     if unsafe: raise ValueError("unsafe hashed artifact content: " + "; ".join(unsafe))
 
 

@@ -9,7 +9,7 @@ REPO = "tetsujisugimori-coder/LangBench-Live"
 
 def fixtures():
     # Shape of hydrated pulls/{number}, not the smaller commits/{sha}/pulls item.
-    pulls = [{"number": 72, "merged_at": "now", "merge_commit_sha": SHA,
+    pulls = [{"number": 72, "merged_at": "now", "merge_commit_sha": SHA, "target_compare_status": "identical",
               "base": {"ref": "main", "repo": {"full_name": REPO}},
               "merged_by": {"type": "User"}}]
     runs = {"workflow_runs": [{"id": 123, "path": SYNC_WORKFLOW, "event": "push",
@@ -49,6 +49,29 @@ class MeasurementValidationGateTests(unittest.TestCase):
         pulls, runs, jobs = fixtures(); pulls[0]["merged_by"]["type"] = "Bot"
         with self.assertRaises(ValueError): verify(REPO, "refs/heads/main", "workflow_dispatch", SHA, SHA, SHA,
                                                    pulls, runs, jobs)
+
+    def test_all_sync_and_compare_dimensions_fail_closed(self):
+        mutations = [
+            lambda p, r, j: p[0].update(target_compare_status="behind"),
+            lambda p, r, j: p[0].update(target_compare_status="diverged"),
+            lambda p, r, j: p[0].update(target_compare_status="unknown"),
+            lambda p, r, j: r["workflow_runs"][0].update(path="other.yml"),
+            lambda p, r, j: r["workflow_runs"][0].update(event="pull_request"),
+            lambda p, r, j: r["workflow_runs"][0].update(head_branch="topic"),
+            lambda p, r, j: r["workflow_runs"][0].update(head_sha="b" * 40),
+            lambda p, r, j: r["workflow_runs"][0].update(status="in_progress"),
+            lambda p, r, j: r["workflow_runs"][0].update(conclusion="failure"),
+            lambda p, r, j: j["123"]["jobs"].pop(),
+        ]
+        for mutate in mutations:
+            pulls, runs, jobs = fixtures(); mutate(pulls, runs, jobs)
+            with self.assertRaises(ValueError):
+                verify(REPO, "refs/heads/main", "workflow_dispatch", SHA, SHA, SHA, pulls, runs, jobs)
+
+    def test_human_merge_ancestor_ahead_is_accepted(self):
+        pulls, runs, jobs = fixtures(); pulls[0].update(merge_commit_sha="c" * 40, target_compare_status="ahead")
+        self.assertEqual(123, verify(REPO, "refs/heads/main", "workflow_dispatch", SHA, SHA, SHA,
+                                     pulls, runs, jobs)["sync_run_id"])
 
 
 if __name__ == "__main__": unittest.main()

@@ -21,10 +21,11 @@ def verify(repository, ref, event, run_sha, main_before, main_after, pulls, runs
     if main_before != run_sha or main_after != run_sha: errors.append("main SHA differs or changed during authorization")
     # commits/{sha}/pulls omits merged_by. The workflow hydrates candidates via
     # pulls/{number} before invoking this verifier.
-    trusted = [p for p in pulls if p.get("merged_at") and p.get("merge_commit_sha") == run_sha
+    trusted = [p for p in pulls if p.get("merged_at") and isinstance(p.get("merge_commit_sha"), str)
                and p.get("base", {}).get("ref") == "main"
                and p.get("base", {}).get("repo", {}).get("full_name") == repository
                and p.get("merged_by", {}).get("type") == "User"
+               and p.get("target_compare_status") in {"identical", "ahead"}
                and isinstance(p.get("number"), int)]
     if len(trusted) != 1: errors.append("run SHA is not a unique human-merged PR commit")
     candidates = [r for r in runs.get("workflow_runs", [])

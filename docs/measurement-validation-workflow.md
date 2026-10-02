@@ -8,6 +8,10 @@ unique human-merged pull request, and finds an official successful
 match. If remote main moves during authorization, it stops rather than following
 the new commit.
 
+The merged PR commit may equal the target or be its ancestor. Authorization uses
+the GitHub compare API and accepts only `identical` or `ahead`; `behind`,
+`diverged`, and unknown states fail closed.
+
 Only the authorized SHA reaches the runner with labels `self-hosted`, `Windows`,
 `X64`, and `langbench-live-tetsu-windows`. The runner checkout is separate from
 the user's working copy. The latter must already have been synchronized through
@@ -17,6 +21,9 @@ main are checked. The shared operation and measurement locks are held while a
 new, collision-refusing independent clone executes the existing Count=1 path
 with its own distinct operation and measurement locks. The shared
 copy is not reset, cleaned, stashed, rebased, or written.
+Effective Git content filters are rejected before status inspection. Git output
+is decoded as UTF-8 and system attributes are disabled for each hardened command
+without changing persistent Git configuration.
 
 The run uses one `direct_first` repetition of the existing
 `function_call_numeric_sum` benchmark. It does not use the 12-run balanced-order
@@ -35,6 +42,7 @@ They demonstrate comparator behavior only—not observed optimization analysis,
 order coverage, or performance. Legacy archive comparison is recorded separately
 without upgrading missing/caution. Every output is rejected before upload if the
 existing artifact-safety scanner detects credentials or private absolute paths.
+The bundle-specific scan additionally rejects signed or credential-bearing URLs.
 The Actions artifact ZIP digest is intentionally
 different from the listed hashes of files inside it; actual ZIP download and
 integrity verification remain the post-merge Issue #73 task.

@@ -19,6 +19,7 @@ class MeasurementValidationWorkflowTests(unittest.TestCase):
         self.assertIn("--ref '${{ github.ref }}'", self.workflow)
         self.assertIn("--event '${{ github.event_name }}'", self.workflow)
         self.assertIn('pulls/$number', self.workflow)
+        self.assertIn('compare/$merge_sha...$RUN_SHA', self.workflow)
         self.assertIn("SYNC_RUN_ID: ${{ needs.authorize.outputs.sync_run_id }}", self.workflow)
 
     def test_validation_is_count_one_and_not_balanced(self):
@@ -37,6 +38,9 @@ class MeasurementValidationWorkflowTests(unittest.TestCase):
         lowered = self.runner.lower()
         for prohibited in ("reset --hard", "git clean", "git stash", "git rebase"):
             self.assertNotIn(prohibited, lowered)
+        self.assertIn("effective Git filter is refused", self.runner)
+        self.assertIn("GIT_ATTR_NOSYSTEM", self.runner)
+        self.assertIn("fixed hosted generation failure", self.runner)
 
     def test_upload_only_follows_successful_validation_and_checkout_is_not_cleaned(self):
         self.assertIn("clean: false", self.workflow)

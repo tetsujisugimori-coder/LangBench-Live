@@ -37,7 +37,10 @@ jobs:
           jq -n '[]' > "$RUNNER_TEMP/pulls.json"
           while read -r number; do
             gh api "/repos/${{ github.repository }}/pulls/$number" > "$RUNNER_TEMP/pull.json"
-            jq --slurpfile value "$RUNNER_TEMP/pull.json" '. + $value' "$RUNNER_TEMP/pulls.json" > "$RUNNER_TEMP/pulls.next"
+            merge_sha=$(jq -r .merge_commit_sha "$RUNNER_TEMP/pull.json")
+            compare_status=$(gh api "/repos/${{ github.repository }}/compare/$merge_sha...$RUN_SHA" --jq .status)
+            jq --arg status "$compare_status" '. + {target_compare_status: $status}' "$RUNNER_TEMP/pull.json" > "$RUNNER_TEMP/pull-hydrated.json"
+            jq --slurpfile value "$RUNNER_TEMP/pull-hydrated.json" '. + $value' "$RUNNER_TEMP/pulls.json" > "$RUNNER_TEMP/pulls.next"
             mv "$RUNNER_TEMP/pulls.next" "$RUNNER_TEMP/pulls.json"
           done < <(jq -r '.[].number' "$RUNNER_TEMP/pull-candidates.json")
           gh api "/repos/${{ github.repository }}/actions/workflows/pull-local-main.yml/runs?branch=main&status=completed&per_page=100" > "$RUNNER_TEMP/runs.json"
