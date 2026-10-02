@@ -87,3 +87,7 @@ jobs:
           GIT_TERMINAL_PROMPT: '0'
           GCM_INTERACTIVE: Never
         run: ./tests/test_sync_local_main.ps1
+      - name: Parse trusted-main validation PowerShell
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_measurement_validation_powershell.ps1

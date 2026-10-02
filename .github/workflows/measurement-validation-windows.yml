@@ -1,0 +1,82 @@
+name: Validate measurement provenance on trusted Windows main
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: measurement-validation-windows
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    outputs:
+      trusted_sha: ${{ steps.authorize.outputs.trusted_sha }}
+      sync_run_id: ${{ steps.authorize.outputs.sync_run_id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Authorize the immutable trusted-main SHA and official synchronization
+        id: authorize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.repository }}' = 'tetsujisugimori-coder/LangBench-Live'
+          main_before=$(gh api '/repos/${{ github.repository }}/git/ref/heads/main' --jq .object.sha)
+          gh api -H 'Accept: application/vnd.github+json' "/repos/${{ github.repository }}/commits/$RUN_SHA/pulls" > "$RUNNER_TEMP/pulls.json"
+          gh api "/repos/${{ github.repository }}/actions/workflows/pull-local-main.yml/runs?branch=main&status=completed&per_page=100" > "$RUNNER_TEMP/runs.json"
+          jq -n '{}' > "$RUNNER_TEMP/jobs.json"
+          while read -r id; do
+            gh api "/repos/${{ github.repository }}/actions/runs/$id/jobs?per_page=100" > "$RUNNER_TEMP/one-jobs.json"
+            jq --arg id "$id" --slurpfile value "$RUNNER_TEMP/one-jobs.json" '. + {($id): $value[0]}' "$RUNNER_TEMP/jobs.json" > "$RUNNER_TEMP/jobs.next"
+            mv "$RUNNER_TEMP/jobs.next" "$RUNNER_TEMP/jobs.json"
+          done < <(jq -r '.workflow_runs[].id' "$RUNNER_TEMP/runs.json")
+          main_after=$(gh api '/repos/${{ github.repository }}/git/ref/heads/main' --jq .object.sha)
+          result=$(python -B tools/verify_measurement_validation_gate.py \
+            --repository '${{ github.repository }}' --ref '${{ github.ref }}' --event '${{ github.event_name }}' \
+            --run-sha "$RUN_SHA" --main-before "$main_before" --main-after "$main_after" \
+            --pulls "$RUNNER_TEMP/pulls.json" --runs "$RUNNER_TEMP/runs.json" --jobs "$RUNNER_TEMP/jobs.json")
+          echo "trusted_sha=$(jq -r .trusted_sha <<<"$result")" >> "$GITHUB_OUTPUT"
+          echo "sync_run_id=$(jq -r .sync_run_id <<<"$result")" >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: authorize
+    runs-on: [self-hosted, Windows, X64, langbench-live-tetsu-windows]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.authorize.outputs.trusted_sha }}
+          persist-credentials: false
+          clean: true
+      - name: Run Count=1 validation in the runner checkout
+        id: validation
+        shell: pwsh
+        env:
+          TRUSTED_SHA: ${{ needs.authorize.outputs.trusted_sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $id = "issue74-run${{ github.run_id }}-attempt${{ github.run_attempt }}-$($env:TRUSTED_SHA.Substring(0,12))"
+          $destination = Join-Path $env:RUNNER_TEMP $id
+          ./tools/run_measurement_validation.ps1 -TrustedSha $env:TRUSTED_SHA -RunId ${{ github.run_id }} `
+            -RunAttempt ${{ github.run_attempt }} -OutputDirectory $destination `
+            -SharedRepositoryPath 'C:\Users\tetsu\Documents\Codex\LangBench-Live'
+          "destination=$destination" >> $env:GITHUB_OUTPUT
+          "artifact=measurement-validation-$id" >> $env:GITHUB_OUTPUT
+      - name: Upload successful minimal evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.validation.outputs.artifact }}
+          path: ${{ steps.validation.outputs.destination }}
+          if-no-files-found: error
+          retention-days: 14
