@@ -30,10 +30,19 @@ def build_measurement_manifest(documents: dict[str, dict], measurement_order: li
     capture_errors = validate_capture(capture)
     if capture_errors: raise ValueError("; ".join(capture_errors))
     if capture["experiment_id"] != python["experiment_id"]: raise ValueError("capture experiment_id differs from results")
+    for language, document in documents.items():
+        if capture["run_ids"].get(language) != document.get("run_id"):
+            raise ValueError(f"capture run_id differs from {language} result")
+        current = document.get("optimization_analysis", {}).get("provenance", {}).get("current", {})
+        observed_hash = current.get("source_sha256") if isinstance(current, dict) else None
+        captured_source = capture["sources"].get(language)
+        captured_hash = captured_source.get("sha256") if isinstance(captured_source, dict) else None
+        if observed_hash is None or observed_hash != captured_hash:
+            raise ValueError(f"capture source_sha256 differs from {language} result")
     manifest = {
         "schema_version": "2.0", "measurement_git_sha": capture["measurement_git_sha"],
         "benchmark": BENCHMARK, "experiment_id": python["experiment_id"],
-        "runner": capture["runner"],
+        "run_ids": capture["run_ids"], "runners": capture["runners"],
         "measurement_order": measurement_order,
         "languages": {
             "c": {"source": capture["sources"]["c"], "os":c["environment"]["os"], "architecture":c["environment"]["architecture"], "runtime": {"name": "native", "version": c["engine"].get("runtime_version") or "native"}, "compiler": {"name": c_build["compiler"], "version": c_build["compiler_version"]}, "options": c["optimization_analysis"]["provenance"]["current"]["options"]},
@@ -118,14 +127,17 @@ def archive_results(
         raise ValueError("measurement_order differs between language results")
     measurement_order = list(next(iter(measurement_orders)))
     documents = {name: value[1] for name, value in source_files.items()}
-    has_v2_observations = (
-        isinstance(documents["python"].get("engine", {}).get("python_optimize"), int)
-        and isinstance(documents["javascript"].get("engine", {}).get("v8_version"), str)
-        and isinstance(documents["javascript"].get("engine", {}).get("node_options"), str)
-        and isinstance(documents["c"].get("optimization_analysis"), dict)
-    )
     provenance_raw = None
-    if has_v2_observations and provenance_path is not None:
+    if provenance_path is not None:
+        required_observations = {
+            "python optimize": documents["python"].get("engine", {}).get("python_optimize"),
+            "javascript V8": documents["javascript"].get("engine", {}).get("v8_version"),
+            "javascript exec_argv": documents["javascript"].get("engine", {}).get("exec_argv"),
+            "javascript NODE_OPTIONS": documents["javascript"].get("engine", {}).get("node_options"),
+            "C current provenance": documents["c"].get("optimization_analysis", {}).get("provenance", {}).get("current"),
+        }
+        missing = [name for name, value in required_observations.items() if value is None]
+        if missing: raise ValueError("v2 observations are missing: " + ", ".join(missing))
         capture = json.loads(provenance_path.read_text(encoding="utf-8"))
         provenance_manifest = build_measurement_manifest(documents, measurement_order, capture)
         provenance_raw = (json.dumps(provenance_manifest, ensure_ascii=False, indent=2) + "\n").encode()

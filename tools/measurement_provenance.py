@@ -16,26 +16,31 @@ def canonical_sha256(path: Path) -> str:
 
 
 def validate_capture(document: Any) -> list[str]:
-    if not isinstance(document, dict) or set(document) != {"schema_version", "experiment_id", "measurement_git_sha", "runner", "sources"}:
+    required = {"schema_version", "experiment_id", "run_ids", "measurement_git_sha", "runners", "sources"}
+    if not isinstance(document, dict) or set(document) != required:
         return ["capture fields are invalid"]
     errors = []
     if document.get("schema_version") != "1.0": errors.append("capture schema_version is invalid")
     if not isinstance(document.get("experiment_id"), str) or not document["experiment_id"]: errors.append("capture experiment_id is invalid")
     if not isinstance(document.get("measurement_git_sha"), str) or not GIT_SHA.fullmatch(document["measurement_git_sha"]): errors.append("measurement_git_sha is invalid")
-    sources = document.get("sources")
+    sources, runners, run_ids = document.get("sources"), document.get("runners"), document.get("run_ids")
     source_items = sources.items() if isinstance(sources, dict) else ()
-    for label, value in [("runner", document.get("runner")), *((f"source {key}", value) for key, value in source_items)]:
+    runner_items = runners.items() if isinstance(runners, dict) else ()
+    for label, value in [*((f"runner {key}", value) for key, value in runner_items), *((f"source {key}", value) for key, value in source_items)]:
         if not isinstance(value, dict) or set(value) != {"path", "sha256"} or not isinstance(value.get("path"), str) or not value["path"] or not isinstance(value.get("sha256"), str) or not SHA256.fullmatch(value["sha256"]): errors.append(f"{label} is invalid")
     if not isinstance(sources, dict) or set(sources) != set(LANGUAGES): errors.append("capture sources are invalid")
+    if not isinstance(runners, dict) or set(runners) != {"orchestrator", *LANGUAGES}: errors.append("capture runners are invalid")
+    if not isinstance(run_ids, dict) or set(run_ids) != set(LANGUAGES) or not all(isinstance(value, str) and value for value in run_ids.values()): errors.append("capture run_ids are invalid")
     return errors
 
 
 def validate_manifest_v2(document: Any) -> list[str]:
-    required = {"schema_version", "measurement_git_sha", "benchmark", "experiment_id", "runner", "measurement_order", "languages"}
+    required = {"schema_version", "measurement_git_sha", "benchmark", "experiment_id", "run_ids", "runners", "measurement_order", "languages"}
     if not isinstance(document, dict) or set(document) != required: return ["measurement manifest v2 root fields are invalid"]
     errors = []
-    capture = {key: document.get(key) for key in ("schema_version", "experiment_id", "measurement_git_sha", "runner")}
-    capture["schema_version"] = "1.0"; capture["sources"] = {key: value.get("source") if isinstance(value, dict) else None for key, value in document.get("languages", {}).items()}
+    capture = {key: document.get(key) for key in ("schema_version", "experiment_id", "run_ids", "measurement_git_sha", "runners")}
+    languages_value = document.get("languages")
+    capture["schema_version"] = "1.0"; capture["sources"] = {key: value.get("source") if isinstance(value, dict) else None for key, value in languages_value.items()} if isinstance(languages_value, dict) else None
     errors.extend(validate_capture(capture))
     if document.get("schema_version") != "2.0": errors.append("schema_version must be 2.0")
     if not all(isinstance(document.get(k), str) and document[k] for k in ("benchmark", "experiment_id")): errors.append("benchmark or experiment_id is invalid")
@@ -67,10 +72,22 @@ def compare_conditions(measurement: Any, analysis: Any, language: str) -> dict:
     """Compare every exactness prerequisite without normalizing or inferring values."""
     valid = validate_manifest_v2(measurement)
     if not isinstance(analysis, dict): analysis = {}
-    measured = measurement.get("languages", {}).get(language, {}) if isinstance(measurement, dict) else {}
-    source = measured.get("source", {}) if isinstance(measured, dict) else {}
+    languages = measurement.get("languages") if isinstance(measurement, dict) else None
+    measured_value = languages.get(language) if isinstance(languages, dict) else None
+    measured = measured_value if isinstance(measured_value, dict) else {}
+    source_value = measured.get("source")
+    source = source_value if isinstance(source_value, dict) else {}
     coverage = analysis.get("order_coverage")
-    order_state = "missing" if coverage is None else ("not_comparable" if not isinstance(coverage, list) else ("match" if set(coverage) == {"direct_first", "function_call_first"} else "mismatch"))
+    if coverage is None: order_state = "missing"
+    elif not isinstance(coverage, dict): order_state = "not_comparable"
+    else:
+        confirmed, unconfirmed = coverage.get("confirmed"), coverage.get("unconfirmed")
+        expected_basis = "trace_observed" if language == "javascript" else "static_analysis"
+        valid_coverage = (coverage.get("basis") == expected_basis and isinstance(confirmed, list)
+                          and all(isinstance(value, str) for value in confirmed)
+                          and len(confirmed) == len(set(confirmed)) and set(confirmed) == {"direct_first", "function_call_first"}
+                          and unconfirmed == [])
+        order_state = "match" if valid_coverage else "not_comparable"
     checks = {
         "manifest": "match" if not valid else "not_comparable", "source_sha256": state(source.get("sha256"), analysis.get("source_sha256")),
         "os": state(measured.get("os"), analysis.get("os")), "architecture": state(measured.get("architecture"), analysis.get("architecture")),

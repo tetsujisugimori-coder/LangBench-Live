@@ -38,6 +38,32 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
         javascript = next(row for row in result["languages"] if row["language"] == "javascript")
         self.assertEqual("missing", javascript["checks"]["exec_argv"])
 
+    def test_v2_cli_accepts_complete_analysis_and_rejects_bad_coverage(self):
+        measurement = measurement_manifest_v2()
+        languages = {}
+        for language, measured in measurement["languages"].items():
+            condition = {"source_sha256":measured["source"]["sha256"], "implementation":measured.get("implementation", measured.get("compiler")), "architecture":measured["architecture"], "options":measured["options"]}
+            entry={"condition":condition,"runtime":measured["runtime"]}
+            if language == "python": entry["python_optimize"]=measured["optimize"]
+            if language == "javascript": entry.update(exec_argv=measured["exec_argv"],node_options=measured["node_options"])
+            languages[language]=entry
+        analysis={"schema_version":"2.0","analysis_id":"fixture","languages":languages}
+        coverage={language:{"basis":"trace_observed" if language=="javascript" else "static_analysis","confirmed":["direct_first","function_call_first"],"unconfirmed":[]} for language in languages}
+        provenance={"schema_version":"2.0","operating_system":"Windows","order_coverage":coverage}
+        base=ROOT/"work"/f"v2-cli-{uuid.uuid4().hex}"; base.mkdir(parents=True)
+        try:
+            measurement_path=base/"measurement.json"; analysis_path=base/"analysis.json"; provenance_path=base/"provenance.json"
+            for path,value in ((measurement_path,measurement),(analysis_path,analysis),(provenance_path,provenance)): path.write_text(json.dumps(value),encoding="utf-8")
+            output=base/"output"
+            args=["compare",str(PACKAGE),str(measurement_path),"--v2-analysis-manifest",str(analysis_path),"--v2-analysis-provenance",str(provenance_path),"--json-output",str(output/"comparison.json"),"--markdown-output",str(output/"comparison.md")]
+            with patch.object(sys,"argv",args): self.assertEqual(0,main())
+            result=json.loads((output/"comparison.json").read_text())
+            self.assertTrue(all(row["exact_applicability"] for row in result["languages"]))
+            broken=copy.deepcopy(provenance); broken["order_coverage"]["c"].update(basis="bad",unconfirmed=["direct_first"])
+            rejected=build_v2_comparison(measurement,analysis,broken)
+            self.assertFalse(next(row for row in rejected["languages"] if row["language"]=="c")["exact_applicability"])
+        finally: shutil.rmtree(base)
+
     def test_public_manifest_has_canonical_lf_digest(self):
         contents = MEASUREMENT.read_bytes()
         self.assertNotIn(b"\r\n", contents)

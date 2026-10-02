@@ -39,19 +39,30 @@ def build_v2_comparison(measurement: dict, analysis: dict, provenance: dict) -> 
     for language in LANGUAGES:
         entry = analysis.get("languages", {}).get(language, {})
         condition = entry.get("condition", {}) if isinstance(entry, dict) else {}
-        coverage = provenance.get("order_coverage", {}).get(language, {})
+        coverage_root = provenance.get("order_coverage") if isinstance(provenance, dict) else None
+        coverage = coverage_root.get(language) if isinstance(coverage_root, dict) else None
         adapted = {
             "source_sha256": condition.get("source_sha256"),
-            "os": entry.get("os"), "architecture": condition.get("architecture"),
-            "runtime": entry.get("runtime", condition.get("implementation")),
+            "os": provenance.get("operating_system") if isinstance(provenance, dict) else None,
+            "architecture": condition.get("architecture"),
+            "runtime": entry.get("runtime"),
             "implementation": condition.get("implementation"), "options": condition.get("options"),
-            "order_coverage": coverage.get("confirmed") if isinstance(coverage, dict) else None,
+            "order_coverage": coverage,
             "optimize": entry.get("python_optimize"), "exec_argv": entry.get("exec_argv"),
             "node_options": entry.get("node_options"),
         }
         compared = compare_conditions(measurement, adapted, language)
         rows.append({"language": language, **compared})
     return {"schema_version": "2.0", "measurement_git_sha": measurement["measurement_git_sha"], "analysis_id": analysis.get("analysis_id"), "languages": rows}
+
+
+def validate_v2_analysis(analysis: object, provenance: object) -> list[str]:
+    errors = []
+    if not isinstance(analysis, dict) or analysis.get("schema_version") != "2.0" or not isinstance(analysis.get("languages"), dict) or set(analysis["languages"]) != set(LANGUAGES):
+        errors.append("analysis manifest v2 is invalid")
+    if not isinstance(provenance, dict) or provenance.get("schema_version") != "2.0" or not isinstance(provenance.get("operating_system"), str) or not isinstance(provenance.get("order_coverage"), dict) or set(provenance["order_coverage"]) != set(LANGUAGES):
+        errors.append("analysis provenance v2 is invalid")
+    return errors
 
 
 def _sha256(path: Path) -> str:
@@ -343,21 +354,31 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("analysis_package", type=Path)
     parser.add_argument("measurement_manifest", type=Path)
-    parser.add_argument("--expected-sha", required=True)
+    parser.add_argument("--expected-sha")
+    parser.add_argument("--v2-analysis-manifest", type=Path)
+    parser.add_argument("--v2-analysis-provenance", type=Path)
     parser.add_argument("--json-output", type=Path, required=True)
     parser.add_argument("--markdown-output", type=Path, required=True)
     args = parser.parse_args()
-    if args.expected_sha.lower() != ANALYSIS_CODE_SHA:
-        raise SystemExit("unexpected analysis code SHA")
-    if args.analysis_package.resolve() != PUBLICATION_ROOT.resolve():
-        raise SystemExit("analysis package is not the fixed published package")
-    errors = validate_package(args.analysis_package, ANALYSIS_CODE_SHA)
-    if errors:
-        raise SystemExit("analysis package validation failed:\n" + "\n".join(errors))
     measurement_bytes = args.measurement_manifest.read_bytes()
     measurement = json.loads(measurement_bytes)
-    analysis = json.loads((args.analysis_package / "manifest.json").read_text(encoding="utf-8"))
-    provenance = json.loads((args.analysis_package / "provenance.json").read_text(encoding="utf-8"))
+    v2_mode = args.v2_analysis_manifest is not None or args.v2_analysis_provenance is not None
+    if v2_mode:
+        if args.v2_analysis_manifest is None or args.v2_analysis_provenance is None:
+            raise SystemExit("both v2 analysis files are required")
+        analysis = json.loads(args.v2_analysis_manifest.read_text(encoding="utf-8"))
+        provenance = json.loads(args.v2_analysis_provenance.read_text(encoding="utf-8"))
+        errors = validate_v2_analysis(analysis, provenance)
+        if errors: raise SystemExit("analysis v2 validation failed:\n" + "\n".join(errors))
+    else:
+        if not isinstance(args.expected_sha, str) or args.expected_sha.lower() != ANALYSIS_CODE_SHA:
+            raise SystemExit("unexpected analysis code SHA")
+        if args.analysis_package.resolve() != PUBLICATION_ROOT.resolve():
+            raise SystemExit("analysis package is not the fixed published package")
+        errors = validate_package(args.analysis_package, ANALYSIS_CODE_SHA)
+        if errors: raise SystemExit("analysis package validation failed:\n" + "\n".join(errors))
+        analysis = json.loads((args.analysis_package / "manifest.json").read_text(encoding="utf-8"))
+        provenance = json.loads((args.analysis_package / "provenance.json").read_text(encoding="utf-8"))
     if measurement.get("schema_version") == "2.0" and "languages" in measurement and "measurement_git_sha" in measurement:
         result = build_v2_comparison(measurement, analysis, provenance)
     else:
