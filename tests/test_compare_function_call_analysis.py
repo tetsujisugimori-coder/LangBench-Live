@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 from compare_function_call_analysis import (
     ANALYSIS_CODE_SHA, MEASUREMENT_SHA256, build_comparison, build_v2_comparison, main,
-    publish_outputs, render_markdown, validate_measurement,
+    publish_outputs, render_markdown, validate_measurement, validate_v2_analysis,
 )
 from tests.test_measurement_provenance import manifest as measurement_manifest_v2
 
@@ -70,12 +70,26 @@ class CompareFunctionCallAnalysisTests(unittest.TestCase):
                 "condition-null": {**analysis, "languages": {**analysis["languages"], "c": {**analysis["languages"]["c"], "condition": None}}},
                 "condition-array": {**analysis, "languages": {**analysis["languages"], "c": {**analysis["languages"]["c"], "condition": []}}},
                 "schema-bad": {**analysis, "schema_version": "bad"},
+                "schema-array": {**analysis, "schema_version": []},
+                "schema-object": {**analysis, "schema_version": {}},
             }
             for name, invalid in invalid_analyses.items():
                 with self.subTest(name=name):
+                    self.assertTrue(validate_v2_analysis(invalid, provenance))
                     with self.assertRaisesRegex(ValueError, "invalid analysis input"):
                         build_v2_comparison(measurement, invalid, provenance)
                     analysis_path.write_text(json.dumps(invalid),encoding="utf-8")
+                    invalid_args=[*args[:-4],"--json-output",str(base/name/"comparison.json"),"--markdown-output",str(base/name/"comparison.md")]
+                    with patch.object(sys,"argv",invalid_args), self.assertRaisesRegex(SystemExit,"analysis v2 validation failed"):
+                        main()
+            analysis_path.write_text(json.dumps(analysis),encoding="utf-8")
+            for name, schema in (("provenance-schema-array", []), ("provenance-schema-object", {})):
+                with self.subTest(name=name):
+                    invalid={**provenance,"schema_version":schema}
+                    self.assertTrue(validate_v2_analysis(analysis, invalid))
+                    with self.assertRaisesRegex(ValueError,"invalid analysis input"):
+                        build_v2_comparison(measurement,analysis,invalid)
+                    provenance_path.write_text(json.dumps(invalid),encoding="utf-8")
                     invalid_args=[*args[:-4],"--json-output",str(base/name/"comparison.json"),"--markdown-output",str(base/name/"comparison.md")]
                     with patch.object(sys,"argv",invalid_args), self.assertRaisesRegex(SystemExit,"analysis v2 validation failed"):
                         main()
