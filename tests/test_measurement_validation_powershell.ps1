@@ -97,7 +97,7 @@ try {
             -ExecutionDirectory (Join-Path $fixture 'exec-generation-failure') -SharedRepositoryPath $shared `
             -AllowedRemote @($bare) -TestFailureStage generation
         throw 'generation failure fixture unexpectedly succeeded'
-    } catch { if ($_ -notmatch 'fixed hosted generation failure') { throw } }
+    } catch { if ($_ -notmatch 'Count=1 measurement failed with exit code 23') { throw } }
     if (Test-Path -LiteralPath (Join-Path $failedOutput 'files.sha256.json')) { throw 'failed generation produced a successful bundle' }
 } finally {
     $env:LANGBENCH_TEST_PREFLIGHT = $null

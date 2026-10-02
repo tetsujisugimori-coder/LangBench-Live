@@ -37,9 +37,11 @@ if (Test-Path -LiteralPath $output) { throw 'validation output already exists' }
 $execution = [IO.Path]::GetFullPath($ExecutionDirectory)
 if (Test-Path -LiteralPath $execution) { throw 'independent execution directory already exists' }
 if ((Git $sourceRoot @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'runner source checkout differs from authorized SHA' }
-$shared = [IO.Path]::GetFullPath($SharedRepositoryPath).TrimEnd('\')
+$pathSeparators = [char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+$shared = [IO.Path]::GetFullPath($SharedRepositoryPath).TrimEnd($pathSeparators)
 if (-not (Test-Path -LiteralPath $shared -PathType Container)) { throw 'shared repository is absent' }
-if ((Git $shared @('rev-parse','--show-toplevel')).Trim().TrimEnd('\') -ine $shared) { throw 'shared path is not its repository root' }
+$topLevel = [IO.Path]::GetFullPath((Git $shared @('rev-parse','--show-toplevel')).Trim()).TrimEnd($pathSeparators)
+if ($topLevel -ine $shared) { throw 'shared path is not its repository root' }
 if ($AllowedRemote -inotcontains (Git $shared @('remote','get-url','origin')).Trim()) { throw 'shared repository origin is unexpected' }
 # Refuse every effective content filter before status can inspect worktree files.
 $filterKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -54,7 +56,8 @@ foreach ($key in $filterKeys) {
 $sourceCommon = (Git $sourceRoot @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
 $sharedCommon = (Git $shared @('rev-parse','--path-format=absolute','--git-common-dir')).Trim()
 if ([IO.Path]::GetFullPath($sourceCommon) -ieq [IO.Path]::GetFullPath($sharedCommon)) { throw 'runner source and user working copy share a Git common directory' }
-if ((Git $shared @('symbolic-ref','--quiet','--short','HEAD')).Trim() -cne 'main') { throw 'shared repository is not on main' }
+$branch = (@(Git $shared @('symbolic-ref','--quiet','--short','HEAD') @(0,1)) -join '').Trim()
+if ($branch -cne 'main') { throw 'shared repository is not on main' }
 if ((Git $shared @('rev-parse','HEAD')).Trim() -cne $TrustedSha) { throw 'shared main is not the authorized SHA; use the official sync workflow' }
 $remoteBefore = ((Git $shared @('ls-remote','origin','refs/heads/main')) -split '\s+')[0]
 if ($remoteBefore -cne $TrustedSha) { throw 'remote main changed or could not be verified' }
@@ -75,7 +78,8 @@ try {
     $measurementLockPath = Join-Path $shared 'results/function_call_numeric_sum.lock'
     if (-not (Test-Path -LiteralPath (Split-Path -Parent $measurementLockPath) -PathType Container)) { throw 'shared results directory is absent' }
     $measurementLock = [IO.File]::Open($measurementLockPath, 'OpenOrCreate', 'ReadWrite', 'None')
-    if ((Git $shared @('symbolic-ref','--quiet','--short','HEAD')).Trim() -cne 'main' -or
+    $branch = (@(Git $shared @('symbolic-ref','--quiet','--short','HEAD') @(0,1)) -join '').Trim()
+    if ($branch -cne 'main' -or
         (Git $shared @('rev-parse','HEAD')).Trim() -cne $TrustedSha -or @(Git $shared @('status','--porcelain','--untracked-files=no')).Count) {
         throw 'shared working-copy preconditions changed while acquiring locks'
     }
@@ -110,10 +114,6 @@ try {
         Write-Host "status=preflight-valid protected_files=$($before.Count)"
         return
     }
-    if ($TestFailureStage) {
-        if ($env:LANGBENCH_HOSTED_FIXTURE -cne '1') { throw 'hosted failure fixture is disabled' }
-        throw 'fixed hosted generation failure'
-    }
     $id = "issue74-run$RunId-attempt$RunAttempt-$($TrustedSha.Substring(0,12))"
     $diagnostic = "results/diagnostics/$id"
     & git.exe -c core.hooksPath=NUL -c core.fsmonitor=false -c submodule.recurse=false clone --no-local --no-hardlinks --no-checkout $sourceRoot $execution
@@ -124,7 +124,12 @@ try {
     if ([IO.Path]::GetFullPath($executionCommon) -ieq [IO.Path]::GetFullPath($sharedCommon)) { throw 'execution checkout shares the user Git common directory' }
     Push-Location $execution
     try {
-        ./tools/remeasure_function_call.ps1 -Count 1 -MeasurementOrder direct_first -SeriesId $id -OutputDirectory $diagnostic
+        if ($TestFailureStage) {
+            if ($env:LANGBENCH_HOSTED_FIXTURE -cne '1') { throw 'hosted failure fixture is disabled' }
+            & pwsh -NoProfile -Command 'exit 23'
+        } else {
+            & pwsh -NoProfile -File ./tools/remeasure_function_call.ps1 -Count 1 -MeasurementOrder direct_first -SeriesId $id -OutputDirectory $diagnostic
+        }
         if ($LASTEXITCODE -ne 0) { throw "Count=1 measurement failed with exit code $LASTEXITCODE" }
     }
     finally { Pop-Location }
@@ -142,7 +147,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'evidence construction failed' }
     & python -B (Join-Path $execution 'tools/check_function_call_artifact_safety.py') $output
     if ($LASTEXITCODE -ne 0) { throw 'artifact safety validation failed' }
-    if ((Git $shared @('symbolic-ref','--quiet','--short','HEAD')).Trim() -cne 'main' -or
+    $branch = (@(Git $shared @('symbolic-ref','--quiet','--short','HEAD') @(0,1)) -join '').Trim()
+    if ($branch -cne 'main' -or
         (Git $shared @('rev-parse','HEAD')).Trim() -cne $TrustedSha -or @(Git $shared @('status','--porcelain','--untracked-files=no')).Count) {
         throw 'shared working copy changed during validation'
     }

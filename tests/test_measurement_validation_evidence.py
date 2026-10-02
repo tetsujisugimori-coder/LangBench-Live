@@ -123,6 +123,8 @@ class MeasurementValidationEvidenceTests(unittest.TestCase):
                 root = Path(temporary); archive = self.make_archive(root); destination = root / "evidence"
                 completed = self.run_builder(archive, destination, root, stage)
                 self.assertNotEqual(0, completed.returncode)
+                if stage == "control": self.assertIn("negative v2 control became exact", completed.stderr)
+                if stage == "safety": self.assertIn("signed URL", completed.stderr)
                 self.assertFalse((destination / "files.sha256.json").exists())
 
 

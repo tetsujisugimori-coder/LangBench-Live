@@ -95,8 +95,12 @@ def build(archive: Path, destination: Path, identity: dict) -> None:
     fixture_stage = os.environ.get("LANGBENCH_HOSTED_FAILURE_STAGE")
     if fixture_stage and os.environ.get("LANGBENCH_HOSTED_FIXTURE") != "1":
         raise ValueError("hosted failure fixture is disabled")
-    controls = comparison_controls(manifest)
-    if fixture_stage == "control": raise ValueError("fixed hosted control failure")
+    comparison_manifest = copy.deepcopy(manifest)
+    if fixture_stage == "control":
+        # A schema-valid unknown runtime makes the real unknown negative equal
+        # the measurement, so comparison_controls must reject exact promotion.
+        comparison_manifest["languages"]["javascript"]["runtime"] = {"name": "unknown", "version": "unknown"}
+    controls = comparison_controls(comparison_manifest)
     controls["archive_identity_control"] = compare_archives(original, copy.deepcopy(original))
     controls["archive_identity_note"] = "legacy archive comparison is recorded separately; caution/missing stays visible and is not upgraded"
 

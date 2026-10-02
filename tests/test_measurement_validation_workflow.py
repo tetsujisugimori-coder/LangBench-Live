@@ -40,7 +40,8 @@ class MeasurementValidationWorkflowTests(unittest.TestCase):
             self.assertNotIn(prohibited, lowered)
         self.assertIn("effective Git filter is refused", self.runner)
         self.assertIn("GIT_ATTR_NOSYSTEM", self.runner)
-        self.assertIn("fixed hosted generation failure", self.runner)
+        self.assertIn("Count=1 measurement failed with exit code", self.runner)
+        self.assertIn("& pwsh -NoProfile -Command 'exit 23'", self.runner)
 
     def test_upload_only_follows_successful_validation_and_checkout_is_not_cleaned(self):
         self.assertIn("clean: false", self.workflow)
