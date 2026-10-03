@@ -30,8 +30,13 @@ function Invoke-Remeasure(
         '-OutputDirectory', $output)
     if ($BalancedOrder) { $arguments += @('-BalancedOrder', '-SeriesId', $seriesId) }
     $processLog = Join-Path $fixture "$Name.log"
-    & pwsh @arguments *> $processLog
-    $exitCode = $LASTEXITCODE
+    Push-Location $repo
+    try {
+        # remeasure's .NET lock path is relative to the child process working
+        # directory, so launch it from the same project root used in production.
+        & pwsh @arguments *> $processLog
+        $exitCode = $LASTEXITCODE
+    } finally { Pop-Location }
     $recordPath = Join-Path $repo "$recordOutput/runs.json"
     $record = if (Test-Path -LiteralPath $recordPath) {
         Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
@@ -182,11 +187,32 @@ print(json.dumps({"runs": [{"experiment_id": definition["experiment_id"], "archi
         throw 'Output collision was not rejected without modifying existing data.'
     }
 
-    $common = (Git @('-C', $repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).Trim()
-    $lock = [IO.File]::Open((Join-Path $common 'langbench-operation.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+    $common = [IO.Path]::GetFullPath((Git @('-C', $repo, 'rev-parse', '--path-format=absolute', '--git-common-dir')).Trim())
+    Push-Location $repo
+    try {
+        # Resolve the path exactly as the formal orchestrator does. PowerShell's
+        # location and a child process working directory are distinct boundaries.
+        $orchestratorLockPath = (& pwsh -NoProfile -Command @'
+$gitDirectory = (& git rev-parse --git-common-dir).Trim()
+if ($LASTEXITCODE -ne 0) { exit 91 }
+[IO.Path]::GetFullPath((Join-Path $gitDirectory 'langbench-operation.lock'))
+'@).Trim()
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the orchestrator Git common directory.' }
+    } finally { Pop-Location }
+    $lockPath = [IO.Path]::GetFullPath((Join-Path $common 'langbench-operation.lock'))
+    if ($lockPath -ine $orchestratorLockPath) {
+        throw "Fixture/orchestrator lock paths differ: fixture=$lockPath orchestrator=$orchestratorLockPath"
+    }
+    $lock = [IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
     try {
         $locked = Invoke-Remeasure -Name 'locked' -Count 1
-        if ($locked.ExitCode -eq 0 -or (Test-Path -LiteralPath $locked.Output)) { throw 'Operation lock did not stop before output creation.' }
+        $lockedOutputExists = Test-Path -LiteralPath $locked.Output
+        if ($locked.ExitCode -eq 0) {
+            throw "Operation-lock child exit code was zero: exit_code=$($locked.ExitCode) output_exists=$lockedOutputExists lock=$lockPath"
+        }
+        if ($lockedOutputExists) {
+            throw "Operation-lock output was created: exit_code=$($locked.ExitCode) output_exists=$lockedOutputExists output=$($locked.Output) lock=$lockPath"
+        }
     } finally { $lock.Dispose() }
 } finally {
     $env:LANGBENCH_FIXTURE_TRACE = $null
