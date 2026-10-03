@@ -1,0 +1,9 @@
+{
+  "status": "valid",
+  "validators": [
+    "archive_reader",
+    "measurement_manifest_v2"
+  ],
+  "archive_id": "d819e90bc7a5492390bf411eeda4bf0d",
+  "measurement_manifest_sha256": "ac6fcf2c371b75112d476b5fffd3428b45b46719da7d95096989bf02bdd557e9"
+}

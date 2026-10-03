@@ -1,0 +1,35 @@
+{
+  "archive_id": "d819e90bc7a5492390bf411eeda4bf0d",
+  "archived_at": "2026-10-03T12:33:59.072194+00:00",
+  "benchmark": "function_call_numeric_sum",
+  "experiment_id": "20261003_213337_function_call_numeric_sum",
+  "experiment_manifest": {
+    "file": "experiment.json",
+    "sha256": "8caf3dadaca4a350e2a5e3f2797d0660d11d281d18b44371f3df544c3d978467"
+  },
+  "results": [
+    {
+      "language": "c",
+      "file": "c.json",
+      "run_id": "20261003_213338_c_function_call_numeric_sum",
+      "sha256": "9a85d6bb254a3f2dbb91efe47d1e770103c493de0b19ca1723dd857a8f2a2fe8"
+    },
+    {
+      "language": "javascript",
+      "file": "javascript.json",
+      "run_id": "20261003_213338_javascript_function_call_numeric_sum",
+      "sha256": "9835938088581e946e4513f201718c6d121fe307df5d0ae7be2279dc7680a29b"
+    },
+    {
+      "language": "python",
+      "file": "python.json",
+      "run_id": "20261003_213338_python_function_call_numeric_sum",
+      "sha256": "475a6e6078d43d4e4c251c4c2c6bef2708eeb79d5e0c8177f61505cb73c49b0f"
+    }
+  ],
+  "measurement_manifest": {
+    "file": "measurement-manifest-v2.json",
+    "schema_version": "2.0",
+    "sha256": "ac6fcf2c371b75112d476b5fffd3428b45b46719da7d95096989bf02bdd557e9"
+  }
+}
