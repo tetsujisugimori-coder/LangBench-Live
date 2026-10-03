@@ -220,3 +220,4 @@ if ($LASTEXITCODE -ne 0) { exit 91 }
     if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
 }
 Write-Host 'remeasure function-call orchestration regression: valid'
+exit 0
