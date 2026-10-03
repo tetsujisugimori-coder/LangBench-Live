@@ -76,7 +76,7 @@ try {
         return $hostInfo
     }
 
-    $orders = if ($BalancedOrder) { @('direct_first','function_call_first','function_call_first','direct_first') * 3 } else { @($MeasurementOrder) * $Count }
+    $orders = @(if ($BalancedOrder) { @('direct_first','function_call_first','function_call_first','direct_first') * 3 } else { @($MeasurementOrder) * $Count })
     $record = [ordered]@{ schema_version = '2.0'; benchmark = 'function_call_numeric_sum';
         series_id = $SeriesId; mode = if ($BalancedOrder) { 'balanced_order' } else { 'single_order' };
         git_head = $head; execution_order = @('python', 'javascript', 'c');
