@@ -1,0 +1,96 @@
+{
+  "schema_version": "2.0",
+  "measurement_git_sha": "7dd02f639b54ca2a57571c29405258ce3c2c31c2",
+  "benchmark": "function_call_numeric_sum",
+  "experiment_id": "20261003_213337_function_call_numeric_sum",
+  "run_ids": {
+    "c": "20261003_213338_c_function_call_numeric_sum",
+    "python": "20261003_213338_python_function_call_numeric_sum",
+    "javascript": "20261003_213338_javascript_function_call_numeric_sum"
+  },
+  "runners": {
+    "orchestrator": {
+      "path": "benchmarks/function_call_numeric_sum/run_all.ps1",
+      "sha256": "d8669184adc64c0423b8be334870080aa2cf0e6039c891aeeb4031cdc5da7e7a"
+    },
+    "c": {
+      "path": "benchmarks/function_call_numeric_sum/c/run_c.ps1",
+      "sha256": "1b5f2c7c13b6eb491d2795a7dc86830bb397ab5c1b97c2adc34e54d3e1194859"
+    },
+    "python": {
+      "path": "benchmarks/function_call_numeric_sum/python/main.py",
+      "sha256": "8db534283a2b838b04ce7007de0346e4a18f9b931473b8613bf5c91790c2e65f"
+    },
+    "javascript": {
+      "path": "benchmarks/function_call_numeric_sum/javascript/main.js",
+      "sha256": "6f7e9d13421af6b2d84e3fb76c10f545f30818874766b66803a0bbd46430e79b"
+    }
+  },
+  "measurement_order": [
+    "direct",
+    "function_call"
+  ],
+  "languages": {
+    "c": {
+      "source": {
+        "path": "benchmarks/function_call_numeric_sum/c/main.c",
+        "sha256": "b107c19cdcc972e23c5968cc217f7c9ec88b06b840ab5aac8daa888fbe16cad3"
+      },
+      "os": "Windows",
+      "architecture": "x64",
+      "runtime": {
+        "name": "native",
+        "version": "native"
+      },
+      "compiler": {
+        "name": "gcc",
+        "version": "gcc (Rev5, Built by MSYS2 project) 16.1.0"
+      },
+      "options": [
+        "-O2",
+        "-std=c11",
+        "-Wall",
+        "-Wextra"
+      ]
+    },
+    "python": {
+      "source": {
+        "path": "benchmarks/function_call_numeric_sum/python/main.py",
+        "sha256": "8db534283a2b838b04ce7007de0346e4a18f9b931473b8613bf5c91790c2e65f"
+      },
+      "os": "Windows",
+      "architecture": "AMD64",
+      "runtime": {
+        "name": "Python",
+        "version": "3.14.7"
+      },
+      "implementation": {
+        "name": "CPython",
+        "version": "3.14.7"
+      },
+      "optimize": 0,
+      "options": [
+        "optimize=0"
+      ]
+    },
+    "javascript": {
+      "source": {
+        "path": "benchmarks/function_call_numeric_sum/javascript/main.js",
+        "sha256": "6f7e9d13421af6b2d84e3fb76c10f545f30818874766b66803a0bbd46430e79b"
+      },
+      "os": "Windows_NT",
+      "architecture": "x64",
+      "runtime": {
+        "name": "Node.js",
+        "version": "v24.20.0"
+      },
+      "implementation": {
+        "name": "V8",
+        "version": "13.6.233.17-node.53"
+      },
+      "exec_argv": [],
+      "node_options": "",
+      "options": []
+    }
+  }
+}

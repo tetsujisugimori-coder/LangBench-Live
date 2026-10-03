@@ -1,0 +1,12 @@
+{
+  "issue": 74,
+  "run_id": 37123211456,
+  "run_attempt": 1,
+  "trusted_sha": "7dd02f639b54ca2a57571c29405258ce3c2c31c2",
+  "sync_run_id": 37122955826,
+  "count": 1,
+  "balanced_order": false,
+  "measurement_order": "direct_first",
+  "protected_untracked_count": 10,
+  "protected_ignored_count": 7114
+}

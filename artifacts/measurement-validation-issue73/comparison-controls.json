@@ -1,0 +1,196 @@
+{
+  "purpose": "synthetic comparator controls only; not observed order coverage, optimization evidence, or performance evidence",
+  "languages": {
+    "c": {
+      "match": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "match",
+          "options": "match",
+          "order_coverage": "match",
+          "compiler": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": true
+      },
+      "missing": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "missing",
+          "options": "match",
+          "order_coverage": "match",
+          "compiler": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      },
+      "mismatch": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "mismatch",
+          "runtime": "match",
+          "options": "match",
+          "order_coverage": "match",
+          "compiler": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      },
+      "unknown": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "mismatch",
+          "options": "match",
+          "order_coverage": "match",
+          "compiler": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      }
+    },
+    "python": {
+      "match": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "match",
+          "options": "match",
+          "order_coverage": "match",
+          "implementation": "match",
+          "optimize": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": true
+      },
+      "missing": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "missing",
+          "options": "match",
+          "order_coverage": "match",
+          "implementation": "match",
+          "optimize": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      },
+      "mismatch": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "mismatch",
+          "runtime": "match",
+          "options": "match",
+          "order_coverage": "match",
+          "implementation": "match",
+          "optimize": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      },
+      "unknown": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "mismatch",
+          "options": "match",
+          "order_coverage": "match",
+          "implementation": "match",
+          "optimize": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      }
+    },
+    "javascript": {
+      "match": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "match",
+          "options": "match",
+          "order_coverage": "match",
+          "v8": "match",
+          "exec_argv": "match",
+          "node_options": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": true
+      },
+      "missing": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "missing",
+          "options": "match",
+          "order_coverage": "match",
+          "v8": "match",
+          "exec_argv": "match",
+          "node_options": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      },
+      "mismatch": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "mismatch",
+          "runtime": "match",
+          "options": "match",
+          "order_coverage": "match",
+          "v8": "match",
+          "exec_argv": "match",
+          "node_options": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      },
+      "unknown": {
+        "checks": {
+          "manifest": "match",
+          "source_sha256": "match",
+          "os": "match",
+          "architecture": "match",
+          "runtime": "mismatch",
+          "options": "match",
+          "order_coverage": "match",
+          "v8": "match",
+          "exec_argv": "match",
+          "node_options": "match"
+        },
+        "validation_errors": [],
+        "exact_applicability": false
+      }
+    }
+  },
+  "archive_identity_control": {
+    "verdict": "comparable",
+    "reasons": []
+  },
+  "archive_identity_note": "legacy archive comparison is recorded separately; caution/missing stays visible and is not upgraded"
+}

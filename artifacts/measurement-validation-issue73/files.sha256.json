@@ -1,0 +1,34 @@
+{
+  "algorithm": "sha256",
+  "scope": "expanded artifact files",
+  "files": [
+    {
+      "file": "archive.json",
+      "sha256": "4ae96ef3a2893860d29e25e2a57b7766606b9fc9f563ed540880c8172d830026"
+    },
+    {
+      "file": "comparison-controls.json",
+      "sha256": "a002e19a5fa4365f0494df10f8d7daa0c2639d7659bfc0fde90b921ba709e76a"
+    },
+    {
+      "file": "execution.json",
+      "sha256": "b6f63dd05b7cc5876af69b018fb9f21486105f488e5a15bf6819982dfafd4869"
+    },
+    {
+      "file": "experiment.json",
+      "sha256": "8caf3dadaca4a350e2a5e3f2797d0660d11d281d18b44371f3df544c3d978467"
+    },
+    {
+      "file": "measurement-manifest-v2.json",
+      "sha256": "ac6fcf2c371b75112d476b5fffd3428b45b46719da7d95096989bf02bdd557e9"
+    },
+    {
+      "file": "README.md",
+      "sha256": "0ee5cd7e6aad7d13352516a5a3826f961dc1446f6950e7eee128cf6ac883fc10"
+    },
+    {
+      "file": "validation.json",
+      "sha256": "a6c9052a1f9541569585ceda3dbdfb7a549811ef3e686f12547635868f49828e"
+    }
+  ]
+}
