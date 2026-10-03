@@ -79,6 +79,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./tests/test_run_all_measurement_order.ps1
+      - name: Run remeasurement orchestration regression
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/test_remeasure_function_call.ps1
       - name: Run local-main synchronization safety tests
         if: runner.os == 'Windows'
         shell: pwsh
