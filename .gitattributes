@@ -4,3 +4,5 @@
 /artifacts/function-call-analysis/** text eol=lf
 /artifacts/direct-function-call-balanced-order/manifest.json text eol=lf
 /artifacts/function-call-analysis-issue68-prb/analysis-package/** -text whitespace=cr-at-eol,-blank-at-eof
+/artifacts/measurement-validation-issue73/*.json -text whitespace=cr-at-eol,-blank-at-eof
+/artifacts/measurement-validation-issue73/README.md -text whitespace=cr-at-eol,-blank-at-eof

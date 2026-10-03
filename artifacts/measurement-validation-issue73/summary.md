@@ -13,6 +13,8 @@ Windows self-hosted runnerで、trusted `main` の measurement provenance / mani
 - human-merged PR: #78
 - 正式同期run: `37122955826`
 - Windows validation run / attempt: `37123211456` / `1`
+- 実行runner: `ギャラリア`
+- 専用labels: `self-hosted` / `Windows` / `X64` / `langbench-live-tetsu-windows`
 - authorize job: `111203251005` — success
 - validate job: `111203287581` — success
 - artifact ID: `11273992732`
@@ -22,8 +24,14 @@ Windows self-hosted runnerで、trusted `main` の measurement provenance / mani
 - ZIP取得・展開: success
 - ZIP構造検査: success
 - `files.sha256.json`: 展開後7ファイルすべて一致
+- Workの実ZIP再取得完了: `2026-10-03 12:54:44 UTC` / `21:54:44 JST`（独立レビュー側の取得記録）
+- Local Codexの今回の実ZIP再取得完了: `2026-10-03 13:55:25 UTC` / `22:55:25 JST`（上記Work記録とは別の取得）
 
 artifact名の`issue74`は準備workflowで固定された識別子である。検証・公開サイクルの主キーはIssue #73で、実行identityは`execution.json`と本summaryに記録した。
+
+## 公開バイトの保持
+
+PR #79の初回公開ではGitのtext変換で原artifactのCRLFがLFになり、7対象中5件がhash不一致になった。原ZIPの8ファイル（hash一覧を含む）を原バイトのまま復元し、対象JSONとREADMEだけに `.gitattributes` の `-text` を適用した。生成時のLF/CRLF混在を保持し、公開用の改行正規化は行わない。hash一覧、ZIP digest、manifest、source/runner hash、測定値は変更していない。人間向けの本summaryは原ZIP外で、展開後7ファイルのhash対象には含まれない。
 
 ## 実provenance
 
