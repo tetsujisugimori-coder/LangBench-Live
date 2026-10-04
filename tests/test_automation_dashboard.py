@@ -852,5 +852,61 @@ class RepairHandoffChainRegressions(unittest.TestCase):
         self.assertEqual(self.comments, facts["issue_comments"])
 
 
+class MalformedHandoffRegressions(unittest.TestCase):
+    setUp = RepairHandoffChainRegressions.setUp
+    receipt = RepairHandoffChainRegressions.receipt
+    select = RepairHandoffChainRegressions.select
+    def malformed_bodies(self):
+        valid = self.comments[0]["body"]
+        return ["<!-- langbench-pr-handoff:v1\n{broken\n-->",
+                valid.replace(":v1", ":v99"), valid.removesuffix("\n-->"),
+                valid + "\nextra prose", "<!-- langbench-pr-handoff:v1\n[]\n-->"]
+
+    def test_old_valid_record_cannot_mask_malformed_owner_record(self):
+        self.comments = self.comments[:1]
+        for body in self.malformed_bodies():
+            with self.subTest(body=body[:50]):
+                comments = copy.deepcopy(self.comments)
+                comments.append({**record("unused", {}), "id": 300, "body": body})
+                with self.assertRaisesRegex(ValueError, "owner PR handoff envelope"):
+                    repair_handoff(comments, self.second, 80, self.policy)
+
+    def test_owner_prose_and_other_identity_normal_envelopes_are_ignored(self):
+        self.comments = self.comments[:1]
+        self.comments.append({**record("unused", {}), "body": "Owner prose about handoff"})
+        for key, value in (("repository", "other/repo"), ("issue", 999)):
+            self.comments.append(record("langbench-pr-handoff:v1", {
+                "schema_version": 1, "repository": REPOSITORY, "issue": 80, key: value}, 301))
+        self.assertEqual(82, self.select()["repair_pr"])
+
+    def test_non_owner_malformed_record_does_not_stop_owner_chain(self):
+        self.comments = self.comments[:1]
+        self.comments.append({**record("unused", {}, user={"login": "other", "id": 2, "type": "User"}),
+                              "body": self.malformed_bodies()[0]})
+        self.assertEqual(82, self.select()["repair_pr"])
+
+    def test_main_collector_revokes_old_pass_for_each_malformed_envelope(self):
+        self.comments = self.comments[:1]
+        for body in self.malformed_bodies():
+            with self.subTest(body=body[:50]):
+                _, facts, _ = fixtures()
+                previous = copy.deepcopy(self.second)
+                previous["merge_gate"] = result("PASS", "synthetic previous PASS")
+                previous["completion_gate"] = result("PASS", "synthetic previous PASS")
+                facts["issue_comments"] = copy.deepcopy(self.comments) + [
+                    {**record("unused", {}), "id": 300, "body": body}]
+                api = FakeGitHub(self.policy, facts, render(previous))
+                with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
+                     patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+                     patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
+                     redirect_stdout(io.StringIO()):
+                    self.assertEqual(1, main())
+                stopped = parse_state(api.dashboard["body"], 80, self.policy)
+                self.assertEqual("SAFE_STOPPED", stopped["current_state"])
+                self.assertEqual("ERROR", stopped["merge_gate"]["status"])
+                self.assertEqual("ERROR", stopped["completion_gate"]["status"])
+                self.assertEqual(previous["dispatches"], stopped["dispatches"])
+
+
 if __name__ == "__main__":
     unittest.main()

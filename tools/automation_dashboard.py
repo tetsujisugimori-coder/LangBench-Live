@@ -266,7 +266,11 @@ def repair_handoff(comments, previous, issue, policy):
     for comment in sorted(comments, key=comment_order):
         if not author_matches(comment.get("user"), policy["owner"]):
             continue
-        value = envelope(comment.get("body"), "langbench-pr-handoff:v1")
+        body = comment.get("body")
+        value = envelope(body, "langbench-pr-handoff:v1")
+        if (isinstance(body, str) and body.lstrip().startswith("<!-- langbench-pr-handoff:")
+                and value is None):
+            raise ValueError("Malformed or unknown owner PR handoff envelope")
         if not value or value.get("repository") != REPOSITORY or value.get("issue") != issue:
             continue
         if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
