@@ -15,7 +15,7 @@ import urllib.request
 import zipfile
 
 from tools.automation_dashboard import (BOT, REPOSITORY, START, WORK, RECEIPT, SMOKE, author_matches,
-                                        evaluate, initial_state, parse_state, render, result)
+                                        evaluate, initial_state, parse_state, render, result, repair_handoff)
 from tools.update_automation_dashboard import (GitHub, SafeRedirect, collect, reconcile, safe_stop, main)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -749,6 +749,107 @@ class PostMergeCIEvidenceRegressions(unittest.TestCase):
         self.facts["issue_comments"][-1] = record("langbench-pr-handoff:v1", value, 120)
         with self.assertRaisesRegex(ValueError, "Invalid post-merge"):
             evaluate(80, self.policy, previous, self.facts)
+
+
+class RepairHandoffChainRegressions(unittest.TestCase):
+    def setUp(self):
+        self.policy, facts, _ = fixtures()
+        self.first = initial_state(80, self.policy)
+        self.first.update(pr=81, head_sha=HEAD, merge_sha=MERGE, merge_state="MERGED",
+                          local_sync=result("PASS", "fixture", target_sha=MERGE, run_id=20))
+        self.second = copy.deepcopy(self.first)
+        self.second.update(pr=82, head_sha=OLD, merge_sha="d" * 40,
+                           local_sync=result("PASS", "fixture", target_sha="d" * 40, run_id=21))
+        self.comments = [self.receipt(self.first, 82, 201), self.receipt(self.second, 83, 202)]
+
+    def receipt(self, source, target, ident):
+        return record("langbench-pr-handoff:v1", {
+            "schema_version": 1, "repository": REPOSITORY, "issue": 80,
+            "repair_pr": target, "previous_state": copy.deepcopy(source)}, ident)
+
+    def select(self, previous=None):
+        return repair_handoff(self.comments, previous or self.second, 80, self.policy)
+
+    def test_chain_selects_outgoing_over_historical_incoming(self):
+        saved = copy.deepcopy(self.comments)
+        self.assertEqual(83, self.select()["repair_pr"])
+        self.assertEqual(82, self.select(self.first)["repair_pr"])
+        self.assertEqual(saved, self.comments)
+
+    def test_same_record_reprocessing_is_idempotent(self):
+        self.comments = self.comments[:1]
+        self.assertEqual(self.select(), self.select())
+        self.assertEqual(82, self.select()["repair_pr"])
+
+    def test_chain_terminal_reprocessing_selects_latest_incoming(self):
+        terminal = copy.deepcopy(self.second)
+        terminal["pr"] = 83
+        self.assertEqual(83, self.select(terminal)["repair_pr"])
+
+    def test_same_source_multiple_targets_is_rejected(self):
+        self.comments.append(self.receipt(self.second, 84, 203))
+        with self.assertRaisesRegex(ValueError, "fork or duplicate"):
+            self.select()
+
+    def test_duplicate_record_in_new_comment_is_rejected(self):
+        self.comments.append(self.receipt(self.second, 83, 203))
+        with self.assertRaisesRegex(ValueError, "fork or duplicate"):
+            self.select()
+
+    def test_join_from_two_sources_is_rejected(self):
+        other = copy.deepcopy(self.first)
+        other["pr"] = 84
+        self.comments.append(self.receipt(other, 83, 203))
+        with self.assertRaisesRegex(ValueError, "fork or duplicate"):
+            self.select()
+
+    def test_disconnected_chain_is_rejected(self):
+        other = copy.deepcopy(self.first)
+        other["pr"] = 84
+        self.comments.append(self.receipt(other, 85, 203))
+        with self.assertRaisesRegex(ValueError, "Broken"):
+            self.select()
+
+    def test_cycle_is_rejected(self):
+        terminal = copy.deepcopy(self.second)
+        terminal["pr"] = 83
+        self.comments.append(self.receipt(terminal, 81, 203))
+        with self.assertRaisesRegex(ValueError, "Broken"):
+            self.select()
+
+    def test_next_archive_must_match_current_cycle(self):
+        stale = copy.deepcopy(self.second)
+        stale["head_sha"] = HEAD
+        self.comments[1] = self.receipt(stale, 83, 202)
+        with self.assertRaisesRegex(ValueError, "archive does not match"):
+            self.select()
+
+    def test_chain_collector_evaluator_replay_keeps_history_and_ledger(self):
+        _, facts, _ = fixtures()
+        facts["issue_comments"] = self.comments
+        facts["pr"].update(number=83, head={"sha": "e" * 40}, body="Refs #80\nCurrent head: " + "e" * 40)
+        facts["pr_comments"], facts["ci_runs"] = [], []
+        second = self.second
+        class ChainAPI(FakeGitHub):
+            def request(self, path, method="GET", data=None, raw=False):
+                route = path.removeprefix(self.root).split("?")[0]
+                if method == "GET" and route == "/pulls/82":
+                    return {"number": 82, "merged": True, "head": {"sha": second["head_sha"]},
+                            "merge_commit_sha": second["merge_sha"],
+                            "base": {"ref": "main", "repo": {"full_name": REPOSITORY}}}
+                if method == "GET" and route == "/pulls/83":
+                    return copy.deepcopy(self.facts["pr"])
+                if method == "GET" and route in {"/issues/83/comments", "/pulls/83/reviews"}:
+                    return []
+                return super().request(path, method, data, raw)
+        api = ChainAPI(self.policy, facts, render(self.second))
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        state = parse_state(api.dashboard["body"], 80, self.policy)
+        self.assertEqual(83, state["pr"])
+        self.assertEqual(self.second["dispatches"], state["dispatches"])
+        self.assertNotEqual("PASS", state["completion_gate"]["status"])
+        self.assertEqual("NO_OP", reconcile(api, 80, self.policy, NOW))
+        self.assertEqual(self.comments, facts["issue_comments"])
 
 
 if __name__ == "__main__":

@@ -281,14 +281,40 @@ def repair_handoff(comments, previous, issue, policy):
                 or archived["local_sync"].get("status") != "PASS"
                 or archived["local_sync"].get("target_sha") != archived["merge_sha"]):
             raise ValueError("Invalid post-merge repair handoff")
-        if previous and previous["pr"] in {archived["pr"], target}:
-            if previous["pr"] == archived["pr"] and any(previous[k] != archived[k] for k in
-                    ("head_sha", "merge_sha", "local_sync", "dispatches")):
-                raise ValueError("PR handoff archive does not match current cycle")
-            records.append(value)
-    if len(records) > 1:
-        raise ValueError("Ambiguous PR handoff")
-    return records[0] if records else None
+        if type(archived["pr"]) is not int or archived["pr"] <= 0:
+            raise ValueError("Invalid handoff source PR")
+        records.append(value)
+    outgoing, incoming = {}, {}
+    for value in records:
+        source, target = value["previous_state"]["pr"], value["repair_pr"]
+        # Even identical records in separate comments are ambiguous ownership.
+        if source in outgoing or target in incoming:
+            raise ValueError("Ambiguous PR handoff: fork or duplicate record")
+        outgoing[source], incoming[target] = value, value
+    if records:
+        roots = set(outgoing) - set(incoming)
+        if len(roots) != 1:
+            raise ValueError("Broken PR handoff chain")
+        node, seen = next(iter(roots)), set()
+        while node in outgoing:
+            if node in seen:
+                raise ValueError("Cyclic PR handoff chain")
+            seen.add(node)
+            node = outgoing[node]["repair_pr"]
+        if len(seen) != len(records):
+            raise ValueError("Disconnected PR handoff chain")
+    if not previous:
+        return None
+    current = previous["pr"]
+    # An outgoing transition supersedes the incoming historical receipt.
+    selected = outgoing.get(current)
+    if selected:
+        archived = selected["previous_state"]
+        if any(previous[k] != archived[k] for k in
+               ("head_sha", "merge_sha", "local_sync", "dispatches")):
+            raise ValueError("PR handoff archive does not match current cycle")
+        return selected
+    return incoming.get(current)
 
 
 def ci_evidence(facts, head):

@@ -123,3 +123,12 @@ does not author the handoff, Work PASS or smoke PASS. The owner must resolve
 DISPATCHING receipts explicitly; an unknown ownership state still blocks.
 F1 remains FOLLOW_UP. Snapshot checks detect observed races but cannot provide
 atomicity across GitHub APIs or eliminate event observation latency.
+
+Subsequent repairs retain every earlier handoff record. The records must form
+one directed chain: each source and target occurs once; forks, joins, duplicate
+comments, disconnected chains and cycles fail closed. For the current bound PR,
+its outgoing handoff is the next transition and takes precedence over the
+incoming historical handoff. If no outgoing record exists, replay uses the
+incoming record idempotently. The next transition's archived head, merge,
+exact-sync evidence and ledger must still match the current cycle. Historical
+records are neither deleted nor edited to select the next repair.
