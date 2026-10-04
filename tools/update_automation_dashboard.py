@@ -21,11 +21,11 @@ import zipfile
 try:
     from tools.automation_dashboard import (BOT, REPOSITORY, author_matches, evaluate,
                                           parse_state, render, result,
-                                          validated_work_record, WorkRecordError)
+                                          validated_work_record, WorkRecordError, repair_handoff)
 except ModuleNotFoundError:
     from automation_dashboard import (BOT, REPOSITORY, author_matches, evaluate,
                                      parse_state, render, result,
-                                     validated_work_record, WorkRecordError)
+                                     validated_work_record, WorkRecordError, repair_handoff)
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -124,7 +124,19 @@ def collect(api, issue, policy, previous):
     issue_record = api.get(f"/issues/{issue}")
     if "pull_request" in issue_record:
         raise ValueError("Configured Issue is a PR")
-    if previous and previous["pr"]:
+    handoff = repair_handoff(comments, previous, issue, policy)
+    if handoff:
+        prior = api.get(f'/pulls/{handoff["previous_state"]["pr"]}')
+        archived = handoff["previous_state"]
+        if (prior.get("merged") is not True or prior.get("merge_commit_sha") != archived["merge_sha"]
+                or prior.get("head", {}).get("sha") != archived["head_sha"]
+                or (prior.get("base", {}).get("repo") or {}).get("full_name") != REPOSITORY
+                or prior["base"].get("ref") != "main"):
+            raise ValueError("Previous PR API identity changed")
+        pull = api.get(f'/pulls/{handoff["repair_pr"]}')
+        if not references(pull.get("body"), issue):
+            raise ValueError("Repair PR must reference the same Issue")
+    elif previous and previous["pr"]:
         pull = api.get(f'/pulls/{previous["pr"]}')
     else:
         pulls = api.pages("/pulls?state=all&sort=updated&direction=desc")

@@ -15,7 +15,7 @@ import urllib.request
 import zipfile
 
 from tools.automation_dashboard import (BOT, REPOSITORY, START, WORK, RECEIPT, SMOKE, author_matches,
-                                        evaluate, initial_state, parse_state, render, result)
+                                        evaluate, initial_state, parse_state, render, result, repair_handoff)
 from tools.update_automation_dashboard import (GitHub, SafeRedirect, collect, reconcile, safe_stop, main)
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -625,6 +625,287 @@ class GateEvidenceFixRegressions(unittest.TestCase):
         self.assertEqual("SAFE_STOPPED", stopped["current_state"])
         self.assertEqual("ERROR", stopped["merge_gate"]["status"])
         self.assertEqual("ERROR", stopped["completion_gate"]["status"])
+
+
+class PostMergeCIEvidenceRegressions(unittest.TestCase):
+    def setUp(self):
+        self.policy, self.facts, self.report = fixtures()
+        GateEvidenceFixRegressions.completed_facts(self)
+        self.facts["pr"]["head"].update(ref="feature", repo={"full_name": REPOSITORY})
+        self.facts["ci_runs"][0]["pull_requests"] = []
+
+    def state(self):
+        return evaluate(80, self.policy, None, self.facts)
+
+    def test_merged_empty_links_collector_to_completion(self):
+        api = FakeGitHub(self.policy, self.facts)
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        self.assertEqual("COMPLETED", parse_state(api.dashboard["body"], 80, self.policy)["current_state"])
+
+    def test_open_empty_links_cannot_pass(self):
+        self.facts["pr"].update(merged=False, state="open")
+        self.assertEqual("PENDING", self.state()["required_ci"]["status"])
+
+    def test_other_pr_same_sha_is_rejected_open_and_merged(self):
+        self.facts["ci_runs"][0]["pull_requests"] = [{"number": 99}]
+        for merged in (True, False):
+            self.facts["pr"].update(merged=merged, state="closed" if merged else "open")
+            self.assertNotEqual("PASS", self.state()["required_ci"]["status"])
+
+    def test_merged_stale_head_is_rejected(self):
+        self.facts["ci_runs"][0]["head_sha"] = OLD
+        self.assertNotEqual("PASS", self.state()["completion_gate"]["status"])
+
+    def test_merged_retry_supersedes_success(self):
+        self.facts["ci_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None)
+        self.assertEqual("PENDING", self.state()["required_ci"]["status"])
+
+    def test_merged_failure_blocks_completion(self):
+        self.facts["ci_runs"][0]["conclusion"] = "failure"
+        self.assertEqual("BLOCKED", self.state()["completion_gate"]["status"])
+
+    def test_merged_required_step_failure_blocks_completion(self):
+        self.facts["jobs"]["10"][0]["steps"][0]["conclusion"] = "failure"
+        self.assertNotEqual("PASS", self.state()["completion_gate"]["status"])
+
+    def test_merged_identity_dimensions_fail_closed(self):
+        baseline = copy.deepcopy(self.facts)
+        for key, value in (("workflow_id", 99), ("path", "other"), ("event", "push"),
+                           ("repository", {"full_name": "other/repo"}),
+                           ("head_repository", {"full_name": "other/repo"}),
+                           ("head_branch", "other"), ("pull_requests", None)):
+            self.facts = copy.deepcopy(baseline)
+            self.facts["ci_runs"][0][key] = value
+            self.assertNotEqual("PASS", self.state()["required_ci"]["status"], key)
+
+    def test_merged_missing_pr_head_repository_fails_closed(self):
+        del self.facts["pr"]["head"]["repo"]
+        self.assertNotEqual("PASS", self.state()["completion_gate"]["status"])
+
+    def test_merged_retry_during_write_invalidates_completion(self):
+        api = FakeGitHub(self.policy, self.facts)
+        def hook(path, method):
+            if method == "PATCH":
+                api.facts["ci_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None)
+                api.hook = None
+        api.hook = hook
+        self.assertEqual("RACE_BLOCKED", reconcile(api, 80, self.policy, NOW))
+        self.assertEqual("STALE", parse_state(api.dashboard["body"], 80, self.policy)["completion_gate"]["status"])
+
+    def handoff(self):
+        previous = self.state()
+        value = {"schema_version": 1, "repository": REPOSITORY, "issue": 80,
+                 "repair_pr": 82, "previous_state": previous}
+        self.facts["issue_comments"].append(record("langbench-pr-handoff:v1", value, 120))
+        old_pull = copy.deepcopy(self.facts["pr"])
+        self.facts["pr"].update(number=82, merged=False, state="open", merge_commit_sha=None)
+        self.facts["pr_comments"] = []
+        self.facts["ci_runs"] = []
+        return previous, old_pull
+
+    def test_explicit_owner_handoff_collects_repair_pr_without_old_pass(self):
+        previous, old_pull = self.handoff()
+        class RepairAPI(FakeGitHub):
+            def request(self, path, method="GET", data=None, raw=False):
+                suffix = path.removeprefix(self.root).split("?")[0]
+                if method == "GET" and suffix == "/pulls/81":
+                    return copy.deepcopy(old_pull)
+                if method == "GET" and suffix == "/pulls/82":
+                    return copy.deepcopy(self.facts["pr"])
+                if method == "GET" and suffix in {"/issues/82/comments", "/pulls/82/reviews"}:
+                    return []
+                return super().request(path, method, data, raw)
+        api = RepairAPI(self.policy, self.facts, render(previous))
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        current = parse_state(api.dashboard["body"], 80, self.policy)
+        self.assertEqual(82, current["pr"])
+        self.assertEqual(previous["dispatches"], current["dispatches"])
+        self.assertNotEqual("PASS", current["completion_gate"]["status"])
+        self.assertNotEqual("PASS", current["work_review"]["status"])
+        self.assertEqual("NO_OP", reconcile(api, 80, self.policy, NOW))
+
+    def test_post_merge_fix_receipt_blocks_old_completion_until_handoff(self):
+        dispatch = copy.deepcopy(self.policy["initial_dispatch"])
+        dispatch.update(action_type="fix_task", purpose_id="post-merge-ci-evidence-retention",
+                        target_sha=MERGE, state="RUNNING")
+        dispatch["dedup_key"] = f"{REPOSITORY}:issue80:{MERGE}:fix_task:post-merge-ci-evidence-retention"
+        self.facts["issue_comments"].append(record(RECEIPT, {
+            "schema_version": 1, "repository": REPOSITORY, "issue": 80,
+            "active": True, "dispatch": dispatch}, 121))
+        current = self.state()
+        self.assertIn("POST_MERGE_FIX_REQUIRES_PR_HANDOFF", current["blockers"])
+        self.assertEqual("BLOCKED", current["completion_gate"]["status"])
+
+    def test_handoff_spoof_cannot_rebind(self):
+        previous, _ = self.handoff()
+        self.facts["issue_comments"][-1]["user"] = {"login": "other", "id": 2, "type": "User"}
+        with self.assertRaisesRegex(ValueError, "identity conflict"):
+            evaluate(80, self.policy, previous, self.facts)
+
+    def test_handoff_corrupt_archive_safe_stops(self):
+        previous, _ = self.handoff()
+        value = json.loads(self.facts["issue_comments"][-1]["body"].split("\n")[1])
+        value["previous_state"]["local_sync"]["target_sha"] = OLD
+        self.facts["issue_comments"][-1] = record("langbench-pr-handoff:v1", value, 120)
+        with self.assertRaisesRegex(ValueError, "Invalid post-merge"):
+            evaluate(80, self.policy, previous, self.facts)
+
+
+class RepairHandoffChainRegressions(unittest.TestCase):
+    def setUp(self):
+        self.policy, facts, _ = fixtures()
+        self.first = initial_state(80, self.policy)
+        self.first.update(pr=81, head_sha=HEAD, merge_sha=MERGE, merge_state="MERGED",
+                          local_sync=result("PASS", "fixture", target_sha=MERGE, run_id=20))
+        self.second = copy.deepcopy(self.first)
+        self.second.update(pr=82, head_sha=OLD, merge_sha="d" * 40,
+                           local_sync=result("PASS", "fixture", target_sha="d" * 40, run_id=21))
+        self.comments = [self.receipt(self.first, 82, 201), self.receipt(self.second, 83, 202)]
+
+    def receipt(self, source, target, ident):
+        return record("langbench-pr-handoff:v1", {
+            "schema_version": 1, "repository": REPOSITORY, "issue": 80,
+            "repair_pr": target, "previous_state": copy.deepcopy(source)}, ident)
+
+    def select(self, previous=None):
+        return repair_handoff(self.comments, previous or self.second, 80, self.policy)
+
+    def test_chain_selects_outgoing_over_historical_incoming(self):
+        saved = copy.deepcopy(self.comments)
+        self.assertEqual(83, self.select()["repair_pr"])
+        self.assertEqual(82, self.select(self.first)["repair_pr"])
+        self.assertEqual(saved, self.comments)
+
+    def test_same_record_reprocessing_is_idempotent(self):
+        self.comments = self.comments[:1]
+        self.assertEqual(self.select(), self.select())
+        self.assertEqual(82, self.select()["repair_pr"])
+
+    def test_chain_terminal_reprocessing_selects_latest_incoming(self):
+        terminal = copy.deepcopy(self.second)
+        terminal["pr"] = 83
+        self.assertEqual(83, self.select(terminal)["repair_pr"])
+
+    def test_same_source_multiple_targets_is_rejected(self):
+        self.comments.append(self.receipt(self.second, 84, 203))
+        with self.assertRaisesRegex(ValueError, "fork or duplicate"):
+            self.select()
+
+    def test_duplicate_record_in_new_comment_is_rejected(self):
+        self.comments.append(self.receipt(self.second, 83, 203))
+        with self.assertRaisesRegex(ValueError, "fork or duplicate"):
+            self.select()
+
+    def test_join_from_two_sources_is_rejected(self):
+        other = copy.deepcopy(self.first)
+        other["pr"] = 84
+        self.comments.append(self.receipt(other, 83, 203))
+        with self.assertRaisesRegex(ValueError, "fork or duplicate"):
+            self.select()
+
+    def test_disconnected_chain_is_rejected(self):
+        other = copy.deepcopy(self.first)
+        other["pr"] = 84
+        self.comments.append(self.receipt(other, 85, 203))
+        with self.assertRaisesRegex(ValueError, "Broken"):
+            self.select()
+
+    def test_cycle_is_rejected(self):
+        terminal = copy.deepcopy(self.second)
+        terminal["pr"] = 83
+        self.comments.append(self.receipt(terminal, 81, 203))
+        with self.assertRaisesRegex(ValueError, "Broken"):
+            self.select()
+
+    def test_next_archive_must_match_current_cycle(self):
+        stale = copy.deepcopy(self.second)
+        stale["head_sha"] = HEAD
+        self.comments[1] = self.receipt(stale, 83, 202)
+        with self.assertRaisesRegex(ValueError, "archive does not match"):
+            self.select()
+
+    def test_chain_collector_evaluator_replay_keeps_history_and_ledger(self):
+        _, facts, _ = fixtures()
+        facts["issue_comments"] = self.comments
+        facts["pr"].update(number=83, head={"sha": "e" * 40}, body="Refs #80\nCurrent head: " + "e" * 40)
+        facts["pr_comments"], facts["ci_runs"] = [], []
+        second = self.second
+        class ChainAPI(FakeGitHub):
+            def request(self, path, method="GET", data=None, raw=False):
+                route = path.removeprefix(self.root).split("?")[0]
+                if method == "GET" and route == "/pulls/82":
+                    return {"number": 82, "merged": True, "head": {"sha": second["head_sha"]},
+                            "merge_commit_sha": second["merge_sha"],
+                            "base": {"ref": "main", "repo": {"full_name": REPOSITORY}}}
+                if method == "GET" and route == "/pulls/83":
+                    return copy.deepcopy(self.facts["pr"])
+                if method == "GET" and route in {"/issues/83/comments", "/pulls/83/reviews"}:
+                    return []
+                return super().request(path, method, data, raw)
+        api = ChainAPI(self.policy, facts, render(self.second))
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        state = parse_state(api.dashboard["body"], 80, self.policy)
+        self.assertEqual(83, state["pr"])
+        self.assertEqual(self.second["dispatches"], state["dispatches"])
+        self.assertNotEqual("PASS", state["completion_gate"]["status"])
+        self.assertEqual("NO_OP", reconcile(api, 80, self.policy, NOW))
+        self.assertEqual(self.comments, facts["issue_comments"])
+
+
+class MalformedHandoffRegressions(unittest.TestCase):
+    setUp = RepairHandoffChainRegressions.setUp
+    receipt = RepairHandoffChainRegressions.receipt
+    select = RepairHandoffChainRegressions.select
+    def malformed_bodies(self):
+        valid = self.comments[0]["body"]
+        return ["<!-- langbench-pr-handoff:v1\n{broken\n-->",
+                valid.replace(":v1", ":v99"), valid.removesuffix("\n-->"),
+                valid + "\nextra prose", "<!-- langbench-pr-handoff:v1\n[]\n-->"]
+
+    def test_old_valid_record_cannot_mask_malformed_owner_record(self):
+        self.comments = self.comments[:1]
+        for body in self.malformed_bodies():
+            with self.subTest(body=body[:50]):
+                comments = copy.deepcopy(self.comments)
+                comments.append({**record("unused", {}), "id": 300, "body": body})
+                with self.assertRaisesRegex(ValueError, "owner PR handoff envelope"):
+                    repair_handoff(comments, self.second, 80, self.policy)
+
+    def test_owner_prose_and_other_identity_normal_envelopes_are_ignored(self):
+        self.comments = self.comments[:1]
+        self.comments.append({**record("unused", {}), "body": "Owner prose about handoff"})
+        for key, value in (("repository", "other/repo"), ("issue", 999)):
+            self.comments.append(record("langbench-pr-handoff:v1", {
+                "schema_version": 1, "repository": REPOSITORY, "issue": 80, key: value}, 301))
+        self.assertEqual(82, self.select()["repair_pr"])
+
+    def test_non_owner_malformed_record_does_not_stop_owner_chain(self):
+        self.comments = self.comments[:1]
+        self.comments.append({**record("unused", {}, user={"login": "other", "id": 2, "type": "User"}),
+                              "body": self.malformed_bodies()[0]})
+        self.assertEqual(82, self.select()["repair_pr"])
+
+    def test_main_collector_revokes_old_pass_for_each_malformed_envelope(self):
+        self.comments = self.comments[:1]
+        for body in self.malformed_bodies():
+            with self.subTest(body=body[:50]):
+                _, facts, _ = fixtures()
+                previous = copy.deepcopy(self.second)
+                previous["merge_gate"] = result("PASS", "synthetic previous PASS")
+                previous["completion_gate"] = result("PASS", "synthetic previous PASS")
+                facts["issue_comments"] = copy.deepcopy(self.comments) + [
+                    {**record("unused", {}), "id": 300, "body": body}]
+                api = FakeGitHub(self.policy, facts, render(previous))
+                with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
+                     patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+                     patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
+                     redirect_stdout(io.StringIO()):
+                    self.assertEqual(1, main())
+                stopped = parse_state(api.dashboard["body"], 80, self.policy)
+                self.assertEqual("SAFE_STOPPED", stopped["current_state"])
+                self.assertEqual("ERROR", stopped["merge_gate"]["status"])
+                self.assertEqual("ERROR", stopped["completion_gate"]["status"])
+                self.assertEqual(previous["dispatches"], stopped["dispatches"])
 
 
 if __name__ == "__main__":
