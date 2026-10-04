@@ -1,0 +1,17 @@
+name: Observe PR review event
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+# Review events use the PR merge ref. This bridge has no write token and never
+# checks out or executes repository code. Its completion wakes the observer on
+# trusted default-branch workflow_run; the payload is not used as evidence.
+permissions:
+  contents: read
+
+jobs:
+  observed:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Review changed; trusted observer will re-fetch GitHub facts.'

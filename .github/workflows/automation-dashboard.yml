@@ -1,0 +1,45 @@
+name: Reconcile Automation Dashboard
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+  workflow_run:
+    workflows: [Python tests, Observe PR review event, Pull local main after verified merge, Validate measurement provenance on trusted Windows main, Prepare Windows function-call analysis artifact]
+    # requested covers new queued runs; in_progress also covers rerun attempts
+    # (GitHub does not emit requested for reruns). Never dispatch from here.
+    types: [requested, in_progress, completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  issues: write
+
+# GitHub comment PATCH has no CAS. Every writer for this Dashboard must use this
+# serialized observer. It rebuilds the latest facts, so coalesced queued events
+# are safe. No task/workflow dispatch, rerun, cancellation or merge is performed.
+concurrency:
+  group: automation-dashboard-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.repository == 'tetsujisugimori-coder/LangBench-Live' && (github.event_name != 'issue_comment' || github.event.sender.login != 'github-actions[bot]') && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Strong token only executes trusted main, never PR head or artifact code.
+          ref: refs/heads/main
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Observe trusted facts and update the same Issue comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python -B tools/update_automation_dashboard.py

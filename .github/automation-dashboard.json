@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "repository": "tetsujisugimori-coder/LangBench-Live",
+  "issues": {
+    "80": {
+      "purpose": "automation-dashboard-gates",
+      "dashboard_comment_id": 5979234464,
+      "owner": {"login": "tetsujisugimori-coder", "id": 265440097, "type": "User"},
+      "work_author": {"login": "tetsujisugimori-coder", "id": 265440097, "type": "User"},
+      "work_automation_id": "6ac2312d9a3481919a778124d511b885",
+      "dispatch_owners": {
+        "implementation_task": "Work(root); watchdog=6ac231f0c7348191b3ac8cf03ecca54d",
+        "fix_task": "Work(root); watchdog=6ac231f0c7348191b3ac8cf03ecca54d",
+        "windows_validation": "Work(root)",
+        "windows_measurement": "Work(root)",
+        "work_review": "Work(6ac2312d9a3481919a778124d511b885)",
+        "local_main_sync": ".github/workflows/pull-local-main.yml"
+      },
+      "initial_dispatch": {
+        "target_sha": "c5ca7a3499fdc6f61f43ec5935861db2e9d3f5fd",
+        "action_type": "implementation_task",
+        "purpose_id": "automation-dashboard-gates",
+        "dedup_key": "tetsujisugimori-coder/LangBench-Live:issue80:c5ca7a3499fdc6f61f43ec5935861db2e9d3f5fd:implementation_task:automation-dashboard-gates",
+        "state": "RUNNING",
+        "run_id": "01a10698-73a4-7739-ad30-70d1671370de",
+        "attempt": 1,
+        "retry_of": null
+      },
+      "requirements": {
+        "windows_validation": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "artifact_integrity": "NOT_REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED"
+      }
+    }
+  }
+}
