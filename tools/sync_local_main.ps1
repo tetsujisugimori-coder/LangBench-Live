@@ -5,6 +5,8 @@ param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$PullRequestHeadSha,
     [Parameter(Mandatory)][ValidateRange(1, [int]::MaxValue)][int]$PullRequestNumber,
     [string[]]$AllowedRemote = @('https://github.com/tetsujisugimori-coder/LangBench-Live.git','https://github.com/tetsujisugimori-coder/LangBench-Live','git@github.com:tetsujisugimori-coder/LangBench-Live.git'),
+    # Optional public safety evidence; production supplies a fresh RUNNER_TEMP path.
+    [string]$ReportPath,
     # Test-only fixed path markers; never supplied by the production workflow.
     [string]$TestPhaseDirectory
 )
@@ -130,5 +132,19 @@ try {
         throw "main advanced during sync: validated=$TargetSha latest=$latestRemote"
     }
     Write-Host "status=success pr=$PullRequestNumber pr_head=$PullRequestHeadSha merge=$MergeSha target=$TargetSha before=$headBefore after=$TargetSha protected_files=$($before.Count)"
+    if ($ReportPath) {
+        if (Test-Path -LiteralPath $ReportPath) { throw 'Sync report path already exists.' }
+        if ($env:GITHUB_RUN_ID -notmatch '^\d+$' -or $env:GITHUB_RUN_ATTEMPT -notmatch '^\d+$') { throw 'Sync report requires Actions run identity.' }
+        $report = [ordered]@{
+            schema_version = 1; repository = 'tetsujisugimori-coder/LangBench-Live'
+            pr = $PullRequestNumber; pr_head_sha = $PullRequestHeadSha
+            merge_sha = $MergeSha; target_sha = $TargetSha
+            before_sha = $headBefore; after_sha = $TargetSha
+            protected_files = $before.Count; protected_preserved = $true
+            run_id = [string]$env:GITHUB_RUN_ID; run_attempt = [int]$env:GITHUB_RUN_ATTEMPT
+            status = 'success'
+        }
+        [IO.File]::WriteAllText([IO.Path]::GetFullPath($ReportPath), ($report | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    }
 } finally { if ($lock) { $lock.Dispose() } }
 } finally { $env:GIT_ATTR_NOSYSTEM = $oldAttributesNoSystem; Pop-Location }

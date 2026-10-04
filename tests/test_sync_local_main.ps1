@@ -8,7 +8,7 @@ $passed = 0
 $caseTimes = @{}
 $suiteWatch = [Diagnostics.Stopwatch]::StartNew()
 $environmentBefore = @{}
-foreach ($name in @('GIT_CONFIG_NOSYSTEM','GIT_CONFIG_SYSTEM','GIT_CONFIG_GLOBAL','GIT_TERMINAL_PROMPT','GCM_INTERACTIVE')) {
+foreach ($name in @('GIT_CONFIG_NOSYSTEM','GIT_CONFIG_SYSTEM','GIT_CONFIG_GLOBAL','GIT_TERMINAL_PROMPT','GCM_INTERACTIVE','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT')) {
     $environmentBefore[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 # Isolate fixtures from installed LFS and user configuration. Dedicated cases
@@ -59,6 +59,20 @@ function Failure-Case([string]$Name, [scriptblock]$Arrange, [string]$ExpectedErr
 try {
     New-Item -ItemType Directory -Path $sandbox | Out-Null
     Run-Case 'normal fast-forward and update unnecessary' { $f = New-SyncFixture; Invoke-Sync $f; Invoke-Sync $f; if ((& git -C $f.Local rev-parse HEAD).Trim() -ne $f.Target) { throw 'fast-forward failed' } }
+    Run-Case 'exact sync public safety report' {
+        $f = New-SyncFixture
+        Set-Content (Join-Path $f.Local 'private-untracked.txt') 'preserved'
+        $env:GITHUB_RUN_ID = '123'; $env:GITHUB_RUN_ATTEMPT = '2'
+        $reportPath = Join-Path $f.Folder 'sync-report.json'
+        & $script -RepositoryPath $f.Local -TargetSha $f.Target -MergeSha $f.Target -PullRequestHeadSha $f.PrHead -PullRequestNumber 67 -AllowedRemote $f.Bare -ReportPath $reportPath
+        $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+        if ($report.schema_version -ne 1 -or $report.repository -ne 'tetsujisugimori-coder/LangBench-Live' -or
+            $report.pr -ne 67 -or $report.pr_head_sha -ne $f.PrHead -or $report.merge_sha -ne $f.Target -or
+            $report.target_sha -ne $f.Target -or $report.after_sha -ne $f.Target -or
+            $report.status -ne 'success' -or $report.protected_preserved -ne $true -or
+            $report.protected_files -ne 1 -or $report.run_id -ne '123' -or $report.run_attempt -ne 2) { throw 'Sync safety report identity mismatch.' }
+        if ((Get-Content -LiteralPath $reportPath -Raw) -match 'private-untracked|[A-Z]:\\') { throw 'Sync report exposed a private path.' }
+    }
     Run-Case 'Japanese and spaces repository path' { $f = New-SyncFixture '日本語 と spaces'; Invoke-Sync $f }
     Failure-Case 'staged tracked change' { param($f) Set-Content (Join-Path $f.Local tracked.txt) x; G $f.Local add tracked.txt }
     Failure-Case 'unstaged tracked change' { param($f) Set-Content (Join-Path $f.Local base.txt) modified }
