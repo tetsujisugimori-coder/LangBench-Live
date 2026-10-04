@@ -89,3 +89,37 @@ ownerが新しいactive actionへ切り替えるときは、receiptのtop-level�
 `python -B -m unittest tests.test_automation_dashboard -v` は24受入fixtureを番号付きで確認し、追加trust/API regressionsも含む。既存 `Python tests` のunittest discoveryに含まれ、Hosted Ubuntu/Windowsで同じfixtureが実行される。既存Hosted Windows sync safety suiteへreport identityのfixtureを追加した。
 
 導入PRの実Hosted CI、独立Work、実merge/sync/live smokeはそれぞれ取得後に確認する。Cloud Linux fixture成功をWindows実機成功としない。Windows性能実測は実行しない。FOLLOW_UP: 任意の旧Issue登録、Work専用GitHub Appによるより強いidentity分離、取りこぼしwatchdogは本IssueのGateを迂回せず、今後必要な時に承認する。
+
+### R4: merged PR CI retention and explicit repair acceptance
+
+GitHub may remove `pull_requests` from a successful pull-request run after
+merge. Only an API-confirmed merged/closed bound PR with a full merge SHA can
+use that empty-list fallback. Its live API head SHA, nonempty head branch,
+head/base repositories and main base must match the run; official workflow
+path/ID, pull_request event, both run repositories, latest run/attempt,
+attempt-specific jobs and required unittest steps are still checked. A
+nonempty association for another PR never falls back to SHA; open PRs still
+require their number. No cached/manual CI PASS is used.
+
+A post-merge fix receipt targeting the bound merge prevents Completion until
+an explicit owner handoff. The owner, after the repair PR exists, publishes
+one authenticated `langbench-pr-handoff:v1` JSON envelope on the same Issue:
+`schema_version: 1`, `repository`, `issue`, `repair_pr` (actual new PR number),
+and `previous_state` (the full current machine state, including old PR,
+exact-sync evidence and dispatch ledger). This is an acceptance operation,
+not a dispatch or Work review. Do not edit the Dashboard JSON or create a
+second Dashboard comment. The archive must match the currently bound cycle;
+the collector re-fetches the old merged PR identity and new Issue-referencing
+PR. Ambiguous/corrupt records fail closed. Publish one handoff, rather than
+editing the archived historical state. Repair head changes are re-read from
+GitHub and invalidate old evidence normally.
+
+The existing schema/writer and comment ID remain unchanged. The archived
+owner record retains the prior #81 exact sync and dedup history; the live
+ledger also remains intact. A new bound repair PR must independently satisfy
+same-head Work/Hosted CI/required conditions, human merge, its own exact merge
+sync and same-comment live smoke before Completion. The implementation actor
+does not author the handoff, Work PASS or smoke PASS. The owner must resolve
+DISPATCHING receipts explicitly; an unknown ownership state still blocks.
+F1 remains FOLLOW_UP. Snapshot checks detect observed races but cannot provide
+atomicity across GitHub APIs or eliminate event observation latency.

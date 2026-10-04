@@ -241,12 +241,62 @@ def run_jobs(run, jobs, names):
                   run_attempt=run["run_attempt"], head_sha=run["head_sha"])
 
 
+def ci_pr_identity(run, pull, head):
+    """Only merged API PRs may lose GitHub's run association list."""
+    links = run.get("pull_requests")
+    if not isinstance(links, list) or any(not isinstance(p, dict) for p in links):
+        return False
+    if links:
+        return any(p.get("number") == pull["number"] for p in links)
+    return (pull.get("merged") is True and pull.get("state") == "closed"
+            and sha(pull.get("merge_commit_sha")) and sha(head)
+            and pull.get("head", {}).get("sha") == head
+            and run.get("head_sha") == head
+            and isinstance(pull.get("head", {}).get("ref"), str)
+            and bool(pull["head"]["ref"])
+            and run.get("head_branch") == pull["head"]["ref"]
+            and (pull["head"].get("repo") or {}).get("full_name") == REPOSITORY
+            and (pull.get("base", {}).get("repo") or {}).get("full_name") == REPOSITORY
+            and pull["base"].get("ref") == "main")
+
+
+def repair_handoff(comments, previous, issue, policy):
+    """Explicit owner acceptance; immutable record retains the previous cycle."""
+    records = []
+    for comment in sorted(comments, key=comment_order):
+        if not author_matches(comment.get("user"), policy["owner"]):
+            continue
+        value = envelope(comment.get("body"), "langbench-pr-handoff:v1")
+        if not value or value.get("repository") != REPOSITORY or value.get("issue") != issue:
+            continue
+        if type(value.get("schema_version")) is not int or value["schema_version"] != 1:
+            raise ValueError("Unknown PR handoff schema")
+        archived = value.get("previous_state")
+        if not isinstance(archived, dict):
+            raise ValueError("PR handoff must archive the prior state")
+        archived = parse_state(render(archived), issue, policy)
+        target = value.get("repair_pr")
+        if (type(target) is not int or target <= 0 or target == archived["pr"]
+                or archived["merge_state"] != "MERGED" or not sha(archived["merge_sha"])
+                or archived["local_sync"].get("status") != "PASS"
+                or archived["local_sync"].get("target_sha") != archived["merge_sha"]):
+            raise ValueError("Invalid post-merge repair handoff")
+        if previous and previous["pr"] in {archived["pr"], target}:
+            if previous["pr"] == archived["pr"] and any(previous[k] != archived[k] for k in
+                    ("head_sha", "merge_sha", "local_sync", "dispatches")):
+                raise ValueError("PR handoff archive does not match current cycle")
+            records.append(value)
+    if len(records) > 1:
+        raise ValueError("Ambiguous PR handoff")
+    return records[0] if records else None
+
+
 def ci_evidence(facts, head):
     path = ".github/workflows/python-tests.yml"
     candidates = [r for r in facts["ci_runs"]
                   if workflow_identity(r, path, facts["workflow_ids"]["python-tests.yml"])
                   and r.get("event") == "pull_request"
-                  and any(p.get("number") == facts["pr"]["number"] for p in r.get("pull_requests", []))]
+                  and ci_pr_identity(r, facts["pr"], head)]
     current = [r for r in candidates if r.get("head_sha") == head]
     if not current:
         evidence = result("STALE" if candidates else "PENDING", "CI for current head is missing")
@@ -347,6 +397,9 @@ def dispatch_ledger(state, comments, issue, policy):
 def evaluate(issue, policy, previous, facts):
     state = copy.deepcopy(previous or initial_state(issue, policy))
     old_state = state["current_state"]
+    handoff = repair_handoff(facts["issue_comments"], previous, issue, policy)
+    if handoff and handoff["repair_pr"] == (facts.get("pr") or {}).get("number"):
+        state["pr"] = handoff["repair_pr"]
     state["dispatches"] = dispatch_ledger(state, facts["issue_comments"], issue, policy)
     for comment in sorted(facts["issue_comments"], key=comment_order):
         value = envelope(comment.get("body"), RECEIPT)
@@ -387,6 +440,10 @@ def evaluate(issue, policy, previous, facts):
             or base.get("ref") != "main" or type(pull.get("number")) is not int
             or (state["pr"] is not None and state["pr"] != pull["number"])):
         raise ValueError("PR/state identity conflict")
+    if (pull.get("merged") and state["active_action"] == "fix_task"
+            and any(r["dedup_key"] == state["dedup_key"] and r["target_sha"] == pull.get("merge_commit_sha")
+                    for r in state["dispatches"])):
+        state["blockers"].append("POST_MERGE_FIX_REQUIRES_PR_HANDOFF")
     state["pr"], state["head_sha"] = pull["number"], head
     work, report = work_review(facts["pr_comments"], issue, pull["number"], head, policy)
     state["work_review"] = work

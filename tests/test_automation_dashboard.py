@@ -627,5 +627,129 @@ class GateEvidenceFixRegressions(unittest.TestCase):
         self.assertEqual("ERROR", stopped["completion_gate"]["status"])
 
 
+class PostMergeCIEvidenceRegressions(unittest.TestCase):
+    def setUp(self):
+        self.policy, self.facts, self.report = fixtures()
+        GateEvidenceFixRegressions.completed_facts(self)
+        self.facts["pr"]["head"].update(ref="feature", repo={"full_name": REPOSITORY})
+        self.facts["ci_runs"][0]["pull_requests"] = []
+
+    def state(self):
+        return evaluate(80, self.policy, None, self.facts)
+
+    def test_merged_empty_links_collector_to_completion(self):
+        api = FakeGitHub(self.policy, self.facts)
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        self.assertEqual("COMPLETED", parse_state(api.dashboard["body"], 80, self.policy)["current_state"])
+
+    def test_open_empty_links_cannot_pass(self):
+        self.facts["pr"].update(merged=False, state="open")
+        self.assertEqual("PENDING", self.state()["required_ci"]["status"])
+
+    def test_other_pr_same_sha_is_rejected_open_and_merged(self):
+        self.facts["ci_runs"][0]["pull_requests"] = [{"number": 99}]
+        for merged in (True, False):
+            self.facts["pr"].update(merged=merged, state="closed" if merged else "open")
+            self.assertNotEqual("PASS", self.state()["required_ci"]["status"])
+
+    def test_merged_stale_head_is_rejected(self):
+        self.facts["ci_runs"][0]["head_sha"] = OLD
+        self.assertNotEqual("PASS", self.state()["completion_gate"]["status"])
+
+    def test_merged_retry_supersedes_success(self):
+        self.facts["ci_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None)
+        self.assertEqual("PENDING", self.state()["required_ci"]["status"])
+
+    def test_merged_failure_blocks_completion(self):
+        self.facts["ci_runs"][0]["conclusion"] = "failure"
+        self.assertEqual("BLOCKED", self.state()["completion_gate"]["status"])
+
+    def test_merged_required_step_failure_blocks_completion(self):
+        self.facts["jobs"]["10"][0]["steps"][0]["conclusion"] = "failure"
+        self.assertNotEqual("PASS", self.state()["completion_gate"]["status"])
+
+    def test_merged_identity_dimensions_fail_closed(self):
+        baseline = copy.deepcopy(self.facts)
+        for key, value in (("workflow_id", 99), ("path", "other"), ("event", "push"),
+                           ("repository", {"full_name": "other/repo"}),
+                           ("head_repository", {"full_name": "other/repo"}),
+                           ("head_branch", "other"), ("pull_requests", None)):
+            self.facts = copy.deepcopy(baseline)
+            self.facts["ci_runs"][0][key] = value
+            self.assertNotEqual("PASS", self.state()["required_ci"]["status"], key)
+
+    def test_merged_missing_pr_head_repository_fails_closed(self):
+        del self.facts["pr"]["head"]["repo"]
+        self.assertNotEqual("PASS", self.state()["completion_gate"]["status"])
+
+    def test_merged_retry_during_write_invalidates_completion(self):
+        api = FakeGitHub(self.policy, self.facts)
+        def hook(path, method):
+            if method == "PATCH":
+                api.facts["ci_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None)
+                api.hook = None
+        api.hook = hook
+        self.assertEqual("RACE_BLOCKED", reconcile(api, 80, self.policy, NOW))
+        self.assertEqual("STALE", parse_state(api.dashboard["body"], 80, self.policy)["completion_gate"]["status"])
+
+    def handoff(self):
+        previous = self.state()
+        value = {"schema_version": 1, "repository": REPOSITORY, "issue": 80,
+                 "repair_pr": 82, "previous_state": previous}
+        self.facts["issue_comments"].append(record("langbench-pr-handoff:v1", value, 120))
+        old_pull = copy.deepcopy(self.facts["pr"])
+        self.facts["pr"].update(number=82, merged=False, state="open", merge_commit_sha=None)
+        self.facts["pr_comments"] = []
+        self.facts["ci_runs"] = []
+        return previous, old_pull
+
+    def test_explicit_owner_handoff_collects_repair_pr_without_old_pass(self):
+        previous, old_pull = self.handoff()
+        class RepairAPI(FakeGitHub):
+            def request(self, path, method="GET", data=None, raw=False):
+                suffix = path.removeprefix(self.root).split("?")[0]
+                if method == "GET" and suffix == "/pulls/81":
+                    return copy.deepcopy(old_pull)
+                if method == "GET" and suffix == "/pulls/82":
+                    return copy.deepcopy(self.facts["pr"])
+                if method == "GET" and suffix in {"/issues/82/comments", "/pulls/82/reviews"}:
+                    return []
+                return super().request(path, method, data, raw)
+        api = RepairAPI(self.policy, self.facts, render(previous))
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        current = parse_state(api.dashboard["body"], 80, self.policy)
+        self.assertEqual(82, current["pr"])
+        self.assertEqual(previous["dispatches"], current["dispatches"])
+        self.assertNotEqual("PASS", current["completion_gate"]["status"])
+        self.assertNotEqual("PASS", current["work_review"]["status"])
+        self.assertEqual("NO_OP", reconcile(api, 80, self.policy, NOW))
+
+    def test_post_merge_fix_receipt_blocks_old_completion_until_handoff(self):
+        dispatch = copy.deepcopy(self.policy["initial_dispatch"])
+        dispatch.update(action_type="fix_task", purpose_id="post-merge-ci-evidence-retention",
+                        target_sha=MERGE, state="RUNNING")
+        dispatch["dedup_key"] = f"{REPOSITORY}:issue80:{MERGE}:fix_task:post-merge-ci-evidence-retention"
+        self.facts["issue_comments"].append(record(RECEIPT, {
+            "schema_version": 1, "repository": REPOSITORY, "issue": 80,
+            "active": True, "dispatch": dispatch}, 121))
+        current = self.state()
+        self.assertIn("POST_MERGE_FIX_REQUIRES_PR_HANDOFF", current["blockers"])
+        self.assertEqual("BLOCKED", current["completion_gate"]["status"])
+
+    def test_handoff_spoof_cannot_rebind(self):
+        previous, _ = self.handoff()
+        self.facts["issue_comments"][-1]["user"] = {"login": "other", "id": 2, "type": "User"}
+        with self.assertRaisesRegex(ValueError, "identity conflict"):
+            evaluate(80, self.policy, previous, self.facts)
+
+    def test_handoff_corrupt_archive_safe_stops(self):
+        previous, _ = self.handoff()
+        value = json.loads(self.facts["issue_comments"][-1]["body"].split("\n")[1])
+        value["previous_state"]["local_sync"]["target_sha"] = OLD
+        self.facts["issue_comments"][-1] = record("langbench-pr-handoff:v1", value, 120)
+        with self.assertRaisesRegex(ValueError, "Invalid post-merge"):
+            evaluate(80, self.policy, previous, self.facts)
+
+
 if __name__ == "__main__":
     unittest.main()
