@@ -12,11 +12,13 @@ JSONは表示cacheであり、PASSの根拠ではない。旧MarkdownのPASSを�
 
 ## Eventsと競合
 
-PR open / synchronize / edited / merge等は `pull_request_target`、Work・dispatch・artifact・smoke更新は `issue_comment`、CI / Windows / sync完了は `workflow_run` で再照合する。`pull_request_review` はPR merge refを使うため、write tokenを持たない `Observe PR review event` bridgeを経由し、trusted default branchの `workflow_run` observerを起こす。bridgeはcheckoutしない。イベントpayloadのSHAやPASSを証拠に使わない。
+PR open / synchronize / edited / merge等は `pull_request_target`、Work・dispatch・artifact・smoke更新は `issue_comment`、CI / Windows / syncの開始・完了は `workflow_run` の `requested / in_progress / completed` で再照合する。GitHubはrerunで `requested` を発行しないため、retryは `in_progress` でも旧PASSを失効させる。`pull_request_review` はPR merge refを使うため、write tokenを持たない `Observe PR review event` bridgeを経由し、trusted default branchの `workflow_run` observerを起こす。bridgeはcheckoutしない。イベントpayloadのSHAやPASSを証拠に使わない。
 
 updaterは許可Issueと同一RefsのPRをGitHub APIから再取得し、workflow ID/path/repository/head/eventとrequired jobs/stepsを照合する。全ページを読み、不完全な取得はfail-closed。CIは最新run/attemptを使い、古い成功を新retryの進行中状態へ流用しない。最新headが存在すれば古いreviewの後着は無視し、新headの結果がない場合は `STALE` / `PENDING`。
 
-repository単位のActions concurrency（cancelなし）でwriterを直列化する。毎回最新factを二度収集し、一致した場合だけ更新する。JSONが同じなら書き込まず、updated時刻も変えない。comment作成も二度確認する。更新後PRが変わった場合は同じコメントを `STALE / SAFE_STOPPED` に修復する。GitHub comment PATCHはCASを提供しないため、**このworkflowが唯一のstate writer**であることが運用条件。ownerはstate JSONを直接編集せず、後述receiptを投稿する。変更直後から次イベントまでの一時的な観測遅延はあり、DashboardのPASSはAPIのmerge権限や自動mergeではない。
+repository単位のActions concurrency（cancelなし）でwriterを直列化する。毎回最新factを二度収集し、一致した場合だけ更新する。JSONが同じなら書き込まず、updated時刻も変えない。comment作成も二度確認する。書込後にPRだけでなくCI run / attempt / jobs / steps、Work、review、必要条件run / artifact / result PR、正式sync run / safety report、smoke / receiptを含むGate factsを再取得する。変化を検出したら最新factsで表示を更新し、同じcommentの両Gateを `STALE / SAFE_STOPPED` へ失効させる。再取得失敗や破損はmainの `safe_stop` を通し `ERROR`。新規comment作成時のID確定だけは正当な変化として扱う。
+
+GitHub comment PATCHはCASを提供しないため、**このworkflowが唯一のstate writer**であることが運用条件。ownerはstate JSONを直接編集せず、後述receiptを投稿する。二度の事前照合と書込後照合は完全な原子性を保証しない。最終照合後の変化、GitHub API反映、event配送、Actions queueの遅延中には表示の観測遅延が残る。queued rerunは `requested` が無いため開始時の `in_progress` まで観測が遅れる場合もある。開始／retryイベントでもAPIから再評価し、旧attemptの成功を流用しない。DashboardのPASSは観測時点の表示であり、mergeの直前にも最新GitHub factsを確認する。APIのmerge権限や自動mergeではない。observer自身は追加runや回収taskをdispatchしない。
 
 bot自身のcomment editは `sender` で除外する（元authorがownerであっても）。定期pollは主経路にしない。取りこぼし回収の手動 `workflow_dispatch` はmain限定で、observer自身はdispatchしない。
 
@@ -33,6 +35,8 @@ WorkはPRに以下の**単独JSONコメント**を投稿する。以下は仕様
 ```
 
 `blockers` は未解決IN_SCOPE_BLOCKERのpublic要約、`follow_up` は目的外事項のpublic記録（発見Issue/PR/head・概要・重要度・今回直さない理由・将来確認箇所・新Issue候補）。空配列は明示ゼロ件。欠落をゼロ件に推測しない。`active_blocker` があればPASSにしない。Workの対象headの最新recordを使用する。GitHub changes-requested reviewは追加のveto。
+
+API IDを収集する前に、許可author・repository / Issue / PR / automation / kind・schema / head・blocker / FOLLOW_UP・conditions object・各condition object/status/head/API ID型を共通validatorで検証する。別identityのrecordはAPI選択に使わない。認証済みrecordの `conditions=["broken"]`、文字列/null、壊れたschema等は明示的な `WorkRecordError` に変換する。mainはこれを捕捉して同じcommentの旧PASSを `SAFE_STOPPED / ERROR` へ失効させ、公開の型不正理由だけを記録する。広いexceptでAttributeErrorを隠す設計にはしない。
 
 automation IDは署名ではない。このGitHub accountは承認されたWorkの投稿主体という明示的trust rootであり、同じaccountを利用する人間からWorkとの暗号的区別はできない。独立Work以外によるこのrecordの代筆は禁止。本実装taskは実Work PASSを投稿しない。別GitHub Appを使う運用へ移る場合は、人間承認のauthor/app identity変更をtrusted policyへ反映する。author照合はrepo権限や文章内actorの自己申告で代替しない。
 
@@ -60,7 +64,9 @@ Issue #80ではmerge後、同一commentに `LOCAL_SYNCED` が表示されるこ�
 -->
 ```
 
-人間merge、exact sync、必要post条件、同head Work/no blocker、FOLLOW_UP明示記録、live smokeがすべて成立して `COMPLETED`。Issue closeはobserverが実施せず、ownerがCompletion Gateと最新APIを確認して行う。未merge PRのself-hosted実行、検証だけの性能測定は禁止。
+人間merge、exact sync、必要post条件、同head Workと必須CI・公開データ検算、no blocker、FOLLOW_UP明示記録、live smokeがすべて成立して `COMPLETED`。Work / required_ci / public_dataはmerge前後に共通の検証条件であり、failure / pending / stale / unknown / missingでは完了に昇格しない。closed PRにはopenを要求するMerge Gateを丸ごと流用せず、Completion Gateに共通検証だけを渡す。Issue closeはobserverが実施せず、ownerがCompletion Gateと最新APIを確認して行う。未merge PRのself-hosted実行、検証だけの性能測定は禁止。
+
+FOLLOW_UP F1（独立review 5405787735）: 将来のREQUIRED Windows post条件はPR headとmerge SHAのphase policyを分離する必要がある。発見Issue #80 / PR #81 / head `ce4aee55ae5170baed53b0baac00c85486ee9c96`、severity P2、scope FOLLOW_UP、merge blocking NO、新Issue候補 YES。Issue #80はWindows条件がNOT_REQUIREDのため、R1–R3の今回loopではtargetの測定仕様を変更しない。将来確認箇所はcondition生成とpre/post phase policy。
 
 ## Ownership / dedup
 

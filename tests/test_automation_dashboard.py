@@ -3,9 +3,11 @@
 All runs/SHAs here are synthetic. No benchmark or self-hosted execution.
 """
 import copy
+from contextlib import redirect_stdout
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -14,7 +16,7 @@ import zipfile
 
 from tools.automation_dashboard import (BOT, REPOSITORY, START, WORK, RECEIPT, SMOKE, author_matches,
                                         evaluate, initial_state, parse_state, render, result)
-from tools.update_automation_dashboard import (GitHub, SafeRedirect, collect, reconcile, safe_stop)
+from tools.update_automation_dashboard import (GitHub, SafeRedirect, collect, reconcile, safe_stop, main)
 
 ROOT = Path(__file__).resolve().parents[1]
 HEAD, OLD, MERGE = "a" * 40, "b" * 40, "c" * 40
@@ -95,6 +97,10 @@ class FakeGitHub(GitHub):
         }
         for value in self.facts["ci_runs"] + self.facts["sync_runs"]:
             routes[f'/actions/runs/{value["id"]}/attempts/{value["run_attempt"]}/jobs'] = {"jobs": self.facts["jobs"].get(str(value["id"]), [])}
+        for ident, value in self.facts["condition_runs"].items():
+            routes[f"/actions/runs/{ident}"] = value
+        for ident, value in self.facts["condition_artifacts"].items():
+            routes[f"/actions/artifacts/{ident}"] = value
         if clean not in routes:
             raise AssertionError(f"Unexpected API route {clean}")
         return copy.deepcopy(routes[clean])
@@ -437,6 +443,188 @@ class DashboardTrustRegressions(unittest.TestCase):
         self.assertIn("pull_request_review:", bridge)
         self.assertNotIn("write", bridge.split("permissions:")[1])
         self.assertNotIn("actions/checkout", bridge)
+
+
+class GateEvidenceFixRegressions(unittest.TestCase):
+    """R1–R3 from Work review 5405787735; F1 intentionally remains deferred."""
+    def setUp(self):
+        self.policy, self.facts, self.report = fixtures()
+
+    def completed_facts(self):
+        self.facts["pr"].update(merged=True, state="closed", merge_commit_sha=MERGE,
+                                merged_at=NOW, merged_by=self.policy["owner"])
+        value, jobs = run(20, "pull-local-main.yml", 2, MERGE, "push", ["verify-merge", "pull-main"])
+        self.facts["sync_runs"] = [value]
+        self.facts["jobs"]["20"] = jobs
+        self.facts["sync_reports"]["20"] = {
+            "schema_version": 1, "repository": REPOSITORY, "pr": 81, "pr_head_sha": HEAD,
+            "merge_sha": MERGE, "target_sha": MERGE, "before_sha": OLD, "after_sha": MERGE,
+            "run_id": "20", "run_attempt": 1, "status": "success", "protected_preserved": True, "protected_files": 9}
+        self.facts["issue_comments"] = [record(SMOKE, {"schema_version": 1, "repository": REPOSITORY, "issue": 80,
+            "pr": 81, "merge_sha": MERGE, "dashboard_comment_id": 5979234464,
+            "sync_run_id": 20, "observed_state": "LOCAL_SYNCED", "status": "PASS"})]
+        self.assertEqual("COMPLETED", evaluate(80, self.policy, None, self.facts)["current_state"])
+
+    def race(self, mutate):
+        api = FakeGitHub(self.policy, self.facts)
+        def hook(path, method):
+            if method == "PATCH":
+                mutate(api.facts)
+                api.hook = None
+        api.hook = hook
+        self.assertEqual("RACE_BLOCKED", reconcile(api, 80, self.policy, NOW))
+        state = parse_state(api.dashboard["body"], 80, self.policy)
+        self.assertEqual("SAFE_STOPPED", state["current_state"])
+        self.assertEqual("STALE", state["merge_gate"]["status"])
+        self.assertEqual("STALE", state["completion_gate"]["status"])
+        self.assertEqual(["PATCH", "PATCH"], [write[0] for write in api.writes])
+        self.assertEqual([self.policy["initial_dispatch"]], state["dispatches"])
+        return state
+
+    def test_r1_ci_retry_during_patch_revokes_ready_pass(self):
+        def retry(facts):
+            facts["ci_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None)
+        state = self.race(retry)
+        self.assertEqual("PENDING", state["required_ci"]["status"])
+
+    def test_r1_ci_job_change_without_head_or_run_change_revokes_pass(self):
+        state = self.race(lambda facts: facts["jobs"]["10"][1].update(conclusion="failure"))
+        self.assertEqual("BLOCKED", state["required_ci"]["status"])
+
+    def test_r1_work_update_during_patch_revokes_pass(self):
+        report = copy.deepcopy(self.report)
+        report["verdict"] = "BLOCKED"
+        state = self.race(lambda facts: facts.update(pr_comments=[record(WORK, report)]))
+        self.assertEqual("BLOCKED", state["work_review"]["status"])
+
+    def test_r1_condition_run_change_during_patch_revokes_pass(self):
+        # Even optional external evidence fetched for an authenticated report is
+        # included in the post-write fingerprint. No F1 target-phase change.
+        value, _ = run(30, "measurement-validation-windows.yml", 3, HEAD, "workflow_dispatch")
+        value["head_branch"] = "main"
+        self.policy["requirements"]["windows_validation"] = "REQUIRED"
+        self.report["conditions"]["windows_validation"] = {"status": "PASS", "head_sha": HEAD, "run_id": 30}
+        self.facts["pr_comments"] = [record(WORK, self.report)]
+        self.facts["condition_runs"]["30"] = value
+        self.assertEqual("PASS", evaluate(80, self.policy, None, self.facts)["merge_gate"]["status"])
+        self.race(lambda facts: facts["condition_runs"]["30"].update(conclusion="failure"))
+
+    def test_r1_sync_attempt_change_during_patch_revokes_completed(self):
+        self.completed_facts()
+        def retry(facts):
+            facts["sync_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None)
+        state = self.race(retry)
+        self.assertEqual("PENDING", state["local_sync"]["status"])
+
+    def test_r1_sync_safety_report_change_during_patch_revokes_completed(self):
+        self.completed_facts()
+        state = self.race(lambda facts: facts["sync_reports"]["20"].update(protected_preserved=False))
+        self.assertEqual("ERROR", state["local_sync"]["status"])
+
+    def test_r1_start_and_retry_event_invalidation_path(self):
+        workflow = (ROOT / ".github/workflows/automation-dashboard.yml").read_text(encoding="utf-8")
+        self.assertIn("types: [requested, in_progress, completed]", workflow)
+        self.assertIn("GitHub does not emit requested for reruns", workflow)
+        self.assertIn("ref: refs/heads/main", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+
+    def test_r2_completion_requires_successful_ci_in_all_states(self):
+        cases = {
+            "failure": lambda facts: facts["ci_runs"][0].update(conclusion="failure"),
+            "pending_retry": lambda facts: facts["ci_runs"][0].update(run_attempt=2, status="in_progress", conclusion=None),
+            "stale": lambda facts: facts["ci_runs"][0].update(head_sha=OLD),
+            "missing": lambda facts: facts.update(ci_runs=[]),
+            "unknown_status": lambda facts: facts["ci_runs"][0].update(status=None, conclusion=None),
+            "unknown_conclusion": lambda facts: facts["ci_runs"][0].update(conclusion=None),
+            "missing_job": lambda facts: facts["jobs"].update({"10": []}),
+        }
+        self.completed_facts()
+        for name, mutate in cases.items():
+            with self.subTest(case=name):
+                facts = copy.deepcopy(self.facts)
+                mutate(facts)
+                state = evaluate(80, self.policy, None, facts)
+                self.assertNotEqual("PASS", state["required_ci"]["status"])
+                self.assertNotEqual("PASS", state["completion_gate"]["status"])
+                self.assertNotEqual("COMPLETED", state["current_state"])
+                self.assertEqual("PASS", state["local_sync"]["status"])
+
+    def test_r2_completion_requires_public_data_verification(self):
+        self.completed_facts()
+        for conclusion in ("failure", "in_progress", None):
+            with self.subTest(conclusion=conclusion):
+                facts = copy.deepcopy(self.facts)
+                facts["jobs"]["10"][0]["steps"][0]["conclusion"] = conclusion
+                state = evaluate(80, self.policy, None, facts)
+                self.assertEqual("PASS", state["required_ci"]["status"])
+                self.assertNotEqual("PASS", state["public_data"]["status"])
+                self.assertNotEqual("PASS", state["completion_gate"]["status"])
+                self.assertNotEqual("COMPLETED", state["current_state"])
+
+    def test_r3_malformed_trusted_record_main_revokes_existing_pass(self):
+        mutations = {
+            "conditions_list": lambda report: report.update(conditions=["broken"]),
+            "conditions_string": lambda report: report.update(conditions="broken"),
+            "conditions_null": lambda report: report.update(conditions=None),
+            "conditions_missing": lambda report: report.pop("conditions"),
+            "condition_value_list": lambda report: report.update(conditions={"artifact_integrity": ["broken"]}),
+            "schema_unknown": lambda report: report.update(schema_version=99),
+            "head_invalid": lambda report: report.update(head_sha="broken"),
+            "blockers_missing": lambda report: report.pop("blockers"),
+            "api_id_invalid": lambda report: report.update(conditions={"artifact_integrity": {"status": "PASS", "head_sha": HEAD, "run_id": "untrusted"}}),
+        }
+        previous = evaluate(80, self.policy, None, self.facts)
+        self.assertEqual("PASS", previous["merge_gate"]["status"])
+        for name, mutate in mutations.items():
+            with self.subTest(case=name):
+                facts, report = copy.deepcopy(self.facts), copy.deepcopy(self.report)
+                mutate(report)
+                facts["pr_comments"] = [record(WORK, report)]
+                api = FakeGitHub(self.policy, facts, render(previous))
+                output = io.StringIO()
+                with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
+                     patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+                     patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
+                     redirect_stdout(output):
+                    self.assertEqual(1, main())
+                stopped = parse_state(api.dashboard["body"], 80, self.policy)
+                self.assertEqual("SAFE_STOPPED", stopped["current_state"])
+                self.assertEqual("ERROR", stopped["merge_gate"]["status"])
+                self.assertEqual("ERROR", stopped["completion_gate"]["status"])
+                self.assertEqual(previous["dispatches"], stopped["dispatches"])
+                self.assertIn("Work", output.getvalue())
+                self.assertNotIn("fixture-token", output.getvalue())
+
+    def test_r3_other_work_identity_cannot_select_api_ids(self):
+        for field, value in (("automation_id", "unregistered"), ("repository", "other/repo"), ("issue", 999), ("pr", 999), ("kind", "not-work")):
+            with self.subTest(field=field):
+                facts, report = copy.deepcopy(self.facts), copy.deepcopy(self.report)
+                report[field] = value
+                report["conditions"] = {"artifact_integrity": {"status": "PASS", "head_sha": HEAD, "run_id": 999}}
+                facts["pr_comments"] = [record(WORK, report)]
+                # FakeGitHub has no route for run 999: any read would fail.
+                _, collected = collect(FakeGitHub(self.policy, facts), 80, self.policy, None)
+                self.assertEqual({}, collected["condition_runs"])
+
+    def test_r3_post_write_work_corruption_main_revokes_published_pass(self):
+        api = FakeGitHub(self.policy, self.facts)
+        def corrupt(path, method):
+            if method == "PATCH":
+                broken = copy.deepcopy(self.report)
+                broken["conditions"] = ["broken"]
+                api.facts["pr_comments"] = [record(WORK, broken)]
+                api.hook = None
+        api.hook = corrupt
+        with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
+             patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+             patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
+             redirect_stdout(io.StringIO()):
+            self.assertEqual(1, main())
+        self.assertEqual("PASS", parse_state(api.writes[0][2]["body"], 80, self.policy)["merge_gate"]["status"])
+        stopped = parse_state(api.dashboard["body"], 80, self.policy)
+        self.assertEqual("SAFE_STOPPED", stopped["current_state"])
+        self.assertEqual("ERROR", stopped["merge_gate"]["status"])
+        self.assertEqual("ERROR", stopped["completion_gate"]["status"])
 
 
 if __name__ == "__main__":

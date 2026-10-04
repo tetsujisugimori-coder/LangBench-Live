@@ -7,7 +7,9 @@ on:
     types: [created, edited, deleted]
   workflow_run:
     workflows: [Python tests, Observe PR review event, Pull local main after verified merge, Validate measurement provenance on trusted Windows main, Prepare Windows function-call analysis artifact]
-    types: [completed]
+    # requested covers new queued runs; in_progress also covers rerun attempts
+    # (GitHub does not emit requested for reruns). Never dispatch from here.
+    types: [requested, in_progress, completed]
   workflow_dispatch:
 
 permissions:

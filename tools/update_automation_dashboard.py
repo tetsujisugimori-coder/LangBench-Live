@@ -19,11 +19,13 @@ import urllib.request
 import zipfile
 
 try:
-    from tools.automation_dashboard import (BOT, REPOSITORY, author_matches, envelope, evaluate,
-                                          initial_state, parse_state, render, result, WORK)
+    from tools.automation_dashboard import (BOT, REPOSITORY, author_matches, evaluate,
+                                          parse_state, render, result,
+                                          validated_work_record, WorkRecordError)
 except ModuleNotFoundError:
-    from automation_dashboard import (BOT, REPOSITORY, author_matches, envelope, evaluate,
-                                     initial_state, parse_state, render, result, WORK)
+    from automation_dashboard import (BOT, REPOSITORY, author_matches, evaluate,
+                                     parse_state, render, result,
+                                     validated_work_record, WorkRecordError)
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -166,14 +168,10 @@ def collect(api, issue, policy, previous):
     # Only trusted reports may select extra public API IDs; values are validated
     # before interpolation. They still cannot grant PASS without fresh API facts.
     for comment in facts["pr_comments"]:
-        if not author_matches(comment.get("user"), policy["work_author"]):
+        record = validated_work_record(comment, issue, number, policy)
+        if record is None or record["head_sha"] != head:
             continue
-        record = envelope(comment.get("body"), WORK)
-        if not record or record.get("repository") != REPOSITORY or record.get("head_sha") != head:
-            continue
-        for condition in (record.get("conditions") or {}).values():
-            if not isinstance(condition, dict):
-                continue
+        for condition in record["conditions"].values():
             for field in ("run_id", "artifact_id", "pr"):
                 ident = condition.get(field)
                 if type(ident) is not int or ident <= 0:
@@ -194,9 +192,10 @@ def fingerprint(facts):
 def reconcile(api, issue, policy, now):
     """Repository workflow concurrency + double collection + post-write check.
 
-    GitHub comments provide no conditional PATCH. A changing snapshot is never
-    published as PASS; a detected post-write race is repaired fail-closed and
-    the queued synchronize/workflow event performs a fresh reconciliation.
+    GitHub comments provide no conditional PATCH. Double collection reduces the
+    write race, but cannot eliminate it. Re-fetch every Gate fact after writing;
+    a detected change is repaired fail-closed in the same comment. Events cover
+    later changes, with explicit API/event/queue observation latency.
     """
     comments = api.pages(f"/issues/{issue}/comments")
     dashboard = select_dashboard(comments, policy)
@@ -219,12 +218,19 @@ def reconcile(api, issue, policy, now):
         else:
             # Double collection plus serialized workflow prevents duplicate create.
             saved = api.request(api.root + f"/issues/{issue}/comments", "POST", {"body": body})
-        check = api.get(f'/pulls/{state["pr"]}') if state["pr"] else None
-        if check and any(check.get(k) != first["pr"].get(k) for k in ("head", "state", "merged", "merge_commit_sha", "body", "updated_at")):
-            state["current_state"] = "SAFE_STOPPED"
-            state["merge_gate"] = result("STALE", "PR changed during Dashboard write; fresh event reconciliation required")
-            state["completion_gate"] = copy.deepcopy(state["merge_gate"])
-            api.request(api.root + f'/issues/comments/{saved["id"]}', "PATCH", {"body": render(state)})
+        checked_dashboard, checked = collect(api, issue, policy, state)
+        expected = copy.deepcopy(second)
+        # Creating a Dashboard legitimately changes only its comment identity.
+        expected["dashboard_comment_id"] = saved["id"]
+        if (fingerprint(checked) != fingerprint(expected) or checked_dashboard is None
+                or checked_dashboard["id"] != saved["id"] or checked_dashboard["body"] != body):
+            fresh = evaluate(issue, policy, state, checked)
+            fresh["current_state"] = "SAFE_STOPPED"
+            fresh["merge_gate"] = result("STALE", "Gate facts changed during Dashboard write; fresh event reconciliation required")
+            fresh["completion_gate"] = copy.deepcopy(fresh["merge_gate"])
+            fresh["last_transition"] = f'{state["current_state"]} -> SAFE_STOPPED'
+            fresh["last_updated"] = now
+            api.request(api.root + f'/issues/comments/{saved["id"]}', "PATCH", {"body": render(fresh)})
             return "RACE_BLOCKED"
         return "UPDATED"
     raise ValueError("GitHub snapshot changed repeatedly; unsafe to publish")
@@ -267,10 +273,11 @@ def main():
         issue = int(key)
         try:
             print(f"Issue #{issue}: {reconcile(api, issue, policy, datetime.now(timezone.utc).isoformat())}")
-        except (ValueError, KeyError, TypeError, urllib.error.URLError, zipfile.BadZipFile):
+        except (ValueError, KeyError, TypeError, urllib.error.URLError, zipfile.BadZipFile) as exc:
             failed = True
             # Never print response bodies, signed URLs, secret values or private paths.
-            print(f"::error::Issue #{issue}: trusted facts/state unavailable; gates fail closed")
+            reason = str(exc) if isinstance(exc, WorkRecordError) else "trusted facts/state unavailable"
+            print(f"::error::Issue #{issue}: {reason}; gates fail closed")
             try:
                 safe_stop(api, issue, policy)
             except (ValueError, KeyError, TypeError, urllib.error.URLError):

@@ -147,16 +147,59 @@ def parse_state(body, issue, policy):
     return state
 
 
+class WorkRecordError(ValueError):
+    """Authenticated Work evidence has an invalid schema (public reason only)."""
+
+
+def validated_work_record(comment, issue, pr, policy):
+    """Validate before reading conditions or allowing a record to select API IDs.
+
+    Other authors/identities and ordinary prose are not Work evidence. A broken
+    record from the configured Work identity is an error, not a missing review
+    that permits an older PASS to remain authoritative.
+    """
+    if not author_matches(comment.get("user"), policy["work_author"]):
+        return None
+    body = comment.get("body")
+    value = envelope(body, WORK)
+    if value is None:
+        if isinstance(body, str) and body.lstrip().startswith("<!-- langbench-work-review:"):
+            raise WorkRecordError("Malformed Work envelope or unknown schema")
+        return None
+    if (value.get("repository") != REPOSITORY or type(value.get("issue")) is not int
+            or value.get("issue") != issue or type(value.get("pr")) is not int or value.get("pr") != pr
+            or value.get("automation_id") != policy["work_automation_id"] or value.get("kind") != "work_review"):
+        return None
+    if type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or not sha(value.get("head_sha")):
+        raise WorkRecordError("Invalid Work schema or head identity")
+    if (not isinstance(value.get("blockers"), list) or not isinstance(value.get("follow_up"), list)
+            or "active_blocker" not in value or type(value.get("follow_up_recorded")) is not bool
+            or not isinstance(value.get("verdict"), str) or value["verdict"] not in {"PASS", "BLOCKED", "PENDING"}):
+        raise WorkRecordError("Invalid Work blocker/follow-up/verdict fields")
+    conditions = value.get("conditions")
+    if not isinstance(conditions, dict):
+        raise WorkRecordError("Work conditions must be an object")
+    names = {"windows_validation", "windows_measurement", "artifact_integrity", "measurement_result_pr"}
+    for name, condition_record in conditions.items():
+        if (name not in names or not isinstance(condition_record, dict)
+                or not isinstance(condition_record.get("status"), str)
+                or condition_record["status"] not in {"PASS", "PENDING", "BLOCKED", "STALE", "ERROR"}
+                or not sha(condition_record.get("head_sha"))):
+            raise WorkRecordError("Invalid Work condition record")
+        for field in ("run_id", "artifact_id", "pr"):
+            if field in condition_record and (type(condition_record[field]) is not int or condition_record[field] <= 0):
+                raise WorkRecordError("Invalid Work condition API identity")
+    return value
+
+
 def work_review(comments, issue, pr, head, policy):
     accepted = []
     for comment in comments:
-        if not author_matches(comment.get("user"), policy["work_author"]):
-            continue
-        value = envelope(comment.get("body"), WORK)
-        if (value and type(value.get("schema_version")) is int and value.get("schema_version") == 1 and value.get("repository") == REPOSITORY
-                and value.get("issue") == issue and value.get("pr") == pr
-                and value.get("automation_id") == policy["work_automation_id"]
-                and value.get("kind") == "work_review" and sha(value.get("head_sha"))):
+        try:
+            value = validated_work_record(comment, issue, pr, policy)
+        except WorkRecordError as exc:
+            return result("ERROR", str(exc), head_sha=head), None
+        if value:
             accepted.append((comment_order(comment), value))
     if not accepted:
         return result("PENDING", "Authenticated structured Work review is missing"), None
@@ -368,7 +411,11 @@ def evaluate(issue, policy, previous, facts):
                    and re.search(rf"Issue #{issue}\b", pull.get("title", "")) is not None
                    and re.search(rf"(?im)^(?:current head|current head sha|実head)\s*:\s*`?{head}`?\s*$", body) is not None
                    and re.search(r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#" + str(issue) + r"\b", body) is None)
-    checks = [work, state["required_ci"], public, *state["conditions"].values(),
+    # These same-head verification requirements survive human merge. PR-open
+    # authorization is a separate lifecycle condition and cannot be reused for
+    # a closed, merged PR's Completion Gate.
+    verification = [work, state["required_ci"], public]
+    checks = [*verification, *state["conditions"].values(),
               result("PASS" if metadata_ok else "PENDING", "PR title/Refs/current head must be current; auto-close is prohibited"),
               result("BLOCKED" if state["blockers"] else "PASS", "Active/IN_SCOPE/ownership blockers"),
               result("PASS" if pull.get("state") == "open" and not pull.get("draft") else "BLOCKED", "PR must be open and ready")]
@@ -395,7 +442,7 @@ def evaluate(issue, policy, previous, facts):
                 smoke = result("PASS", "Owner confirmed same-comment merge/sync live smoke")
         state["conditions"]["live_smoke"] = (result("NOT_REQUIRED", "Explicit trusted policy")
                                                       if policy["requirements"].get("live_smoke") == "NOT_REQUIRED" else smoke)
-        post = [state["local_sync"], *state["conditions"].values(), work,
+        post = [*verification, state["local_sync"], *state["conditions"].values(),
                 result("PASS" if state["follow_up_recorded"] else "PENDING", "FOLLOW_UP must be explicitly recorded"),
                 result("BLOCKED" if state["blockers"] else "PASS", "Active/IN_SCOPE/ownership blockers")]
         state["completion_gate"] = combine(post)
