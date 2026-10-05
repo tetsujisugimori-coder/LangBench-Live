@@ -46,7 +46,8 @@ def plain(value):
 def described(value, labels):
     if value is None or value == "":
         return "未取得"
-    return plain(value) + " — " + labels.get(value, "説明未定義")
+    label = labels.get(value, "説明未定義") if isinstance(value, str) else "説明未定義"
+    return plain(value) + " — " + label
 
 
 def positive_id(value):

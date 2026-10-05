@@ -14,7 +14,7 @@ from tools.automation_dashboard import (
     END, REPOSITORY, START, DISPATCH, STATUSES, evaluate, initial_state, parse_state, render, result,
 )
 from tools.automation_dashboard_display import (
-    DISPATCH_LABELS, STATE_LABELS, STATUS_LABELS, plain, reference, updated_time,
+    DISPATCH_LABELS, STATE_LABELS, STATUS_LABELS, described, plain, reference, updated_time,
 )
 from tools.update_automation_dashboard import reconcile, safe_stop
 
@@ -86,6 +86,52 @@ class DashboardDisplayTests(unittest.TestCase):
         self.assertIn("マージ済みのため、新たなマージ許可の対象外", body)
         self.assertIn("併存します", body)
         self.assertEqual(original, parse_state(render(self.state), 80, self.policy))
+
+    def test_non_string_merge_state_survives_parse_evaluate_without_pr_and_render(self):
+        hostile = '</details><script>alert(1)</script>|[link](https://evil.test)\n' + START + END
+        for value in ({"unexpected": hostile}, ["PENDING", {"unexpected": hostile}]):
+            with self.subTest(value=value):
+                source = initial_state(80, self.policy)
+                source["merge_state"] = copy.deepcopy(value)
+                original_source = copy.deepcopy(source)
+                # Construct the existing machine block without calling the renderer,
+                # so this exercises the parser's accepted input and no-PR path.
+                parsed = parse_state(START + json.dumps(source) + END, 80, self.policy)
+                self.assertEqual(original_source, parsed)
+                self.assertEqual(original_source, source)
+                original_parsed = copy.deepcopy(parsed)
+                facts = copy.deepcopy(self.facts)
+                facts["pr"] = None
+                evaluated = evaluate(80, self.policy, parsed, facts)
+                self.assertEqual(original_parsed, parsed)
+                self.assertEqual(value, evaluated["merge_state"])
+                original_evaluated = copy.deepcopy(evaluated)
+                rendered = render(evaluated)
+                visible = rendered.split(START)[0]
+                self.assertIn("| マージ状態 | " + plain(value) + " — 説明未定義 |", visible)
+                for raw in ("<script>", "https://evil.test", "[link](", START, END):
+                    self.assertNotIn(raw, visible)
+                self.assertEqual(1, visible.count("<details>"))
+                self.assertEqual(1, visible.count("</details>"))
+                self.assertEqual(original_evaluated, evaluated)
+                payload = rendered.split(START)[1].split(END)[0]
+                self.assertEqual(original_evaluated, json.loads(payload))
+                expected_payload = json.dumps(original_evaluated, ensure_ascii=False, sort_keys=True,
+                                              separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e")
+                self.assertEqual(expected_payload, payload)
+                self.assertEqual(original_evaluated, parse_state(rendered, 80, self.policy))
+
+    def test_described_preserves_known_unknown_and_missing_codes(self):
+        labels = {"MERGED": "マージ済み", "PENDING": "確認待ち"}
+        for value, expected in (("MERGED", "MERGED — マージ済み"),
+                                ("PENDING", "PENDING — 確認待ち"),
+                                ("FUTURE_UNKNOWN", plain("FUTURE_UNKNOWN") + " — 説明未定義"),
+                                (None, "未取得"), ("", "未取得")):
+            with self.subTest(value=value):
+                self.assertEqual(expected, described(value, labels))
+        for value in ({}, [], 0, False):
+            with self.subTest(value=value):
+                self.assertEqual(plain(value) + " — 説明未定義", described(value, labels))
 
     def test_heads_merge_sync_attempt_and_work_reference_are_separate(self):
         self.state["work_review"] = result("STALE", "old review", head_sha=OLD, comment_id=123)
