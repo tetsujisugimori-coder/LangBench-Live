@@ -556,18 +556,10 @@ def text_cell(value):
 
 
 def render(state):
-    rows = [("Issue / Purpose", f'#{state["issue"]} / {state["purpose"]}'),
-            ("Current state", state["current_state"]), ("Current actor", state["current_actor"]),
-            ("Dispatch owner", state["dispatch_owners"]), ("Active action / purpose", f'{state["active_action"]} / {state["purpose_id"]}'),
-            ("Dedup key", state["dedup_key"]), ("Dispatch state / run or task", f'{state["dispatch_state"]} / {state["active_run_id"]}'),
-            ("PR", state["pr"]), ("Current HEAD", state["head_sha"]), ("Work review", state["work_review"]),
-            ("CI Ubuntu", state["ci_ubuntu"]), ("CI Windows", state["ci_windows"]), ("Public data", state["public_data"]),
-            ("Requirements", state["requirements"]), ("Windows validation / measurement / Artifact integrity", state["conditions"]),
-            ("Merge Gate", state["merge_gate"]), ("Completion Gate", state["completion_gate"]),
-            ("Human merge / SHA", f'{state["merge_state"]} / {state["merge_sha"]}'), ("Local main sync", state["local_sync"]),
-            ("Current blocker", state["blockers"]), ("FOLLOW_UP", state["follow_up"]),
-            ("Last transition", state["last_transition"]), ("Last updated (UTC)", state["last_updated"])]
+    if __package__:
+        from .automation_dashboard_display import render_markdown
+    else:
+        from automation_dashboard_display import render_markdown
+
     payload = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e")
-    return ("## LangBench-Live Automation Dashboard\n\n| 項目 | 現在値 |\n|---|---|\n"
-            + "\n".join(f"| {name} | {text_cell(value)} |" for name, value in rows)
-            + "\n\n" + START + payload + END + "\n")
+    return render_markdown(state, REPOSITORY) + "\n\n" + START + payload + END + "\n"
