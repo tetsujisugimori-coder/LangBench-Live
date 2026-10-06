@@ -5,6 +5,7 @@ import re
 
 
 STATE_LABELS = {
+    "AUTOMATION_ARMED": "policy登録済み・実装は未起動",
     "IMPLEMENTING": "実装中",
     "REVIEWING": "レビュー・検証の確認待ち",
     "FIX_REQUIRED": "修正または阻害条件の解消が必要（修正開始は別確認）",

@@ -584,6 +584,7 @@ class GateEvidenceFixRegressions(unittest.TestCase):
                 output = io.StringIO()
                 with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
                      patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+                     patch.object(Path, "read_text", return_value=json.dumps({"schema_version": 1, "repository": REPOSITORY, "issues": {"80": self.policy}})), \
                      patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
                      redirect_stdout(output):
                     self.assertEqual(1, main())
@@ -617,6 +618,7 @@ class GateEvidenceFixRegressions(unittest.TestCase):
         api.hook = corrupt
         with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
              patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+             patch.object(Path, "read_text", return_value=json.dumps({"schema_version": 1, "repository": REPOSITORY, "issues": {"80": self.policy}})), \
              patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
              redirect_stdout(io.StringIO()):
             self.assertEqual(1, main())
@@ -898,6 +900,7 @@ class MalformedHandoffRegressions(unittest.TestCase):
                 api = FakeGitHub(self.policy, facts, render(previous))
                 with patch("tools.update_automation_dashboard.GitHub", return_value=api), \
                      patch.dict(os.environ, {"GH_TOKEN": "fixture-token", "GITHUB_REPOSITORY": REPOSITORY}), \
+                     patch.object(Path, "read_text", return_value=json.dumps({"schema_version": 1, "repository": REPOSITORY, "issues": {"80": self.policy}})), \
                      patch("sys.argv", ["update_automation_dashboard.py", "--config", str(ROOT / ".github/automation-dashboard.json")]), \
                      redirect_stdout(io.StringIO()):
                     self.assertEqual(1, main())
