@@ -83,15 +83,15 @@ def initial_state(issue, policy):
             or any(value not in {"REQUIRED", "NOT_REQUIRED"} for value in policy["requirements"].values())):
         raise ValueError("Unknown or missing requirement policy")
     item = copy.deepcopy(policy["initial_dispatch"])
-    if not valid_receipt(issue, policy, item):
+    if item is not None and not valid_receipt(issue, policy, item):
         raise ValueError("Invalid configured initial dispatch")
     return {
         "schema_version": 1, "repository": REPOSITORY, "issue": issue,
-        "purpose": policy["purpose"], "current_state": "IMPLEMENTING",
-        "current_actor": "Cloud Codex", "dispatch_owners": copy.deepcopy(policy["dispatch_owners"]),
-        "active_action": item["action_type"], "purpose_id": item["purpose_id"],
-        "dedup_key": item["dedup_key"], "dispatch_state": item["state"],
-        "active_run_id": item["run_id"], "dispatches": [item],
+        "purpose": policy["purpose"], "current_state": "IMPLEMENTING" if item else "AUTOMATION_ARMED",
+        "current_actor": "Cloud Codex" if item else "Work", "dispatch_owners": copy.deepcopy(policy["dispatch_owners"]),
+        "active_action": item["action_type"] if item else None, "purpose_id": item["purpose_id"] if item else None,
+        "dedup_key": item["dedup_key"] if item else None, "dispatch_state": item["state"] if item else None,
+        "active_run_id": item["run_id"] if item else None, "dispatches": [item] if item else [],
         "pr": None, "head_sha": None, "work_review": result("PENDING", "No current Work review"),
         "required_ci": result("PENDING", "No current CI"), "ci_head_sha": None,
         "ci_ubuntu": result("PENDING", "No current Ubuntu CI"),
@@ -102,8 +102,29 @@ def initial_state(issue, policy):
         "local_sync": result("PENDING", "Exact merge sync is required"), "local_sync_target_sha": None,
         "blockers": [], "follow_up": [], "follow_up_recorded": False,
         "merge_gate": result("PENDING", "No PR"), "completion_gate": result("PENDING", "Not merged"),
-        "last_transition": "AUTOMATION_ARMED -> IMPLEMENTING", "last_updated": None,
+        "last_transition": "AUTOMATION_ARMED -> IMPLEMENTING" if item else "Policy registered; dispatch not started", "last_updated": None,
     }
+
+
+ACTIVE_FIELDS = ("active_action", "purpose_id", "dedup_key", "dispatch_state", "active_run_id")
+
+
+def undispatched(state, policy):
+    """Only explicitly unstarted policies may have no active receipt.
+
+    Null is an audited policy choice, not a default for missing configuration.
+    Never accept a partial identity, lost ledger, bound PR or cached PASS.
+    """
+    return (policy["initial_dispatch"] is None and state["dispatches"] == []
+            and all(state[k] is None for k in ACTIVE_FIELDS)
+            and state["current_state"] in {"AUTOMATION_ARMED", "SAFE_STOPPED"}
+            and all(state[k] is None for k in ("pr", "head_sha", "merge_sha", "ci_head_sha", "local_sync_target_sha"))
+            and state["merge_state"] == "PENDING"
+            and all(state[k]["status"] != "PASS" for k in
+                    ("work_review", "required_ci", "ci_ubuntu", "ci_windows", "public_data",
+                     "local_sync", "merge_gate", "completion_gate"))
+            and all(isinstance(v, dict) and v.get("status") != "PASS"
+                    for v in state["conditions"].values()))
 
 
 def parse_state(body, issue, policy):
@@ -139,10 +160,11 @@ def parse_state(body, issue, policy):
             or not isinstance(state["last_transition"], str)
             or (state["last_updated"] is not None and not isinstance(state["last_updated"], str))
             or (state["pr"] is not None and (type(state["pr"]) is not int or state["pr"] <= 0))
-            or state["dispatch_state"] not in DISPATCH
-            or not any(r["dedup_key"] == state["dedup_key"] and r["run_id"] == state["active_run_id"]
-                       and r["action_type"] == state["active_action"] and r["purpose_id"] == state["purpose_id"]
-                       for r in state["dispatches"])):
+            or not (undispatched(state, policy) or
+                    (isinstance(state["dispatch_state"], str) and state["dispatch_state"] in DISPATCH
+                     and any(r["dedup_key"] == state["dedup_key"] and r["run_id"] == state["active_run_id"]
+                             and r["action_type"] == state["active_action"] and r["purpose_id"] == state["purpose_id"]
+                             for r in state["dispatches"])))):
         raise ValueError("Malformed state/active ownership identity")
     return state
 
@@ -431,18 +453,50 @@ def evaluate(issue, policy, previous, facts):
     if handoff and handoff["repair_pr"] == (facts.get("pr") or {}).get("number"):
         state["pr"] = handoff["repair_pr"]
     state["dispatches"] = dispatch_ledger(state, facts["issue_comments"], issue, policy)
+    implementation = None
     for comment in sorted(facts["issue_comments"], key=comment_order):
         value = envelope(comment.get("body"), RECEIPT)
         if (author_matches(comment.get("user"), policy["owner"]) and value
                 and value.get("repository") == REPOSITORY and value.get("issue") == issue
                 and value.get("active") is True and valid_receipt(issue, policy, value.get("dispatch"))):
             item = value["dispatch"]
+            if policy["initial_dispatch"] is None:
+                if item["action_type"] == "implementation_task" and item["purpose_id"] == policy["purpose"]:
+                    current = next(r for r in state["dispatches"]
+                                   if r["dedup_key"] == item["dedup_key"] and r["run_id"] == item["run_id"])
+                    if item["attempt"] > 1:
+                        parent = next((r for r in state["dispatches"]
+                                       if r["run_id"] == item.get("retry_of")
+                                       and r["dedup_key"] == item["dedup_key"]
+                                       and r["attempt"] == item["attempt"] - 1), None)
+                        if parent is None or parent["state"] not in {"FAILED", "CANCELLED"}:
+                            raise ValueError("Initial implementation retry lacks its failed/cancelled predecessor")
+                    if (implementation and implementation["run_id"] != current["run_id"]
+                            and implementation["state"] in {"FAILED", "CANCELLED"}
+                            and (current.get("retry_of") != implementation["run_id"]
+                                 or current["dedup_key"] != implementation["dedup_key"]
+                                 or current["attempt"] != implementation["attempt"] + 1)):
+                        raise ValueError("Failed initial implementation requires an explicit same-key retry")
+                    implementation = current
             state.update(active_action=item["action_type"], purpose_id=item["purpose_id"],
                          dedup_key=item["dedup_key"], active_run_id=item["run_id"])
     active = next((r for r in state["dispatches"] if r["run_id"] == state["active_run_id"] and r["dedup_key"] == state["dedup_key"]), None)
     if not active:
-        raise ValueError("Active dispatch identity disappeared")
+        if not undispatched(state, policy):
+            raise ValueError("Active dispatch identity disappeared")
+        # No run identity is manufactured, and a linked PR cannot bypass dispatch.
+        unexpected_pr = facts.get("pr") is not None
+        state["blockers"] = ["Authenticated initial dispatch receipt is required"] if unexpected_pr else []
+        state["current_state"] = "SAFE_STOPPED" if unexpected_pr else "AUTOMATION_ARMED"
+        state["merge_gate"] = result("BLOCKED" if unexpected_pr else "PENDING",
+                                     "No authenticated active dispatch; implementation not started")
+        state["completion_gate"] = result("PENDING", "Implementation not started; not merged")
+        if state["current_state"] != old_state:
+            state["last_transition"] = f'{old_state} -> {state["current_state"]}'
+        return state
     state["dispatch_state"] = active["state"]
+    if policy["initial_dispatch"] is None and implementation is None:
+        raise ValueError("Authenticated initial implementation receipt is missing")
     state["blockers"] = []
     groups = {}
     for item in state["dispatches"]:
@@ -452,8 +506,18 @@ def evaluate(issue, policy, previous, facts):
         state["blockers"].append("DUPLICATE_DISPATCH_DETECTED: owner must select the canonical run")
     if any(r["state"] in {"UNKNOWN", "REQUESTED", "DISPATCHING"} for r in state["dispatches"]):
         state["blockers"].append("DISPATCH_STATE_UNKNOWN: external owner confirmation required")
+    if policy["initial_dispatch"] is None:
+        if implementation["state"] not in {"RUNNING", "SUCCEEDED"}:
+            state["blockers"].append("Initial implementation is not running or successful")
+        if active["state"] in {"FAILED", "CANCELLED"}:
+            state["blockers"].append("Active dispatch failed or was cancelled")
     pull = facts.get("pr")
     if pull is None:
+        if policy["initial_dispatch"] is None:
+            state["current_state"] = "IMPLEMENTING" if active["state"] in {"RUNNING", "SUCCEEDED"} else "SAFE_STOPPED"
+            state["current_actor"] = policy["dispatch_owners"][active["action_type"]]
+            if state["current_state"] != old_state:
+                state["last_transition"] = f'{old_state} -> {state["current_state"]}'
         state["merge_gate"] = combine([result("PENDING", "No unique linked PR"),
                                       result("BLOCKED" if state["blockers"] else "PASS", "Ownership/dedup blockers")])
         state["completion_gate"] = result("PENDING", "Not merged")

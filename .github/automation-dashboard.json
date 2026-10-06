@@ -33,6 +33,37 @@
         "measurement_result_pr": "NOT_REQUIRED",
         "live_smoke": "REQUIRED"
       }
+    },
+    "85": {
+      "purpose": "archive-samples-summary-only",
+      "dashboard_comment_id": null,
+      "owner": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_author": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_automation_id": "6ac53eb50b2481918033960988ac8834",
+      "dispatch_owners": {
+        "implementation_task": "Work(root)",
+        "fix_task": "Work(root)",
+        "windows_validation": "Work(root)",
+        "windows_measurement": "Work(root)",
+        "work_review": "Work(6ac53eb50b2481918033960988ac8834)",
+        "local_main_sync": ".github/workflows/pull-local-main.yml"
+      },
+      "initial_dispatch": null,
+      "requirements": {
+        "windows_validation": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "artifact_integrity": "NOT_REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED"
+      }
     }
   }
 }

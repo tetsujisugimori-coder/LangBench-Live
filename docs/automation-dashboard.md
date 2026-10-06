@@ -264,3 +264,79 @@ incoming historical handoff. If no outgoing record exists, replay uses the
 incoming record idempotently. The next transition's archived head, merge,
 exact-sync evidence and ledger must still match the current cycle. Historical
 records are neither deleted nor edited to select the next repair.
+
+
+## Issue #86: register #85 before implementation
+
+Issue #85 is explicitly registered for `archive-samples-summary-only`. Its
+`initial_dispatch: null` means no task has been dispatched, rather than an
+unknown or successful task. A missing `initial_dispatch` remains an error.
+The initial state is `AUTOMATION_ARMED`, with an empty dispatch ledger and
+null active action, purpose ID, dedup key, dispatch status and run ID. This
+uses the existing v1 fields/markers; only this explicit policy choice permits
+the undispatched combination. Existing #80 policy/receipts remain unchanged.
+
+A first real owner-authenticated `langbench-dispatch-receipt:v1` on Issue #85
+must include `active: true` and the existing validated dispatch fields, with
+`action_type: implementation_task` and `purpose_id` equal to this policy's
+`archive-samples-summary-only`. A review, sync or different-purpose receipt
+cannot bootstrap implementation. The implementation status remains a separate
+prerequisite when later actions become active: review/sync success cannot
+erase an implementation failure or cancellation. A retry must reference the
+failed/cancelled predecessor with the same dedup key and next attempt number.
+These bootstrap checks apply only to explicitly undispatched policies; later
+fix/review/sync purposes and existing #80 contracts retain their own meaning.
+The receipt must contain
+an actual task/run ID and full target SHA. Do not put the review automation's
+registration ID, the #86 preparation task, or a placeholder in `run_id`.
+Registration alone is not implementation start. The receipt is registered
+when its actual external execution identity/state has been confirmed by the
+owner; REQUESTED/DISPATCHING/UNKNOWN do not certify started work. RUNNING or
+SUCCEEDED receipts permit the pre-PR IMPLEMENTING state. Malformed receipts,
+inactive-only ledgers and missing active identities fail closed. Subsequent
+receipts continue using the existing owner and dedup protocol.
+
+Before a receipt, no linked PR is bound and Merge/Completion stay PENDING.
+A PR appearing without an authenticated active dispatch yields SAFE_STOPPED
+and a BLOCKED Merge Gate even if its CI/review claims PASS. Empty active
+identity is rejected for dispatched or bound states, and undispatched cached
+PASS is rejected. The trusted-main observer remains the only Dashboard
+writer. `dashboard_comment_id: null` allows its existing unique trusted
+comment selection/creation; record the actual comment ID after main
+application, not before.
+
+#85 Work record identity is user `tetsujisugimori-coder` / numeric ID
+265440097 / type User, plus its separately registered review automation
+`6ac53eb50b2481918033960988ac8834`. This is role/execution separation on the
+same account, not cryptographic independence. Record validation still checks
+repository, Issue, PR, automation and full HEAD. The functional PR must have
+title `Issue #85: ...` and standalone `Refs #85`. The preparation PR uses
+`Issue #86: ...` and standalone `Refs #86`; mention related #85 in ordinary
+prose/link only. The observer selects PRs by the exact standalone Refs line
+before checking title metadata, so adding a second standalone Refs line for
+#85 to the preparation PR would incorrectly bind it.
+
+Windows validation, benchmark measurement and measurement-result PR are
+NOT_REQUIRED under the approved CLI-only #85 specification. Artifact
+integrity is NOT_REQUIRED because this cycle creates no measurement
+artifact; this does not disable verification of the official sync safety
+report/digest. Post-merge live smoke remains REQUIRED. Hosted Ubuntu/Windows
+CI, public-data verification, same-HEAD independent review, human merge and
+exact-sync/data preservation requirements remain mandatory.
+
+The #86 preparation PR alone follows the approved transition review: current
+full published HEAD Hosted Ubuntu/Windows CI, separate code/config review,
+existing #80/mechanism regressions and human merge. Its machine Merge Gate
+is unrecognized, not manually PASS. Do not transfer its CI/review to the
+#85 functional PR. After human merge, confirm latest main policy/writer,
+existing exact-sync run and sync-report before/after SHA/data preservation,
+and actual observer-created #85 Dashboard/identity/requirements. Pre-PR
+Gate PASS is not required. PR binding/review ingestion/CI/Merge Gate are
+future functional-PR checks; formal sync/live smoke/Completion are future
+functional-merge checks. No #85 CLI task starts from the preparation cycle.
+
+The two event automations are registered and enabled; event receipt, target
+matching, review execution and result ingestion remain unverified until
+observed. PR events do not certify CI completion, deadline arrival or
+no-event stagnation. Deadline guarantee is unavailable without a registered
+separate path; no new timer, dot setting, writer or sync workflow is added.
