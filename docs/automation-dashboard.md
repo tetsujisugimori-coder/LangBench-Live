@@ -2,6 +2,138 @@
 
 Issue #80（承認済み18節・V3.3）の実装。Web Dashboard、benchmark semantics、manifest v2、既存artifactは変更しない。updaterは観測・評価・同一コメントの更新だけを行い、dispatch / cancel / rerun / merge / Issue close / branch削除のAPIを持たない。
 
+## Issue #83: 表示・診断情報
+
+`tools/automation_dashboard.py` の `render()` が表示専用の
+`tools/automation_dashboard_display.py` を使う。入力stateの変更、現在時刻の取得、
+API呼出し、証拠の補完は行わない。末尾のv1 JSON marker・JSONの直列化・parser・
+Gate・状態遷移・writer・イベント経路・ownership・dedup・保存形式は従来どおり。
+表示上のSHA一致は文字列の照合説明であり、機械Gateの再認定ではない。
+
+V3.4第34節では、Dashboard・イベント更新・Gate・merge後CI保持・修正PR handoffが
+既存実装、第35〜43節の受領／開始・監視record・期限回収は追加運用要件とされている。
+後者はこの表示PRで実装しない。規則の記載やDashboard更新時刻だけでは
+実監視成功・実進捗・停止・期限到来確認の成立を推測できない。
+
+実装内の `initial_state()` / `evaluate()` / updaterの安全停止経路が使用する
+current_stateの対応表は次のとおり。V3.4の運用状態をこの表へ追加して
+実装済みと見せることはしない。
+
+| 機械コード | 日本語の説明 |
+|---|---|
+| IMPLEMENTING | 実装中 |
+| REVIEWING | レビュー・検証の確認待ち |
+| FIX_REQUIRED | 修正または阻害条件の解消が必要（修正開始は別確認） |
+| READY_FOR_HUMAN_MERGE | 条件成立・人間のマージ判断待ち |
+| MERGED_SYNC_PENDING | マージ済み・正式同期の確認待ち |
+| LOCAL_SYNCED | 正式同期済み・完了条件の確認待ち |
+| COMPLETED | 必須完了条件が成立 |
+| SAFE_STOPPED | 安全停止・根拠の確認または判断が必要 |
+
+| 証拠・Gateコード | 日本語の説明 |
+|---|---|
+| PASS | 条件成立 |
+| PENDING | 確認待ち |
+| BLOCKED | 阻害条件あり |
+| STALE | 対象または証拠が古い |
+| ERROR | 根拠・状態を検証できない |
+| NOT_REQUIRED | 今回の承認済み範囲では不要 |
+
+dispatchは既存のREQUESTED / DISPATCHING / RUNNING / SUCCEEDED / FAILED /
+CANCELLED / UNKNOWNをそのまま表示する。REQUESTEDは依頼記録であり、受領・開始を
+意味しない。未知コードは原文＋「説明未定義」、欠損は「未取得」。空配列による
+明示ゼロ件と欠落も区別する。NOT_REQUIREDと証拠未取得は別々に表示する。
+
+表示順は状態・両Gate・blocker、Issue／PR／head／merge、Work／Ubuntu／Windows／
+公開データ、正式同期／live smoke／必要条件、担当／dispatch、診断詳細／履歴／
+FOLLOW_UP／遷移／Dashboard最終更新。blockerと未確認の証拠は折りたたみの外に置く。
+主要証拠にはstatus、元reason、stateにある対象SHA・run ID・attempt・Work comment IDを
+表示する。現在headを証拠のheadに補完しない。PR head、merge SHA、sync targetも区別する。
+未取得フィールドがあるPASSは元のPASSを保持し、診断値だけ「未取得」とする。
+これは証拠収集の拡張ではない。
+
+Issue／PR／commit／Actions run／Work結果commentのリンクは、state.repositoryが
+固定の正規repositoryに一致し、IDが正の整数（同期runの数値文字列を含む）または
+SHAが40桁の小文字hexである場合のみ生成する。リンクの生成は外部APIでの存在確認を
+行わず、既存parser／証拠取得経路が与えるstateを表示する。任意URLをリンクとして
+取り込まない。Cloud task等はIDの文字列だけを表示し、URL形式を推測しない。
+自由文・HTML・Markdown・改行・table separator・marker類似文字列をエスケープする。
+全証拠フィールド、全owner、全dispatch履歴は診断詳細と機械JSONに保持する。
+
+`last_updated` は **Dashboard最終更新**。元のtimezone付きUTC値を保持し、JSTを
+併記する。日付跨ぎも変換する。欠損は「未取得」、不正・timezoneなしは元値と
+「JST: 解析不能」を表示し、現在時刻で補完しない。最終監視成功／最終作業進捗という
+ラベルは使わない。正常待機・人間待ち・安全停止を監視停止と同一視しない。
+
+### Markdown表示例（合成fixture・主要行の抜粋）
+
+以下は受入確認用の合成例。Issue #83の実Gate・レビュー・CI結果ではない。
+省略した行にも元stateの診断値が表示される。GitHub上でこのdocsのMarkdownを
+確認でき、同じ組合せは `tests/test_automation_dashboard_display.py` でも検証する。
+
+変更前は辞書全体が現在値セルに表示された。
+
+| 項目 | 現在値 |
+|---|---|
+| Current state | READY_FOR_HUMAN_MERGE |
+| Work review | {"status": "PASS", "reason": "Authenticated Work review for current head", "head_sha": "対象head", "comment_id": "結果comment"} |
+| Last updated (UTC) | 2026-10-05T15:30:00Z |
+
+変更後（人間マージ待ち）：
+
+| 項目 | 現在値 |
+|---|---|
+| 現在状態 | READY_FOR_HUMAN_MERGE — 条件成立・人間のマージ判断待ち |
+| Merge Gate | PASS — 条件成立 / 理由: All required evidence is current and successful |
+| Completion Gate | PENDING — 確認待ち / 理由: Human merge is not confirmed |
+| 現在のblocker | なし（stateの明示的な空配列） |
+| Workレビュー | PASS — 条件成立 / 理由: Authenticated Work review for current head / 対象head SHA: 対象head / 現在PR headと一致 / Work結果comment ID: 結果comment |
+| Dashboard最終更新 | 2026-10-05T15:30:00Z（元値） / JST: 2026-10-06T00:30:00+09:00 |
+
+CI待ち（監視停止とは判定しない）：
+
+| 項目 | 現在値 |
+|---|---|
+| 現在状態 | REVIEWING — レビュー・検証の確認待ち |
+| Merge Gate | PENDING — 確認待ち / 理由: Workflow is not completed |
+| Ubuntu CI | PENDING — 確認待ち / 理由: Workflow is not completed / 対象head SHA: 未取得 / 照合未確認 / Actions run ID: 対象run / run attempt: 未取得 |
+| live smoke | REQUIRED — 今回の必須条件 / 未取得 |
+| Windows実機測定 | NOT_REQUIRED — 今回の承認済み範囲では不要 / NOT_REQUIRED — 今回の承認済み範囲では不要 / 理由: Explicit trusted policy |
+
+安全停止（通常の確認待ちとは区別）：
+
+| 項目 | 現在値 |
+|---|---|
+| 現在状態 | SAFE_STOPPED — 安全停止・根拠の確認または判断が必要 |
+| Merge Gate | ERROR — 根拠・状態を検証できない / 理由: Trusted facts/schema could not be verified |
+| Completion Gate | ERROR — 根拠・状態を検証できない / 理由: Trusted facts/schema could not be verified |
+| Dashboard最終更新 | 未取得 |
+
+完了（COMPLETEDとMerge Gate BLOCKEDの併存）：
+
+| 項目 | 現在値 |
+|---|---|
+| 現在状態 | COMPLETED — 必須完了条件が成立 |
+| Merge Gate | BLOCKED — 阻害条件あり / 理由: PR already merged; no merge authorization / マージ済みのため、新たなマージ許可の対象外。COMPLETEDは完了条件の成立、Merge Gateは新たなマージ許可を表すため併存します |
+| Completion Gate | PASS — 条件成立 / 理由: All required evidence is current and successful |
+
+### 制約・FOLLOW_UP
+
+表示のみの変更なので、同一stateの再処理は既存writerのNO-OPを維持し、コメントや
+更新時刻を増殖させない。未知schema・壊れたstateは既存の安全停止を維持する。
+既存テストのIssue #80 policyやIDは合成回帰fixtureとしてのみ使用し、#83の運用へ
+流用しない。Issue #80の閉じたコメントをこの作業で更新しない。
+
+- Issue #83開始時のtrusted-main policyはIssue #80のみを登録している。#83固有の
+  policy／Dashboard／独立レビューbindが正式経路で成立するまでは、#83の
+  READY_FOR_HUMAN_MERGEは未確認。登録・認証・owner変更はこの表示PRの変更対象外。
+- V3.4の監視record取り込み・期限確認経路はこのPRで追加しない。実起動経路・登録ID・
+  次回予定が確認できない期限は「期限保証不能」。設定保存と受領・開始を区別する。
+- 既存F1「将来REQUIRED Windows条件のPR head／merge SHA分離」は今回もFOLLOW_UP。
+  condition生成とphase policyの変更は別の承認範囲で扱う。
+- Hosted Ubuntu／Windows CI、独立Work、正式同期、live smokeは各実head／mergeと
+  対応する実証拠で別々に確認する。未マージコードのself-hosted実行・性能測定をしない。
+
 ## Stateと移行
 
 `.github/automation-dashboard.json` はtrusted main上の登録・信頼・必要条件のpolicy。runtime stateをrepositoryへcommitしない。Issue #80では既存comment `5979234464` を明示bindし、新しいコメントを作らない。今後のIssueのcomment IDがnullなら、許可authorの一意なDashboardを再利用し、無ければserialized writerが一度作成する。
