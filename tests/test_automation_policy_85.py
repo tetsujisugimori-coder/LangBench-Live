@@ -178,6 +178,74 @@ class Policy85Registration(unittest.TestCase):
                 self.assertEqual('BLOCKED', state['merge_gate']['status'])
                 self.assertNotEqual('READY_FOR_HUMAN_MERGE', state['current_state'])
 
+    def test_other_action_or_purpose_cannot_bootstrap_writer(self):
+        for action, purpose in (('work_review', 'review'), ('local_main_sync', 'sync'),
+                                ('implementation_task', 'unrelated-preparation')):
+            for linked in (False, True):
+                with self.subTest(action=action, linked=linked):
+                    receipt = {**self.receipt, 'action_type': action, 'purpose_id': purpose}
+                    receipt['dedup_key'] = dedup_key(85, receipt)
+                    facts = {**self.facts, 'issue_comments': [dispatch_comment(receipt)],
+                             'pr': self.facts['pr'] if linked else None}
+                    api = Issue85API(self.policy, facts, render(initial_state(85, self.policy)))
+                    with self.assertRaises(ValueError):
+                        reconcile(api, 85, self.policy, NOW)
+                    safe_stop(api, 85, self.policy)
+                    state = parse_state(api.dashboard['body'], 85, self.policy)
+                    self.assertEqual('SAFE_STOPPED', state['current_state'])
+                    self.assertNotEqual('PASS', state['merge_gate']['status'])
+                    self.assertIsNone(state['active_run_id'])
+                    self.assertIsNone(state['pr'])
+
+    def test_initial_failure_survives_other_action_and_valid_retry_recovers_writer(self):
+        for status in ('FAILED', 'CANCELLED', 'REQUESTED', 'UNKNOWN'):
+            with self.subTest(status=status):
+                implementation = {**self.receipt, 'state': status}
+                review = {**self.receipt, 'action_type': 'work_review', 'purpose_id': 'independent-review',
+                          'run_id': 'synthetic-review-85'}
+                review['dedup_key'] = dedup_key(85, review)
+                first = dispatch_comment(implementation)
+                second = dispatch_comment(review)
+                first['id'], second['id'] = 100, 101
+                facts = {**self.facts, 'issue_comments': [first, second]}
+                api = Issue85API(self.policy, facts, None)
+                self.assertEqual('UPDATED', reconcile(api, 85, self.policy, NOW))
+                state = parse_state(api.dashboard['body'], 85, self.policy)
+                self.assertEqual('BLOCKED', state['merge_gate']['status'])
+                self.assertEqual('NO_OP', reconcile(api, 85, self.policy, NOW))
+                if status not in ('FAILED', 'CANCELLED'):
+                    continue
+                retry = {**self.receipt, 'run_id': 'synthetic-retry-85', 'attempt': 2,
+                         'retry_of': implementation['run_id']}
+                third = dispatch_comment(retry)
+                third['id'] = 102
+                facts['issue_comments'].append(third)
+                self.assertEqual('UPDATED', reconcile(api, 85, self.policy, NOW))
+                state = parse_state(api.dashboard['body'], 85, self.policy)
+                self.assertEqual('READY_FOR_HUMAN_MERGE', state['current_state'])
+                self.assertEqual('PASS', state['merge_gate']['status'])
+                self.assertEqual(retry['run_id'], state['active_run_id'])
+                self.assertEqual('NO_OP', reconcile(api, 85, self.policy, NOW))
+
+    def test_invalid_initial_retry_cannot_erase_failure(self):
+        failed = dispatch_comment({**self.receipt, 'state': 'FAILED'})
+        failed['id'] = 100
+        for attempt, parent, target in ((1, None, HEAD), (2, 'missing-run', HEAD),
+                                        (3, self.receipt['run_id'], HEAD),
+                                        (2, self.receipt['run_id'], OLD)):
+            with self.subTest(attempt=attempt, parent=parent, target=target):
+                retry = {**self.receipt, 'run_id': 'synthetic-invalid-retry', 'attempt': attempt,
+                         'retry_of': parent, 'target_sha': target}
+                retry['dedup_key'] = dedup_key(85, retry)
+                comment = dispatch_comment(retry)
+                comment['id'] = 101
+                api = Issue85API(self.policy, {**self.facts, 'issue_comments': [failed, comment]},
+                                 render(initial_state(85, self.policy)))
+                with self.assertRaises(ValueError):
+                    reconcile(api, 85, self.policy, NOW)
+                safe_stop(api, 85, self.policy)
+                self.assertNotEqual('PASS', parse_state(api.dashboard['body'], 85, self.policy)['merge_gate']['status'])
+
     def test_malformed_armed_dispatch_status_preserves_corruption_and_warns(self):
         self.facts['pr'] = None
         for value in ([], {}, False, 1):

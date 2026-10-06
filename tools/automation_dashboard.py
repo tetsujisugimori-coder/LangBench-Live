@@ -453,12 +453,31 @@ def evaluate(issue, policy, previous, facts):
     if handoff and handoff["repair_pr"] == (facts.get("pr") or {}).get("number"):
         state["pr"] = handoff["repair_pr"]
     state["dispatches"] = dispatch_ledger(state, facts["issue_comments"], issue, policy)
+    implementation = None
     for comment in sorted(facts["issue_comments"], key=comment_order):
         value = envelope(comment.get("body"), RECEIPT)
         if (author_matches(comment.get("user"), policy["owner"]) and value
                 and value.get("repository") == REPOSITORY and value.get("issue") == issue
                 and value.get("active") is True and valid_receipt(issue, policy, value.get("dispatch"))):
             item = value["dispatch"]
+            if policy["initial_dispatch"] is None:
+                if item["action_type"] == "implementation_task" and item["purpose_id"] == policy["purpose"]:
+                    current = next(r for r in state["dispatches"]
+                                   if r["dedup_key"] == item["dedup_key"] and r["run_id"] == item["run_id"])
+                    if item["attempt"] > 1:
+                        parent = next((r for r in state["dispatches"]
+                                       if r["run_id"] == item.get("retry_of")
+                                       and r["dedup_key"] == item["dedup_key"]
+                                       and r["attempt"] == item["attempt"] - 1), None)
+                        if parent is None or parent["state"] not in {"FAILED", "CANCELLED"}:
+                            raise ValueError("Initial implementation retry lacks its failed/cancelled predecessor")
+                    if (implementation and implementation["run_id"] != current["run_id"]
+                            and implementation["state"] in {"FAILED", "CANCELLED"}
+                            and (current.get("retry_of") != implementation["run_id"]
+                                 or current["dedup_key"] != implementation["dedup_key"]
+                                 or current["attempt"] != implementation["attempt"] + 1)):
+                        raise ValueError("Failed initial implementation requires an explicit same-key retry")
+                    implementation = current
             state.update(active_action=item["action_type"], purpose_id=item["purpose_id"],
                          dedup_key=item["dedup_key"], active_run_id=item["run_id"])
     active = next((r for r in state["dispatches"] if r["run_id"] == state["active_run_id"] and r["dedup_key"] == state["dedup_key"]), None)
@@ -476,6 +495,8 @@ def evaluate(issue, policy, previous, facts):
             state["last_transition"] = f'{old_state} -> {state["current_state"]}'
         return state
     state["dispatch_state"] = active["state"]
+    if policy["initial_dispatch"] is None and implementation is None:
+        raise ValueError("Authenticated initial implementation receipt is missing")
     state["blockers"] = []
     groups = {}
     for item in state["dispatches"]:
@@ -485,8 +506,11 @@ def evaluate(issue, policy, previous, facts):
         state["blockers"].append("DUPLICATE_DISPATCH_DETECTED: owner must select the canonical run")
     if any(r["state"] in {"UNKNOWN", "REQUESTED", "DISPATCHING"} for r in state["dispatches"]):
         state["blockers"].append("DISPATCH_STATE_UNKNOWN: external owner confirmation required")
-    if policy["initial_dispatch"] is None and active["state"] in {"FAILED", "CANCELLED"}:
-        state["blockers"].append("Initial dispatch failed or was cancelled")
+    if policy["initial_dispatch"] is None:
+        if implementation["state"] not in {"RUNNING", "SUCCEEDED"}:
+            state["blockers"].append("Initial implementation is not running or successful")
+        if active["state"] in {"FAILED", "CANCELLED"}:
+            state["blockers"].append("Active dispatch failed or was cancelled")
     pull = facts.get("pr")
     if pull is None:
         if policy["initial_dispatch"] is None:

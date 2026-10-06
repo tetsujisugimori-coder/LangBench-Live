@@ -278,6 +278,15 @@ the undispatched combination. Existing #80 policy/receipts remain unchanged.
 
 A first real owner-authenticated `langbench-dispatch-receipt:v1` on Issue #85
 must include `active: true` and the existing validated dispatch fields, with
+`action_type: implementation_task` and `purpose_id` equal to this policy's
+`archive-samples-summary-only`. A review, sync or different-purpose receipt
+cannot bootstrap implementation. The implementation status remains a separate
+prerequisite when later actions become active: review/sync success cannot
+erase an implementation failure or cancellation. A retry must reference the
+failed/cancelled predecessor with the same dedup key and next attempt number.
+These bootstrap checks apply only to explicitly undispatched policies; later
+fix/review/sync purposes and existing #80 contracts retain their own meaning.
+The receipt must contain
 an actual task/run ID and full target SHA. Do not put the review automation's
 registration ID, the #86 preparation task, or a placeholder in `run_id`.
 Registration alone is not implementation start. The receipt is registered
