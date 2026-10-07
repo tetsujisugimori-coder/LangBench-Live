@@ -12,6 +12,13 @@ python -B tools/startup_preparation.py \
   --state work/issue88/state.json --output work/issue88/generated
 ```
 
+Work(root) が非公開 API ではなく実画面・実イベントから確認した結果は、別 JSON を
+`--owner-facts <path>` で渡す。record は repository/Issue/purpose/formal owner/input version/
+input digest/start SHA/観測時刻/確認担当 Work(root) に結び付け、review の登録 ID・enabled・対象 event・実 event・
+照合結果・証拠参照と、publication の正式担当・主経路・回収経路・証拠参照を保持する。
+取得不能は `available=false`（結果欄は null）として UNKNOWN、入力なしは UNCONFIRMED なので
+両者を混同しない。この入力は準備証拠だけで、Work PASS や dispatch receipt を生成しない。
+
 入力 Issue は未取得時 null、取得後は実正整数 ID。purpose は入力目的の識別子。
 #88/purpose は本PR自身の設定・実例であり、ツールの入力制約ではない。repository は現対象固定。
 JSON schema は `docs/schemas/startup-preparation-input.schema.json`。CLI は追加依存なしで
@@ -56,10 +63,17 @@ read adapter は現在の Issue purpose/owner、linked PR、main full SHA を読
 policy を取得する。PR merged と main policy 読戻しは別工程。取得失敗は例外・非0終了。
 過去の取得成功を今回の成功にしない。再開では新事実から各工程を再構成し、欠損した証拠を
 確認済みのまま残さない。同じ事実の再観測は NO_OP で進捗・更新時刻を変更しない。
+`--github-read` は保存済み UNKNOWN operation も現在の input digest/scope に対して照合する。
+一意な linked PR/正式 receipt だけ CONFIRMED とし、取得失敗・複数候補は UNKNOWN のまま
+停止する。読取再開から書込・再送・dispatch は行わない。
 
 input_version を増やして変更する。仕様/担当/owner/SHA/requirements の変更は依存する
 工程だけ INVALIDATED。operations ledger は保持する。版だけ同じで値を変える、旧版へ
 戻す、担当が異なる evidence、別 Issue/purpose/owner は拒否。
+正式 record は同じ repository/purpose/owner に限定した昇順の `input_history` も保持し、各
+operation の digest/key を当時入力へ照合する。これにより Issue=null から実 Issue、版/SHA
+変更後も UNKNOWN を削除せず初回共有でき、既存 snapshot の更新にも同じ検証を適用する。
+履歴のない旧 key、実 Issue から別 Issue への移動、無関係 purpose/owner、順序逆転は拒否する。
 ローカル保存は環境間共有済みとは表示しない。runtimeごとの自動 commit はしない。
 
 ## 正式 GitHub 保存と唯一 writer
@@ -77,8 +91,8 @@ input_version を増やして変更する。仕様/担当/owner/SHA/requirements
 
 形式は `langbench-preparation-input:v1` と `langbench-preparation-snapshot:v1`。
 既存 `langbench-automation-state:v1` と別。正式入力は schema/kind、repository、Issue、
-purpose、owner(login/id/type)、input_version、canonical input_digest、全文入力、unknown
-operations を持つ。comment author の正式 owner と policy の owner/work_author/automation/
+purpose、owner(login/id/type)、input_version、canonical input_digest、全文入力、検証済み入力履歴、
+owner facts、unknown operations を持つ。comment author の正式 owner と policy の owner/work_author/automation/
 requirements/dispatch owner に一致しない record は取り込まない。snapshot は input版/digest、
 元 request digest、comment ID、状態全文を保存する。既存 Gate 証拠/receipt を読み替えない。
 
@@ -98,7 +112,7 @@ GitHub comment PATCH は CAS を提供しない。既存 serialization、現在�
 
 ## 現在要約・状態と未実装接続
 
-工程は Issue 未確認/確認済、review 未登録または未確認/登録 enabled/実イベント未確認、
+工程は Issue 未確認/確認済、review 未登録または未確認/取得不能/登録 enabled/実イベント未確認、
 policy案/PR公開/人間merge待ち/merge済main読戻し待ち/main確認済、正式Dashboard未適用/
 対応確認済、公開経路未確認/確認済を evidence と reason で区別する。
 `PREPARATION_COMPLETE`、AUTOMATION_ARMED、実装開始、Merge、Completion PASS は別。
@@ -107,7 +121,9 @@ public GitHub 読取のみで publication 書込権限は認定しない。Work�
 Cloud全task一覧/起動/送信、正式同期の開始、期限・次owner自動起動は未実装。
 このため CLI / 正式 record だけで独立 Work 完了や準備完了を偽認定しない。Python の純粋
 `resume()` は adapter の現在 facts を使うが、合成 fixture の complete は実結果ではない。
-正式Dashboardの reference は現policyと機械 state のスコープ確認後だけ表示する。
+正式Dashboardの reference は現policyと機械 state のスコープ確認後だけ表示する。next owner/action
+は未完了工程の権限で決め、review・policy 公開・Dashboard は Work(root)、publication 経路は
+正式公開担当、公開済み policy PR は人間 merge、全準備確認後だけ実装担当を表示する。
 機械Merge Gate未認定・Completion未認定・期限保証不能を表示する。
 
 ## Issue本文の全受入項目と検証対応

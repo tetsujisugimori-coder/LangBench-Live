@@ -135,8 +135,8 @@ def new_state(value):
     validate_input(value)
     return {'schema_version': 1, 'kind': 'startup_preparation', 'input': copy.deepcopy(value),
             'input_digest': digest(value), 'stages': {k: empty_stage() for k in STAGES},
-            'operations': {}, 'last_progress_at': None, 'last_observed_at': None,
-            'next_owner': value['actors']['implementation'], 'next_action': 'Read external Issue and policy facts',
+            'operations': {}, 'input_history': [], 'last_progress_at': None, 'last_observed_at': None,
+            'next_owner': value['actors']['dispatch'], 'next_action': 'Work(root) must verify the Issue and review registration',
             'status': 'UNCONFIRMED', 'gate_scope': 'Separate; no Merge/Completion certification',
             'shared_persistence': False}
 
@@ -177,6 +177,22 @@ def validate_state(state):
                 or (operation['input_digest'] == state['input_digest']
                     and key not in {operation_key(state['input'], a) for a in ACTIONS})):
             raise ValueError('Broken operation dedup ledger')
+    if not isinstance(state['input_history'], list):
+        raise ValueError('Broken input transition history')
+    previous_version = 0
+    for old in state['input_history']:
+        validate_input(old)
+        if (old['repository'] != state['input']['repository'] or old['purpose'] != state['input']['purpose']
+                or old['owner'] != state['input']['owner'] or old['input_version'] <= previous_version
+                or old['input_version'] >= state['input']['input_version']
+                or old['issue'] not in (None, state['input']['issue'])):
+            raise ValueError('Unrelated or unordered input transition history')
+        previous_version = old['input_version']
+    known_inputs = {digest(v): v for v in state['input_history'] + [state['input']]}
+    for key, operation in state['operations'].items():
+        bound = known_inputs.get(operation['input_digest'])
+        if bound is None or key not in {operation_key(bound, a) for a in ACTIONS}:
+            raise ValueError('Operation lacks authenticated input history')
     for k in ('last_progress_at', 'last_observed_at'):
         if state[k] is not None: timestamp(state[k])
     for k in ('next_owner', 'next_action'):
@@ -195,12 +211,13 @@ def rebase(state, value):
     if value['input_version'] <= state['input']['input_version']:
         raise ValueError('Old version or changed input without new version')
     output = copy.deepcopy(state)
+    output['input_history'].append(copy.deepcopy(state['input']))
     for name, dependencies in DEPENDENCIES.items():
         if any(state['input'][k] != value[k] for k in dependencies):
             output['stages'][name] = {**empty_stage(), 'status': 'INVALIDATED',
                                       'waiting_reason': 'Affected input changed; old evidence invalidated'}
     output.update(input=copy.deepcopy(value), input_digest=digest(value), status='UNCONFIRMED',
-                  next_owner=value['actors']['implementation'], next_action='Recheck affected evidence')
+                  next_owner=value['actors']['dispatch'], next_action='Work(root) must recheck affected preparation evidence')
     # Keep all unknown operations across input changes. They cannot authorize retransmission.
     return output
 
@@ -244,10 +261,13 @@ def resume(state, facts, observed_at):
         observe('issue', 'CONFIRMED', issue, None, issue['number'])
     review = facts.get('review')
     if review:
-        if review.get('id') != value['work_automation_id']: raise ValueError('Review automation mismatch')
-        observe('review', 'CONFIRMED' if review.get('enabled') is True and review.get('event_verified') is True else 'WAITING',
-                review, None if review.get('enabled') is True and review.get('event_verified') is True
-                else 'Registration/enabled and real event must both be verified', review.get('id'))
+        if review.get('available') is False:
+            observe('review', 'UNKNOWN', review, 'Work review evidence was unavailable at the recorded observation', review.get('evidence_ref'))
+        else:
+            if review.get('id') != value['work_automation_id']: raise ValueError('Review automation mismatch')
+            observe('review', 'CONFIRMED' if review.get('enabled') is True and review.get('event_verified') is True else 'WAITING',
+                    review, None if review.get('enabled') is True and review.get('event_verified') is True
+                    else 'Registration/enabled and real event must both be verified', review.get('id'))
     main = facts.get('main_policy')
     proposal = policy_entry(value) if value['work_automation_id'] is not None else None
     if main is not None:
@@ -266,8 +286,11 @@ def resume(state, facts, observed_at):
     else:
         observe('dashboard', 'WAITING', None, '正式Dashboard未適用', None)
     publication = facts.get('publication')
-    if publication and publication.get('available') is True:
-        observe('publication', 'CONFIRMED', publication, None, publication.get('route'))
+    if publication:
+        if publication.get('available') is True:
+            observe('publication', 'CONFIRMED', publication, None, publication.get('primary_route'))
+        elif publication.get('available') is False:
+            observe('publication', 'UNKNOWN', publication, 'Publication route was unavailable at the recorded observation', publication.get('evidence_ref'))
     for key, operation in output['operations'].items():
         external = facts.get('operations', {}).get(key)
         if external is not None:
@@ -277,10 +300,22 @@ def resume(state, facts, observed_at):
             operation.update(status='CONFIRMED', external_id=external['id'])
     pending = [k for k in STAGES if output['stages'][k]['status'] != 'CONFIRMED']
     unknown = any(x['status'] == 'UNKNOWN' for x in output['operations'].values())
+    if unknown:
+        owner, action = value['actors']['dispatch'], 'Reconcile unknown send outcome; retransmission prohibited'
+    elif 'review' in pending or 'dashboard' in pending:
+        owner, action = value['actors']['dispatch'], 'Work(root) must verify ' + ', '.join(x for x in pending if x in ('review', 'dashboard'))
+    elif 'policy' in pending and facts.get('policy_pr'):
+        owner, action = ('human merge owner', 'Human merge is required; then Work(root) must read back trusted main')
+    elif 'policy' in pending:
+        owner, action = value['actors']['dispatch'], 'Work(root) must publish and verify the formal policy path'
+    elif 'publication' in pending:
+        owner, action = value['actors']['publication'], 'Formal publication owner must verify primary and recovery routes'
+    elif 'issue' in pending:
+        owner, action = value['actors']['dispatch'], 'Work(root) must verify the formal Issue'
+    else:
+        owner, action = value['actors']['implementation'], 'Preparation confirmed; implementation may be started separately'
     output.update(status='PREPARATION_COMPLETE' if not pending and not unknown else 'WAITING',
-                  next_owner=value['actors']['dispatch'] if unknown else value['actors']['implementation'],
-                  next_action='Reconcile unknown send outcome; retransmission prohibited' if unknown else
-                  ('Recheck ' + ', '.join(pending) if pending else 'Work(root) confirms preparation; no automatic next task'))
+                  next_owner=owner, next_action=action)
     # Repeated observation is NO_OP: timestamp does not masquerade as progress.
     comparable = copy.deepcopy(output)
     for name in STAGES:
@@ -346,7 +381,7 @@ def summary(state):
     ]) + '\n'
 
 
-def generate(value, config, state=None):
+def generate(value, config, state=None, owner_facts=None):
     validate_input(value)
     state = rebase(state, value) if state else new_state(value)
     return {'issue_body.md': f"## 開始準備\nrepository: {value['repository']}\npurpose: {value['purpose']}\n開始main: {value['start_main_sha']}\n仕様参照: {value['specification']}\n承認参照だけで承認認定しない。\n\n" + canonical(value) + '\n',
@@ -356,7 +391,8 @@ def generate(value, config, state=None):
             'github_record.md': REQUEST_START + canonical({'schema_version': 1, 'kind': 'startup_preparation_input',
                 'repository': value['repository'], 'issue': value['issue'], 'purpose': value['purpose'],
                 'owner': value['owner'], 'input_version': value['input_version'], 'input_digest': digest(value),
-                'input': value, 'operations': {k: {**v, 'status': 'UNKNOWN', 'external_id': None}
+                'input': value, 'input_history': state['input_history'], 'owner_facts': owner_facts,
+                'operations': {k: {**v, 'status': 'UNKNOWN', 'external_id': None}
                     for k, v in state['operations'].items()}}) + REQUEST_END + '\n'}
 
 
@@ -367,6 +403,7 @@ def main():
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--github-read', action='store_true', help='Read public GitHub facts; never writes')
+    parser.add_argument('--owner-facts', type=Path, help='Formal owner observations; never fetched from a private Work API')
     parser.add_argument('--mark-unknown', choices=('issue', 'review', 'policy_pr', 'implementation_task', 'fix_task'))
     args = parser.parse_args()
     value = validate_input(loads(args.input.read_text(encoding='utf-8')))
@@ -378,13 +415,19 @@ def main():
         if args.github_read:
             try:
                 from tools.preparation_github import read_facts
+                from tools.preparation_github import reconcile_operations
                 from tools.update_automation_dashboard import GitHub
             except ModuleNotFoundError:
                 from preparation_github import read_facts
+                from preparation_github import reconcile_operations
                 from update_automation_dashboard import GitHub
             from datetime import timezone
             try:
-                state = resume(state, read_facts(GitHub(os.environ['GH_TOKEN']), value), datetime.now(timezone.utc).isoformat())
+                api = GitHub(os.environ['GH_TOKEN'])
+                facts = read_facts(api, value)
+                if value['issue'] is not None:
+                    facts['operations'] = reconcile_operations(api, value['issue'], policy_entry(value), state, facts)
+                state = resume(state, facts, datetime.now(timezone.utc).isoformat())
             except (OSError, ValueError, KeyError, TypeError):
                 # Keep history, but never show an old completed cache as current success.
                 state.update(status='STOPPED', next_owner=value['actors']['dispatch'],
@@ -392,7 +435,11 @@ def main():
                 atomic_save(args.state, state)
                 print(summary(state), end='')
                 raise
-        products = generate(value, config, state)
+        owner_facts = loads(args.owner_facts.read_text(encoding='utf-8')) if args.owner_facts else None
+        if owner_facts is not None:
+            from tools.preparation_github import validate_owner_facts
+            validate_owner_facts(owner_facts, value)
+        products = generate(value, config, state, owner_facts)
         atomic_save(args.state, state)
         args.output.mkdir(parents=True, exist_ok=True)
         for name, content in products.items():

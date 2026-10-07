@@ -24,6 +24,52 @@ class PreparationWriteUnknown(ValueError):
     pass
 
 
+def validate_owner_facts(record, value):
+    """Validate explicit Work/publication observations supplied by the formal owner.
+
+    This is deliberately an input contract, not a private Work API adapter.
+    """
+    fields = {'schema_version', 'repository', 'issue', 'purpose', 'owner', 'input_version',
+              'input_digest', 'start_main_sha', 'observed_at', 'review', 'publication'}
+    if not isinstance(record, dict) or set(record) != fields:
+        raise PreparationConflict('Owner observation schema invalid')
+    if (record['schema_version'] != 1 or record['repository'] != value['repository']
+            or record['issue'] != value['issue'] or record['purpose'] != value['purpose']
+            or record['owner'] != value['owner'] or record['input_version'] != value['input_version']
+            or record['input_digest'] != preparation.digest(value)
+            or record['start_main_sha'] != value['start_main_sha']):
+        raise PreparationConflict('Owner observation scope/input/SHA binding failed')
+    preparation.timestamp(record['observed_at'])
+    review = record['review']
+    review_fields = {'available', 'id', 'enabled', 'target_event', 'actual_event',
+                     'event_verified', 'evidence_ref', 'confirmed_by'}
+    if (not isinstance(review, dict) or set(review) != review_fields
+            or type(review['available']) is not bool or review['confirmed_by'] != value['actors']['dispatch']
+            or not isinstance(review['evidence_ref'], str) or not review['evidence_ref']):
+        raise PreparationConflict('Owner review observation invalid')
+    if review['available']:
+        if (review['id'] != value['work_automation_id'] or type(review['enabled']) is not bool
+                or type(review['event_verified']) is not bool
+                or not isinstance(review['target_event'], str) or not review['target_event']
+                or not isinstance(review['actual_event'], str) or not review['actual_event']):
+            raise PreparationConflict('Owner review result invalid')
+    elif any(review[k] is not None for k in ('id', 'enabled', 'target_event', 'actual_event', 'event_verified')):
+        raise PreparationConflict('Unavailable review cannot claim a result')
+    publication = record['publication']
+    publication_fields = {'available', 'publisher', 'primary_route', 'recovery_route', 'evidence_ref'}
+    if (not isinstance(publication, dict) or set(publication) != publication_fields
+            or type(publication['available']) is not bool
+            or publication['publisher'] != value['actors']['publication']
+            or not isinstance(publication['evidence_ref'], str) or not publication['evidence_ref']):
+        raise PreparationConflict('Owner publication observation invalid')
+    routes = ('primary_route', 'recovery_route')
+    if publication['available'] and any(not isinstance(publication[k], str) or not publication[k] for k in routes):
+        raise PreparationConflict('Confirmed publication routes missing')
+    if not publication['available'] and any(publication[k] is not None for k in routes):
+        raise PreparationConflict('Unavailable publication cannot claim routes')
+    return record
+
+
 def block(body, start, end):
     if start not in body and end not in body: return None
     if body.count(start) != 1 or body.count(end) != 1:
@@ -97,7 +143,7 @@ def authenticated_request(comment, issue, policy):
     if not author_matches(comment.get('user'), policy['owner']):
         raise PreparationConflict('Preparation record author is not formal owner')
     fields = {'schema_version', 'kind', 'repository', 'issue', 'purpose', 'owner',
-              'input_version', 'input_digest', 'input', 'operations'}
+              'input_version', 'input_digest', 'input', 'input_history', 'owner_facts', 'operations'}
     if not isinstance(record, dict) or set(record) != fields:
         raise PreparationConflict('Preparation request schema invalid')
     value = preparation.validate_input(record['input'])
@@ -110,10 +156,13 @@ def authenticated_request(comment, issue, policy):
             or preparation.policy_entry(value) != policy):
         raise PreparationConflict('Preparation scope/owner/input/policy authentication failed')
     candidate = preparation.new_state(value)
+    candidate['input_history'] = record['input_history']
     candidate['operations'] = record['operations']
     preparation.validate_state(candidate)
     if any(v['status'] != 'UNKNOWN' or v['external_id'] is not None for v in record['operations'].values()):
         raise PreparationConflict('Request cannot claim external operation success')
+    if record['owner_facts'] is not None:
+        validate_owner_facts(record['owner_facts'], value)
     return record
 
 
@@ -194,19 +243,35 @@ def reconcile_preparation(api, issue, policy, now):
     if prior:
         if prior['comment_id'] != comment['id']: raise PreparationConflict('Snapshot comment identity mismatch')
         state = preparation.rebase(prior['state'], value)
+        if record['input_history'] != state['input_history']:
+            raise PreparationConflict('Owner input transition history differs from saved history')
     else:
         state = preparation.new_state(value)
+        state['input_history'] = copy.deepcopy(record['input_history'])
     for key, operation in record['operations'].items():
         existing = state['operations'].get(key)
         if existing is not None and existing['input_digest'] != operation['input_digest']:
             raise PreparationConflict('Operation input binding changed; reconcile instead of resend')
         if existing is None:
-            if key not in {preparation.operation_key(value, action) for action in preparation.ACTIONS}:
+            history = state['input_history'] + [value]
+            if not any(operation['input_digest'] == preparation.digest(bound)
+                       and key in {preparation.operation_key(bound, action) for action in preparation.ACTIONS}
+                       for bound in history):
                 raise PreparationConflict('New operation scope differs from input')
             state['operations'][key] = copy.deepcopy(operation)
     first = read_facts(api, value)
+    if record['owner_facts'] is not None:
+        first.update(review={**copy.deepcopy(record['owner_facts']['review']),
+                             'owner_observed_at': record['owner_facts']['observed_at']},
+                     publication={**copy.deepcopy(record['owner_facts']['publication']),
+                                  'owner_observed_at': record['owner_facts']['observed_at']})
     first['operations'] = reconcile_operations(api, issue, policy, state, first)
     second = read_facts(api, value)
+    if record['owner_facts'] is not None:
+        second.update(review={**copy.deepcopy(record['owner_facts']['review']),
+                              'owner_observed_at': record['owner_facts']['observed_at']},
+                      publication={**copy.deepcopy(record['owner_facts']['publication']),
+                                   'owner_observed_at': record['owner_facts']['observed_at']})
     second['operations'] = reconcile_operations(api, issue, policy, state, second)
     latest = api.get(f'/issues/comments/{comment["id"]}')
     if first != second or latest != comment:
@@ -230,6 +295,11 @@ def reconcile_preparation(api, issue, policy, now):
         written = api.request(api.root + f'/issues/comments/{comment["id"]}', 'PATCH', {'body': body})
         checked = api.get(f'/issues/comments/{comment["id"]}')
         after = read_facts(api, value)
+        if record['owner_facts'] is not None:
+            after.update(review={**copy.deepcopy(record['owner_facts']['review']),
+                                 'owner_observed_at': record['owner_facts']['observed_at']},
+                         publication={**copy.deepcopy(record['owner_facts']['publication']),
+                                      'owner_observed_at': record['owner_facts']['observed_at']})
         after['operations'] = reconcile_operations(api, issue, policy, updated, after)
     except Exception as exc:
         raise PreparationWriteUnknown('Preparation write outcome unknown; inspect same comment before retry') from exc

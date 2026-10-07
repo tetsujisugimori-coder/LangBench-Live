@@ -26,6 +26,20 @@ def facts_fixture(v):
         'publication':{'available':True,'route':'synthetic'}}
 
 
+def owner_facts(v, available=True):
+    return {'schema_version':1, 'repository':v['repository'], 'issue':v['issue'],
+        'purpose':v['purpose'], 'owner':v['owner'], 'input_version':v['input_version'],
+        'input_digest':p.digest(v), 'start_main_sha':v['start_main_sha'], 'observed_at':NOW,
+        'review':{'available':available, 'id':v['work_automation_id'] if available else None,
+            'enabled':True if available else None, 'target_event':'pull_request' if available else None,
+            'actual_event':'pull_request' if available else None, 'event_verified':True if available else None,
+            'evidence_ref':'work://synthetic/review', 'confirmed_by':v['actors']['dispatch']},
+        'publication':{'available':available, 'publisher':v['actors']['publication'],
+            'primary_route':'github-connector' if available else None,
+            'recovery_route':'task-artifact' if available else None,
+            'evidence_ref':'work://synthetic/publication'}}
+
+
 class PreparationAPI:
     def __init__(self, value):
         self.root = '/repos/' + p.REPOSITORY
@@ -180,6 +194,22 @@ class StateResume(unittest.TestCase):
         self.assertEqual('WAITING',result['status'])
         self.assertIsNone(result['stages']['review']['evidence'])
 
+    def test_next_owner_follows_pending_authority(self):
+        cases = [
+            ({'review':None}, self.v['actors']['dispatch'], 'review'),
+            ({'dashboard':None}, self.v['actors']['dispatch'], 'dashboard'),
+            ({'main_policy':None, 'policy_pr':{'number':89,'merged':False}}, 'human merge owner', 'Human merge'),
+            ({'main_policy':None}, self.v['actors']['dispatch'], 'publish'),
+            ({'publication':None}, self.v['actors']['publication'], 'publication'),
+        ]
+        for changes, owner, action in cases:
+            facts=copy.deepcopy(self.facts)
+            for key,value in changes.items():
+                if value is None: facts.pop(key,None)
+                else: facts[key]=value
+            state=p.resume(self.state,facts,NOW)
+            self.assertEqual(owner,state['next_owner']); self.assertIn(action,state['next_action'])
+
     def test_cli_read_failure_saves_stopped_not_cached_complete(self):
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory); input_path=base/'input.json'; state_path=base/'state.json'
@@ -193,6 +223,24 @@ class StateResume(unittest.TestCase):
             saved=p.validate_state(p.loads(state_path.read_text()))
             self.assertEqual('STOPPED',saved['status'])
             self.assertIn('no retransmission',saved['next_action'])
+
+    def test_cli_github_read_reconciles_unique_policy_pr_without_write(self):
+        state=p.mark_unknown(self.state,'policy_pr'); key=p.operation_key(self.v,'policy_pr')
+        api=PreparationAPI(self.v)
+        api.pull={'number':89,'body':'Refs #88\n','base':{'ref':'main','repo':{'full_name':p.REPOSITORY}},
+                  'head':{'sha':HEAD},'merged':False}
+        api.config['issues']={}
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory); input_path=base/'input.json'; state_path=base/'state.json'
+            input_path.write_text(p.canonical(self.v)); p.atomic_save(state_path,state)
+            with patch('sys.argv',['cli','--input',str(input_path),'--state',str(state_path),
+                                   '--output',str(base/'generated'),'--github-read']), \
+                 patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
+                 patch('tools.update_automation_dashboard.GitHub',return_value=api), patch('builtins.print'):
+                self.assertEqual(0,p.main())
+            saved=p.validate_state(p.loads(state_path.read_text()))
+            self.assertEqual('CONFIRMED',saved['operations'][key]['status'])
+            self.assertEqual(89,saved['operations'][key]['external_id']); self.assertEqual([],api.writes)
 
 
 class GenericTargets(unittest.TestCase):
@@ -272,6 +320,27 @@ class GithubTransport(unittest.TestCase):
         self.assertNotIn('review',facts); self.assertNotIn('publication',facts)
         self.update(); state=snapshot(self.api.comment['body'])['state']
         self.assertEqual('WAITING',state['status']); self.assertTrue(state['shared_persistence'])
+    def test_owner_observations_flow_cli_record_writer_resume_and_noop(self):
+        observed=owner_facts(self.v)
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory); input_path=base/'input.json'; facts_path=base/'owner.json'
+            input_path.write_text(p.canonical(self.v)); facts_path.write_text(p.canonical(observed))
+            with patch('sys.argv',['cli','--input',str(input_path),'--state',str(base/'state.json'),
+                                   '--output',str(base/'generated'),'--owner-facts',str(facts_path)]), \
+                 patch('builtins.print'):
+                self.assertEqual(0,p.main())
+            self.api.comment['body']=(base/'generated/github_record.md').read_text()
+        self.assertEqual('UPDATED',self.update())
+        state=snapshot(self.api.comment['body'])['state']
+        self.assertEqual('CONFIRMED',state['stages']['review']['status'])
+        self.assertEqual('CONFIRMED',state['stages']['publication']['status'])
+        self.assertEqual(NOW,state['stages']['review']['evidence']['owner_observed_at'])
+        self.assertNotIn(RECEIPT,self.api.comment['body']); self.assertEqual('NO_OP',self.update())
+        unavailable=owner_facts(self.v,False)
+        local=p.resume(p.new_state(self.v),{'input_digest':p.digest(self.v),
+                       'review':unavailable['review'],'publication':unavailable['publication']},NOW)
+        self.assertEqual('UNKNOWN',local['stages']['review']['status'])
+        self.assertNotEqual(local['stages']['review']['status'],p.new_state(self.v)['stages']['review']['status'])
     def test_wrong_author_issue_purpose_input_digest_owner_rejected(self):
         for mutation in ('author','issue','purpose','owner','digest','version'):
             api=PreparationAPI(self.v)
@@ -290,7 +359,7 @@ class GithubTransport(unittest.TestCase):
     def test_old_input_version_cannot_roll_back(self):
         self.update(); old=self.api.comment['body']
         value={**self.v,'input_version':2}
-        new=p.generate(value,self.api.config)['github_record.md']
+        new=p.generate(value,self.api.config,p.rebase(snapshot(old)['state'],value))['github_record.md']
         start=old.index(p.REQUEST_START); end=old.index(p.REQUEST_END)+len(p.REQUEST_END)
         self.api.comment['body']=old[:start]+new.rstrip()+old[end:]
         self.update(); version2=self.api.comment['body']
@@ -341,6 +410,42 @@ class GithubTransport(unittest.TestCase):
         content=old.split(p.SNAPSHOT_START)[1].split(p.SNAPSHOT_END)[0]
         self.api.comment['body']=old.replace(content,p.canonical(value))
         with self.assertRaises(ValueError): self.update()
+        self.assertEqual(1,len(self.api.writes))
+    def test_null_issue_transition_history_initial_and_existing_snapshot(self):
+        old={**self.v,'issue':None,'input_version':1,'purpose':'synthetic-transition'}
+        state=p.mark_unknown(p.new_state(old),'issue')
+        current={**old,'issue':88,'input_version':2}
+        revised=p.rebase(state,current)
+        api=PreparationAPI(current); policy=p.policy_entry(current)
+        api.comment['body']=p.generate(current,api.config,revised)['github_record.md']
+        self.assertEqual('UPDATED',reconcile_preparation(api,88,policy,NOW))
+        saved=snapshot(api.comment['body'])['state']
+        self.assertIn(next(iter(state['operations'])),saved['operations'])
+        newer={**current,'input_version':3,'start_main_sha':'c'*40}
+        next_state=p.rebase(saved,newer)
+        api.value=newer; api.issue['number']=88; api.issue['body']='purpose: '+newer['purpose']
+        api.config={'schema_version':1,'repository':p.REPOSITORY,'issues':{'88':p.policy_entry(newer)}}
+        old_body=api.comment['body']; generated=p.generate(newer,api.config,next_state)['github_record.md']
+        start=old_body.index(p.REQUEST_START); end=old_body.index(p.REQUEST_END)+len(p.REQUEST_END)
+        api.comment['body']=old_body[:start]+generated.rstrip()+old_body[end:]
+        self.assertEqual('UPDATED',reconcile_preparation(api,88,p.policy_entry(newer),NOW))
+        self.assertEqual(2,len(snapshot(api.comment['body'])['state']['input_history']))
+    def test_transition_history_rejects_unrelated_old_issue(self):
+        current={**self.v,'input_version':2}
+        state=p.new_state(current)
+        state['input_history']=[{**self.v,'issue':999}]
+        with self.assertRaisesRegex(ValueError,'Unrelated or unordered'):
+            p.validate_state(state)
+    def test_existing_snapshot_rejects_rewritten_owner_history(self):
+        self.update(); old=self.api.comment['body']; saved=snapshot(old)['state']
+        current={**self.v,'input_version':2}
+        generated=p.generate(current,self.api.config,p.rebase(saved,current))['github_record.md']
+        request=p.loads(generated.split(p.REQUEST_START)[1].split(p.REQUEST_END)[0])
+        request['input_history'][0]['start_main_sha']='c'*40
+        replacement=p.REQUEST_START+p.canonical(request)+p.REQUEST_END
+        start=old.index(p.REQUEST_START); end=old.index(p.REQUEST_END)+len(p.REQUEST_END)
+        self.api.comment['body']=old[:start]+replacement+old[end:]
+        with self.assertRaisesRegex(ValueError,'differs from saved history'): self.update()
         self.assertEqual(1,len(self.api.writes))
     def test_main_preparation_failure_cannot_safe_stop_gate(self):
         from tools import update_automation_dashboard as writer
