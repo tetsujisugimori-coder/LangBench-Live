@@ -64,6 +64,35 @@
         "measurement_result_pr": "NOT_REQUIRED",
         "live_smoke": "REQUIRED"
       }
+    },
+    "88": {
+      "purpose": "automation-startup-preparation",
+      "owner": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_author": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_automation_id": "6ac5a9e2b1708191b122d3d91687b94d",
+      "dashboard_comment_id": null,
+      "initial_dispatch": null,
+      "requirements": {
+        "windows_validation": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "artifact_integrity": "NOT_REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED"
+      },
+      "dispatch_owners": {
+        "implementation_task": "Work(root)",
+        "fix_task": "Work(root)",
+        "work_review": "Work(6ac5a9e2b1708191b122d3d91687b94d)",
+        "local_main_sync": ".github/workflows/pull-local-main.yml"
+      }
     }
   }
 }

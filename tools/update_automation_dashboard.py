@@ -294,6 +294,18 @@ def main():
                 safe_stop(api, issue, policy)
             except (ValueError, KeyError, TypeError, urllib.error.URLError):
                 print(f"::error::Issue #{issue}: Dashboard write unavailable; no success certified")
+        # Separate shared preparation transport: a preparation failure cannot
+        # mutate Gate evidence or manufacture a Work result/dispatch receipt.
+        try:
+            try:
+                from tools.preparation_github import reconcile_preparation
+            except ModuleNotFoundError:
+                from preparation_github import reconcile_preparation
+            preparation_result = reconcile_preparation(api, issue, policy, datetime.now(timezone.utc).isoformat())
+            print(f"Issue #{issue} preparation: {preparation_result}")
+        except (ValueError, KeyError, TypeError, urllib.error.URLError):
+            failed = True
+            print(f"::error::Issue #{issue}: preparation unavailable/unknown; no preparation success certified")
     return 1 if failed else 0
 
 
