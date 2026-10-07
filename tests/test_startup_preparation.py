@@ -2,8 +2,10 @@
 import base64
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,7 +17,7 @@ from tests.test_automation_dashboard import ROOT, NOW, HEAD, record, fixtures
 
 
 def input_fixture():
-    return json.loads((ROOT / 'docs/startup-preparation-input.json').read_text())
+    return json.loads((ROOT / 'docs/startup-preparation-input.json').read_text(encoding='utf-8'))
 
 
 def facts_fixture(v):
@@ -114,7 +116,7 @@ class InputGeneration(unittest.TestCase):
         for text in ('{"a":1,"a":2}','{"a":NaN}'):
             with self.assertRaises(ValueError): p.loads(text)
     def test_real_policy_80_85_identical_and_initial_null(self):
-        config=json.loads((ROOT/'.github/automation-dashboard.json').read_text())
+        config=json.loads((ROOT/'.github/automation-dashboard.json').read_text(encoding='utf-8'))
         old=json.loads(subprocess.check_output(['git','show','5eda8bbf5be8433b2f3909c4e7a17a0cd13b9aef:.github/automation-dashboard.json'],cwd=ROOT,text=True))
         for issue in ('80','85'): self.assertEqual(old['issues'][issue],config['issues'][issue])
         self.assertEqual(p.policy_entry(self.v),config['issues']['88'])
@@ -127,10 +129,10 @@ class StateResume(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'state.json'
             p.atomic_save(path,self.state)
-            self.assertEqual(self.state,p.validate_state(p.loads(path.read_text())))
+            self.assertEqual(self.state,p.validate_state(p.loads(path.read_text(encoding='utf-8'))))
             path.write_text('{broken')
             with self.assertRaises(ValueError): p.atomic_save(path,self.state)
-            self.assertEqual('{broken',path.read_text())
+            self.assertEqual('{broken',path.read_text(encoding='utf-8'))
     def test_replace_failure_preserves_original(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'state.json'; p.atomic_save(path,self.state); original=path.read_bytes()
@@ -213,14 +215,14 @@ class StateResume(unittest.TestCase):
     def test_cli_read_failure_saves_stopped_not_cached_complete(self):
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory); input_path=base/'input.json'; state_path=base/'state.json'
-            input_path.write_text(p.canonical(self.v)); p.atomic_save(state_path,p.resume(self.state,self.facts,NOW))
+            input_path.write_text(p.canonical(self.v),encoding='utf-8'); p.atomic_save(state_path,p.resume(self.state,self.facts,NOW))
             with patch('sys.argv',['cli','--input',str(input_path),'--state',str(state_path),
                                   '--output',str(base/'generated'),'--github-read']), \
                  patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
                  patch('tools.preparation_github.read_facts',side_effect=OSError('synthetic offline')), \
                  patch('builtins.print'):
                 with self.assertRaises(OSError): p.main()
-            saved=p.validate_state(p.loads(state_path.read_text()))
+            saved=p.validate_state(p.loads(state_path.read_text(encoding='utf-8')))
             self.assertEqual('STOPPED',saved['status'])
             self.assertIn('no retransmission',saved['next_action'])
 
@@ -232,13 +234,13 @@ class StateResume(unittest.TestCase):
         api.config['issues']={}
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory); input_path=base/'input.json'; state_path=base/'state.json'
-            input_path.write_text(p.canonical(self.v)); p.atomic_save(state_path,state)
+            input_path.write_text(p.canonical(self.v),encoding='utf-8'); p.atomic_save(state_path,state)
             with patch('sys.argv',['cli','--input',str(input_path),'--state',str(state_path),
                                    '--output',str(base/'generated'),'--github-read']), \
                  patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
                  patch('tools.update_automation_dashboard.GitHub',return_value=api), patch('builtins.print'):
                 self.assertEqual(0,p.main())
-            saved=p.validate_state(p.loads(state_path.read_text()))
+            saved=p.validate_state(p.loads(state_path.read_text(encoding='utf-8')))
             self.assertEqual('CONFIRMED',saved['operations'][key]['status'])
             self.assertEqual(89,saved['operations'][key]['external_id']); self.assertEqual([],api.writes)
 
@@ -248,20 +250,22 @@ class GenericTargets(unittest.TestCase):
         value=input_fixture()
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory); input_path=base/'input.json'; facts_path=base/'owner.json'
-            input_path.write_text(p.canonical(value)); facts_path.write_text(p.canonical(owner_facts(value)))
-            command=['python','-B',str(ROOT/'tools/startup_preparation.py'),
+            input_path.write_text(p.canonical(value),encoding='utf-8'); facts_path.write_text(p.canonical(owner_facts(value)),encoding='utf-8')
+            command=[sys.executable,'-B',str(ROOT/'tools/startup_preparation.py'),
                      '--input',str(input_path),'--config',str(ROOT/'.github/automation-dashboard.json'),
                      '--state',str(base/'state.json'),'--output',str(base/'out'),
                      '--owner-facts',str(facts_path)]
-            first=subprocess.run(command,cwd=base,capture_output=True,text=True)
+            environment={**os.environ,'PYTHONIOENCODING':'cp1252'}
+            first=subprocess.run(command,cwd=base,capture_output=True,text=True,encoding='utf-8',env=environment)
             self.assertEqual(0,first.returncode,first.stderr)
-            state=p.loads((base/'state.json').read_text())
+            state=p.loads((base/'state.json').read_text(encoding='utf-8'))
             self.assertEqual('CONFIRMED',state['stages']['review']['status'])
             self.assertEqual('CONFIRMED',state['stages']['publication']['status'])
             self.assertEqual('WAITING',state['status']); self.assertFalse(state['shared_persistence'])
             self.assertIn('review: CONFIRMED',first.stdout)
+            self.assertIn('正式Dashboard未適用',first.stdout)
             before=(base/'state.json').read_bytes()
-            second=subprocess.run(command,cwd=base,capture_output=True,text=True)
+            second=subprocess.run(command,cwd=base,capture_output=True,text=True,encoding='utf-8',env=environment)
             self.assertEqual(0,second.returncode,second.stderr)
             self.assertEqual(before,(base/'state.json').read_bytes())
 
@@ -272,21 +276,21 @@ class GenericTargets(unittest.TestCase):
                     'body':render(dash)}]
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory); input_path=base/'input.json'; facts_path=base/'owner.json'
-            input_path.write_text(p.canonical(value)); facts_path.write_text(p.canonical(observed))
+            input_path.write_text(p.canonical(value),encoding='utf-8'); facts_path.write_text(p.canonical(observed),encoding='utf-8')
             command=['cli','--input',str(input_path),'--config',str(ROOT/'.github/automation-dashboard.json'),
                      '--state',str(base/'state.json'),'--output',str(base/'out'),
                      '--github-read','--owner-facts',str(facts_path)]
             with patch('sys.argv',command), patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
                  patch('tools.update_automation_dashboard.GitHub',return_value=api),patch('builtins.print'):
                 self.assertEqual(0,p.main())
-            saved=p.loads((base/'state.json').read_text())
+            saved=p.loads((base/'state.json').read_text(encoding='utf-8'))
             self.assertEqual('PREPARATION_COMPLETE',saved['status']); self.assertEqual([],api.writes)
             observed['review'].update(event_verified=False,actual_event=None)
-            facts_path.write_text(p.canonical(observed))
+            facts_path.write_text(p.canonical(observed),encoding='utf-8')
             with patch('sys.argv',command), patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
                  patch('tools.update_automation_dashboard.GitHub',return_value=api),patch('builtins.print'):
                 self.assertEqual(0,p.main())
-            saved=p.loads((base/'state.json').read_text())
+            saved=p.loads((base/'state.json').read_text(encoding='utf-8'))
             self.assertEqual('WAITING',saved['stages']['review']['status'])
             self.assertEqual(value['actors']['dispatch'],saved['next_owner'])
 
@@ -329,7 +333,7 @@ class GenericTargets(unittest.TestCase):
             state=p.mark_unknown(p.new_state(value),'policy_pr')
             with tempfile.TemporaryDirectory() as directory:
                 path=Path(directory)/'state.json'; p.atomic_save(path,state)
-                restored=p.validate_state(p.loads(path.read_text()))
+                restored=p.validate_state(p.loads(path.read_text(encoding='utf-8')))
                 observed=facts_fixture(value); observed['issue'].update(number=issue,purpose=purpose)
                 observed['dashboard'].update(issue=issue,purpose=purpose)
                 resumed=p.resume(restored,observed,NOW)
@@ -399,12 +403,12 @@ class GithubTransport(unittest.TestCase):
         observed=owner_facts(self.v)
         with tempfile.TemporaryDirectory() as directory:
             base=Path(directory); input_path=base/'input.json'; facts_path=base/'owner.json'
-            input_path.write_text(p.canonical(self.v)); facts_path.write_text(p.canonical(observed))
+            input_path.write_text(p.canonical(self.v),encoding='utf-8'); facts_path.write_text(p.canonical(observed),encoding='utf-8')
             with patch('sys.argv',['cli','--input',str(input_path),'--state',str(base/'state.json'),
                                    '--output',str(base/'generated'),'--owner-facts',str(facts_path)]), \
                  patch('builtins.print'):
                 self.assertEqual(0,p.main())
-            self.api.comment['body']=(base/'generated/github_record.md').read_text()
+            self.api.comment['body']=(base/'generated/github_record.md').read_text(encoding='utf-8')
         self.assertEqual('UPDATED',self.update())
         state=snapshot(self.api.comment['body'])['state']
         self.assertEqual('CONFIRMED',state['stages']['review']['status'])

@@ -22,6 +22,7 @@ input digest/start SHA/観測時刻/確認担当 Work(root) に結び付け、re
 record に反映する。`--github-read` 併用時は公開情報と同じ再開処理へ渡す。非併用時は
 owner の確認対象だけを反映し、Issue/policy/Dashboard を確認済みにはしない。
 登録済みで実イベント未確認なら `event_verified=false, actual_event=null` として待機できる。
+JSON・生成ファイル・CLI標準出力はUTF-8。Windowsで出力を取り込む場合もUTF-8として読む。
 
 入力 Issue は未取得時 null、取得後は実正整数 ID。purpose は入力目的の識別子。
 #88/purpose は本PR自身の設定・実例であり、ツールの入力制約ではない。repository は現対象固定。

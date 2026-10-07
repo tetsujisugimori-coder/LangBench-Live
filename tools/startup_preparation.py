@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 from contextlib import contextmanager
 from datetime import datetime
@@ -414,6 +415,9 @@ def generate(value, config, state=None, owner_facts=None):
 
 
 def main():
+    # Machine-readable artifacts and captured summaries share one encoding on Windows/Linux.
+    if getattr(sys.stdout, 'reconfigure', None):
+        sys.stdout.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, required=True)
     parser.add_argument('--config', type=Path, default=Path('.github/automation-dashboard.json'))
