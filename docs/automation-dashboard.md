@@ -2,6 +2,19 @@
 
 Issue #80（承認済み18節・V3.3）の実装。Web Dashboard、benchmark semantics、manifest v2、既存artifactは変更しない。updaterは観測・評価・同一コメントの更新だけを行い、dispatch / cancel / rerun / merge / Issue close / branch削除のAPIを持たない。
 
+## Issue #91: 準備record競合修正の登録
+
+`.github/automation-dashboard.json` のIssue #91は、コメント本文の変更と
+GitHub API付帯情報の表現差を分ける修正専用のpolicyである。
+`initial_dispatch: null` は明示的な未起動であり、登録だけでは実装開始・
+独立レビュー合格・Merge/Completion PASSを認定しない。
+測定を含まないためWindows実機validation・測定・測定artifact・測定結果PRは
+NOT_REQUIRED。マージ後の共有保存・再開・NO_OPはlive_smoke REQUIREDとし、
+正式同期の保持・安全artifact digest照合も省略しない。
+policy準備PRは準備Issue #92だけを独立Refs行で参照し、修正Issueへの誤bindを防ぐ。
+既存#80/#85/#88の設定・証拠・登録IDは流用せず、既存trusted-main唯一writerを使う。
+この登録PRは誤競合コードを修正せず、準備完了や#88のCompletionを代用しない。
+
 ## Issue #83: 表示・診断情報
 
 `tools/automation_dashboard.py` の `render()` が表示専用の
