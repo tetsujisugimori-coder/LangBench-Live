@@ -215,6 +215,8 @@ def observe(value, facts, previous=None):
            'action': copy.deepcopy(value['next_action']), 'sync': None, 'recheck': copy.deepcopy(value['recheck']),
            'matched': False, 'gate_certified': False, 'deadline_guaranteed': False,
            'waiting_record': copy.deepcopy(value['waiting_record']), 'owner': copy.deepcopy(value['owner']),
+           'claimed_run_id': previous.get('claimed_run_id', previous['work']['run_id']) if previous else value['work']['run_id'],
+           'claimed_started_at': previous.get('claimed_started_at', previous['work']['started_at']) if previous else value['work']['started_at'],
            'input_digest': preparation.digest(value), 'facts_digest': preparation.digest(facts)}
 
     def stop(reason):
@@ -257,10 +259,10 @@ def observe(value, facts, previous=None):
             return stop('Independent reviewed HEAD is unconfirmed or reviewer is acting as resume owner')
     except (KeyError, TypeError, ValueError):
         return stop('Independent review facts are missing or invalid')
-    if previous and previous['work']['run_id'] != value['work']['run_id']:
+    if out['claimed_run_id'] != value['work']['run_id']:
         return stop('Different Work run already observed for this dedup key; reconcile shared ownership')
     if previous:
-        if previous['work']['started_at'] != value['work']['started_at']:
+        if out['claimed_started_at'] != value['work']['started_at']:
             return stop('Work start identity changed')
         for field in ('event', 'receipt', 'action'):
             current = value['next_action'] if field == 'action' else value[field]

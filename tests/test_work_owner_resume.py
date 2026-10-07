@@ -120,7 +120,10 @@ class MergeObservation(unittest.TestCase):
         prior = resume.observe(value, facts)
         for field in ('work', 'claim', 'receipt', 'next_action'):
             value[field]['run_id'] = 'second-work'
-        self.assertEqual(resume.observe(value, facts, prior)['status'], 'STOPPED')
+        stopped = resume.observe(value, facts, prior)
+        self.assertEqual(stopped['status'], 'STOPPED')
+        self.assertEqual(stopped['claimed_run_id'], 'synthetic-work-run')
+        self.assertEqual(resume.observe(value, facts, stopped)['status'], 'STOPPED')
         value, facts = fixture()
         facts['issue_comments'].append(copy.deepcopy(facts['issue_comments'][1]))
         self.assertEqual(resume.observe(value, facts)['status'], 'STOPPED')
