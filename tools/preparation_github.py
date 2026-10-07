@@ -33,9 +33,9 @@ def validate_owner_facts(record, value):
               'input_digest', 'start_main_sha', 'observed_at', 'review', 'publication'}
     if not isinstance(record, dict) or set(record) != fields:
         raise PreparationConflict('Owner observation schema invalid')
-    if (record['schema_version'] != 1 or record['repository'] != value['repository']
-            or record['issue'] != value['issue'] or record['purpose'] != value['purpose']
-            or record['owner'] != value['owner'] or record['input_version'] != value['input_version']
+    if (type(record['schema_version']) is not int or record['schema_version'] != 1 or record['repository'] != value['repository']
+            or type(record['issue']) is not type(value['issue']) or record['issue'] != value['issue'] or record['purpose'] != value['purpose']
+            or record['owner'] != value['owner'] or type(record['input_version']) is not int or record['input_version'] != value['input_version']
             or record['input_digest'] != preparation.digest(value)
             or record['start_main_sha'] != value['start_main_sha']):
         raise PreparationConflict('Owner observation scope/input/SHA binding failed')
@@ -48,10 +48,12 @@ def validate_owner_facts(record, value):
             or not isinstance(review['evidence_ref'], str) or not review['evidence_ref']):
         raise PreparationConflict('Owner review observation invalid')
     if review['available']:
-        if (review['id'] != value['work_automation_id'] or type(review['enabled']) is not bool
+        if (value['work_automation_id'] is None or review['id'] != value['work_automation_id'] or type(review['enabled']) is not bool
                 or type(review['event_verified']) is not bool
                 or not isinstance(review['target_event'], str) or not review['target_event']
-                or not isinstance(review['actual_event'], str) or not review['actual_event']):
+                or (review['event_verified'] and (not isinstance(review['actual_event'], str) or not review['actual_event']))
+                or (not review['event_verified'] and review['actual_event'] is not None
+                    and (not isinstance(review['actual_event'], str) or not review['actual_event']))):
             raise PreparationConflict('Owner review result invalid')
     elif any(review[k] is not None for k in ('id', 'enabled', 'target_event', 'actual_event', 'event_verified')):
         raise PreparationConflict('Unavailable review cannot claim a result')
@@ -68,6 +70,17 @@ def validate_owner_facts(record, value):
     if not publication['available'] and any(publication[k] is not None for k in routes):
         raise PreparationConflict('Unavailable publication cannot claim routes')
     return record
+
+
+def apply_owner_facts(facts, record, value):
+    """Bind explicit owner observations before both CLI and writer resumes."""
+    if record is None:
+        return facts
+    validate_owner_facts(record, value)
+    output = copy.deepcopy(facts)
+    for stage in ('review', 'publication'):
+        output[stage] = {**copy.deepcopy(record[stage]), 'owner_observed_at': record['observed_at']}
+    return output
 
 
 def block(body, start, end):
@@ -259,19 +272,9 @@ def reconcile_preparation(api, issue, policy, now):
                        for bound in history):
                 raise PreparationConflict('New operation scope differs from input')
             state['operations'][key] = copy.deepcopy(operation)
-    first = read_facts(api, value)
-    if record['owner_facts'] is not None:
-        first.update(review={**copy.deepcopy(record['owner_facts']['review']),
-                             'owner_observed_at': record['owner_facts']['observed_at']},
-                     publication={**copy.deepcopy(record['owner_facts']['publication']),
-                                  'owner_observed_at': record['owner_facts']['observed_at']})
+    first = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
     first['operations'] = reconcile_operations(api, issue, policy, state, first)
-    second = read_facts(api, value)
-    if record['owner_facts'] is not None:
-        second.update(review={**copy.deepcopy(record['owner_facts']['review']),
-                              'owner_observed_at': record['owner_facts']['observed_at']},
-                      publication={**copy.deepcopy(record['owner_facts']['publication']),
-                                   'owner_observed_at': record['owner_facts']['observed_at']})
+    second = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
     second['operations'] = reconcile_operations(api, issue, policy, state, second)
     latest = api.get(f'/issues/comments/{comment["id"]}')
     if first != second or latest != comment:
@@ -294,12 +297,7 @@ def reconcile_preparation(api, issue, policy, now):
     try:
         written = api.request(api.root + f'/issues/comments/{comment["id"]}', 'PATCH', {'body': body})
         checked = api.get(f'/issues/comments/{comment["id"]}')
-        after = read_facts(api, value)
-        if record['owner_facts'] is not None:
-            after.update(review={**copy.deepcopy(record['owner_facts']['review']),
-                                 'owner_observed_at': record['owner_facts']['observed_at']},
-                         publication={**copy.deepcopy(record['owner_facts']['publication']),
-                                      'owner_observed_at': record['owner_facts']['observed_at']})
+        after = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
         after['operations'] = reconcile_operations(api, issue, policy, updated, after)
     except Exception as exc:
         raise PreparationWriteUnknown('Preparation write outcome unknown; inspect same comment before retry') from exc

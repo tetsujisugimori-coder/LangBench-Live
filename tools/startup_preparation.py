@@ -248,6 +248,12 @@ def resume(state, facts, observed_at):
     value = state['input']
     if facts.get('input_digest') != state['input_digest']:
         raise ValueError('Facts are for another input version')
+    for name in ('review', 'publication'):
+        current = facts.get(name) or {}
+        prior = state['stages'][name]['evidence'] or {}
+        if current.get('owner_observed_at') and prior.get('owner_observed_at'):
+            if datetime.fromisoformat(current['owner_observed_at'].replace('Z', '+00:00')) < datetime.fromisoformat(prior['owner_observed_at'].replace('Z', '+00:00')):
+                raise ValueError('Older owner observation cannot roll back current evidence')
     output = copy.deepcopy(state)
     output['stages'] = {k: empty_stage() for k in STAGES}
     def observe(name, status, evidence, reason, target):
@@ -302,16 +308,21 @@ def resume(state, facts, observed_at):
     unknown = any(x['status'] == 'UNKNOWN' for x in output['operations'].values())
     if unknown:
         owner, action = value['actors']['dispatch'], 'Reconcile unknown send outcome; retransmission prohibited'
-    elif 'review' in pending or 'dashboard' in pending:
-        owner, action = value['actors']['dispatch'], 'Work(root) must verify ' + ', '.join(x for x in pending if x in ('review', 'dashboard'))
-    elif 'policy' in pending and facts.get('policy_pr'):
-        owner, action = ('human merge owner', 'Human merge is required; then Work(root) must read back trusted main')
-    elif 'policy' in pending:
-        owner, action = value['actors']['dispatch'], 'Work(root) must publish and verify the formal policy path'
-    elif 'publication' in pending:
-        owner, action = value['actors']['publication'], 'Formal publication owner must verify primary and recovery routes'
     elif 'issue' in pending:
         owner, action = value['actors']['dispatch'], 'Work(root) must verify the formal Issue'
+    elif 'review' in pending:
+        owner, action = value['actors']['dispatch'], 'Work(root) must verify review registration and the real event'
+    elif 'policy' in pending and facts.get('policy_pr'):
+        if facts['policy_pr'].get('merged') is True:
+            owner, action = value['actors']['dispatch'], 'Work(root) must read back merged policy on trusted main'
+        else:
+            owner, action = 'human merge owner', 'Human merge is required; then Work(root) must read back trusted main'
+    elif 'policy' in pending:
+        owner, action = value['actors']['dispatch'], 'Work(root) must publish and verify the formal policy path'
+    elif 'dashboard' in pending:
+        owner, action = value['actors']['dispatch'], 'Work(root) must verify the formal dashboard'
+    elif 'publication' in pending:
+        owner, action = value['actors']['publication'], 'Formal publication owner must verify primary and recovery routes'
     else:
         owner, action = value['actors']['implementation'], 'Preparation confirmed; implementation may be started separately'
     output.update(status='PREPARATION_COMPLETE' if not pending and not unknown else 'WAITING',
@@ -383,6 +394,12 @@ def summary(state):
 
 def generate(value, config, state=None, owner_facts=None):
     validate_input(value)
+    if owner_facts is not None:
+        try:
+            from tools.preparation_github import validate_owner_facts
+        except ModuleNotFoundError:
+            from preparation_github import validate_owner_facts
+        validate_owner_facts(owner_facts, value)
     state = rebase(state, value) if state else new_state(value)
     return {'issue_body.md': f"## 開始準備\nrepository: {value['repository']}\npurpose: {value['purpose']}\n開始main: {value['start_main_sha']}\n仕様参照: {value['specification']}\n承認参照だけで承認認定しない。\n\n" + canonical(value) + '\n',
             'review_registration.md': f"Work(root) による独立登録・読戻し・実イベント確認が必要。\nIssue #{value['issue'] if value['issue'] is not None else 'null'} / {value['purpose']}\n担当: {value['actors']['review']}\nautomation_id: {value['work_automation_id'] or 'null'}\n別実行のコード・設定レビュー。実装担当は独立PASSを代筆しない。\n",
@@ -412,6 +429,12 @@ def main():
         old = validate_state(loads(args.state.read_text(encoding='utf-8'))) if args.state.exists() else None
         state = rebase(old, value) if old else new_state(value)
         if args.mark_unknown: state = mark_unknown(state, args.mark_unknown)
+        owner_facts = loads(args.owner_facts.read_text(encoding='utf-8')) if args.owner_facts else None
+        try:
+            from tools.preparation_github import apply_owner_facts
+        except ModuleNotFoundError:
+            from preparation_github import apply_owner_facts
+        facts = apply_owner_facts({'input_digest': digest(value)}, owner_facts, value)
         if args.github_read:
             try:
                 from tools.preparation_github import read_facts
@@ -424,7 +447,7 @@ def main():
             from datetime import timezone
             try:
                 api = GitHub(os.environ['GH_TOKEN'])
-                facts = read_facts(api, value)
+                facts = apply_owner_facts(read_facts(api, value), owner_facts, value)
                 if value['issue'] is not None:
                     facts['operations'] = reconcile_operations(api, value['issue'], policy_entry(value), state, facts)
                 state = resume(state, facts, datetime.now(timezone.utc).isoformat())
@@ -435,10 +458,8 @@ def main():
                 atomic_save(args.state, state)
                 print(summary(state), end='')
                 raise
-        owner_facts = loads(args.owner_facts.read_text(encoding='utf-8')) if args.owner_facts else None
-        if owner_facts is not None:
-            from tools.preparation_github import validate_owner_facts
-            validate_owner_facts(owner_facts, value)
+        elif owner_facts is not None:
+            state = resume(state, facts, owner_facts['observed_at'])
         products = generate(value, config, state, owner_facts)
         atomic_save(args.state, state)
         args.output.mkdir(parents=True, exist_ok=True)

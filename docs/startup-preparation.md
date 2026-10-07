@@ -18,6 +18,10 @@ input digest/start SHA/観測時刻/確認担当 Work(root) に結び付け、re
 照合結果・証拠参照と、publication の正式担当・主経路・回収経路・証拠参照を保持する。
 取得不能は `available=false`（結果欄は null）として UNKNOWN、入力なしは UNCONFIRMED なので
 両者を混同しない。この入力は準備証拠だけで、Work PASS や dispatch receipt を生成しない。
+直接スクリプト実行とパッケージ実行の両方で、owner facts を保存状態・現在要約・共有用
+record に反映する。`--github-read` 併用時は公開情報と同じ再開処理へ渡す。非併用時は
+owner の確認対象だけを反映し、Issue/policy/Dashboard を確認済みにはしない。
+登録済みで実イベント未確認なら `event_verified=false, actual_event=null` として待機できる。
 
 入力 Issue は未取得時 null、取得後は実正整数 ID。purpose は入力目的の識別子。
 #88/purpose は本PR自身の設定・実例であり、ツールの入力制約ではない。repository は現対象固定。
@@ -124,6 +128,8 @@ Cloud全task一覧/起動/送信、正式同期の開始、期限・次owner自�
 正式Dashboardの reference は現policyと機械 state のスコープ確認後だけ表示する。next owner/action
 は未完了工程の権限で決め、review・policy 公開・Dashboard は Work(root)、publication 経路は
 正式公開担当、公開済み policy PR は人間 merge、全準備確認後だけ実装担当を表示する。
+policy が未適用なら Dashboard 確認より policy 公開・人間 merge・main 読戻しを優先する。
+既に merge 済みなのに main 適用未確認の場合の次担当は Work(root) であり、人間へ再mergeを求めない。
 機械Merge Gate未認定・Completion未認定・期限保証不能を表示する。
 
 ## Issue本文の全受入項目と検証対応

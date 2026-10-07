@@ -244,6 +244,81 @@ class StateResume(unittest.TestCase):
 
 
 class GenericTargets(unittest.TestCase):
+    def test_owner_facts_direct_cli_persist_summary_and_noop(self):
+        value=input_fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory); input_path=base/'input.json'; facts_path=base/'owner.json'
+            input_path.write_text(p.canonical(value)); facts_path.write_text(p.canonical(owner_facts(value)))
+            command=['python','-B',str(ROOT/'tools/startup_preparation.py'),
+                     '--input',str(input_path),'--config',str(ROOT/'.github/automation-dashboard.json'),
+                     '--state',str(base/'state.json'),'--output',str(base/'out'),
+                     '--owner-facts',str(facts_path)]
+            first=subprocess.run(command,cwd=base,capture_output=True,text=True)
+            self.assertEqual(0,first.returncode,first.stderr)
+            state=p.loads((base/'state.json').read_text())
+            self.assertEqual('CONFIRMED',state['stages']['review']['status'])
+            self.assertEqual('CONFIRMED',state['stages']['publication']['status'])
+            self.assertEqual('WAITING',state['status']); self.assertFalse(state['shared_persistence'])
+            self.assertIn('review: CONFIRMED',first.stdout)
+            before=(base/'state.json').read_bytes()
+            second=subprocess.run(command,cwd=base,capture_output=True,text=True)
+            self.assertEqual(0,second.returncode,second.stderr)
+            self.assertEqual(before,(base/'state.json').read_bytes())
+
+    def test_owner_facts_with_github_read_complete_and_pending_real_event(self):
+        value=input_fixture(); api=PreparationAPI(value); observed=owner_facts(value)
+        dash=initial_state(value['issue'],p.policy_entry(value))
+        api.extra=[{'id':123,'user':{'login':'github-actions[bot]','id':41898282,'type':'Bot'},
+                    'body':render(dash)}]
+        with tempfile.TemporaryDirectory() as directory:
+            base=Path(directory); input_path=base/'input.json'; facts_path=base/'owner.json'
+            input_path.write_text(p.canonical(value)); facts_path.write_text(p.canonical(observed))
+            command=['cli','--input',str(input_path),'--config',str(ROOT/'.github/automation-dashboard.json'),
+                     '--state',str(base/'state.json'),'--output',str(base/'out'),
+                     '--github-read','--owner-facts',str(facts_path)]
+            with patch('sys.argv',command), patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
+                 patch('tools.update_automation_dashboard.GitHub',return_value=api),patch('builtins.print'):
+                self.assertEqual(0,p.main())
+            saved=p.loads((base/'state.json').read_text())
+            self.assertEqual('PREPARATION_COMPLETE',saved['status']); self.assertEqual([],api.writes)
+            observed['review'].update(event_verified=False,actual_event=None)
+            facts_path.write_text(p.canonical(observed))
+            with patch('sys.argv',command), patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
+                 patch('tools.update_automation_dashboard.GitHub',return_value=api),patch('builtins.print'):
+                self.assertEqual(0,p.main())
+            saved=p.loads((base/'state.json').read_text())
+            self.assertEqual('WAITING',saved['stages']['review']['status'])
+            self.assertEqual(value['actors']['dispatch'],saved['next_owner'])
+
+    def test_missing_dashboard_does_not_hide_policy_merge_or_readback_wait(self):
+        value=input_fixture(); facts=facts_fixture(value)
+        facts.pop('dashboard'); facts.pop('main_policy')
+        facts['policy_pr']={'number':89,'merged':False}
+        saved=p.resume(p.new_state(value),facts,NOW)
+        self.assertEqual('human merge owner',saved['next_owner'])
+        facts['policy_pr']['merged']=True
+        saved=p.resume(saved,facts,NOW)
+        self.assertEqual(value['actors']['dispatch'],saved['next_owner'])
+        self.assertIn('read back',saved['next_action'])
+
+    def test_old_owner_event_cannot_roll_back_local_or_shared_evidence(self):
+        from tools.preparation_github import apply_owner_facts
+        value=input_fixture(); observed=owner_facts(value)
+        state=p.resume(p.new_state(value),apply_owner_facts(facts_fixture(value),observed,value),NOW)
+        old=copy.deepcopy(observed); old['observed_at']='2026-01-01T00:00:00Z'
+        old['review'].update(event_verified=False,actual_event=None)
+        with self.assertRaisesRegex(ValueError,'Older owner observation'):
+            p.resume(state,apply_owner_facts(facts_fixture(value),old,value),NOW)
+        api=PreparationAPI(value); policy=p.policy_entry(value)
+        api.comment['body']=p.generate(value,api.config,owner_facts=observed)['github_record.md']
+        reconcile_preparation(api,88,policy,NOW)
+        saved=api.comment['body']; start=saved.index(p.REQUEST_START); end=saved.index(p.REQUEST_END)+len(p.REQUEST_END)
+        replacement=p.generate(value,api.config,owner_facts=old)['github_record.md'].rstrip()
+        api.comment['body']=saved[:start]+replacement+saved[end:]
+        with self.assertRaisesRegex(ValueError,'Older owner observation'):
+            reconcile_preparation(api,88,policy,NOW)
+        self.assertEqual(1,len(api.writes))
+
     def test_other_synthetic_issue_purpose_generate_save_resume_and_shared_record(self):
         for issue,purpose in ((101,'synthetic-feature'),(202,'synthetic-preparation-2')):
             value={**input_fixture(),'issue':issue,'purpose':purpose,
