@@ -49,7 +49,9 @@ class Policy91Registration(unittest.TestCase):
         before = json.loads(subprocess.check_output(
             ['git', 'show', 'df4c285035e8bac6ca2511b08e6acef65e8127d2:.github/automation-dashboard.json'],
             cwd=ROOT, text=True, encoding='utf-8'))
-        self.assertEqual(set(before['issues']) | {'91'}, set(config['issues']))
+        # Later independent registrations must not invalidate Issue 91's
+        # acceptance; every pre-existing policy is still checked below.
+        self.assertTrue(set(before['issues']) | {'91'} <= set(config['issues']))
         for issue, policy in before['issues'].items():
             self.assertEqual(policy, config['issues'][issue])
         self.assertEqual('preparation-comment-conflict-fix', self.policy['purpose'])
