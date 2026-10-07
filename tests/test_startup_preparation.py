@@ -323,6 +323,69 @@ class GenericTargets(unittest.TestCase):
             reconcile_preparation(api,88,policy,NOW)
         self.assertEqual(1,len(api.writes))
 
+    def test_missing_owner_facts_do_not_erase_local_watermark(self):
+        from tools.preparation_github import apply_owner_facts
+        value=input_fixture(); recent=owner_facts(value)
+        recent['review'].update(event_verified=False,actual_event=None)
+        state=p.resume(p.new_state(value),apply_owner_facts(facts_fixture(value),recent,value),NOW)
+        missing=facts_fixture(value); missing.pop('review'); missing.pop('publication')
+        state=p.resume(state,missing,NOW)
+        self.assertEqual('UNCONFIRMED',state['stages']['review']['status'])
+        p.validate_state(state)
+        old=owner_facts(value); old['observed_at']='2026-01-01T00:00:00Z'
+        with self.assertRaisesRegex(ValueError,'Older owner observation'):
+            p.resume(state,apply_owner_facts(facts_fixture(value),old,value),NOW)
+        self.assertNotEqual('PREPARATION_COMPLETE',state['status'])
+        changed={**value,'input_version':value['input_version']+1,'start_main_sha':'c'*40}
+        moved=p.rebase(state,changed); p.validate_state(moved)
+        rebound=owner_facts(changed); rebound['observed_at']=old['observed_at']
+        accepted=p.resume(moved,apply_owner_facts(facts_fixture(changed),rebound,changed),NOW)
+        self.assertEqual(p.digest(changed),accepted['owner_observations']['review']['input_digest'])
+        legacy=p.resume(p.new_state(value),apply_owner_facts(facts_fixture(value),recent,value),NOW)
+        legacy.pop('owner_observations')
+        migrated=p.resume(legacy,missing,NOW)
+        with self.assertRaisesRegex(ValueError,'Older owner observation'):
+            p.resume(migrated,apply_owner_facts(facts_fixture(value),old,value),NOW)
+
+    def test_cli_gap_rejects_old_owner_success_with_and_without_github_read(self):
+        value=input_fixture(); recent=owner_facts(value)
+        recent['review'].update(event_verified=False,actual_event=None)
+        old=owner_facts(value); old['observed_at']='2026-01-01T00:00:00Z'
+        for github_read in (False,True):
+            with self.subTest(github_read=github_read), tempfile.TemporaryDirectory() as directory:
+                base=Path(directory); api=PreparationAPI(value)
+                (base/'input.json').write_text(p.canonical(value),encoding='utf-8')
+                (base/'owner.json').write_text(p.canonical(recent),encoding='utf-8')
+                command=['cli','--input',str(base/'input.json'),'--config',str(ROOT/'.github/automation-dashboard.json'),
+                         '--state',str(base/'state.json'),'--output',str(base/'out')]
+                if github_read: command.append('--github-read')
+                owner_args=['--owner-facts',str(base/'owner.json')]
+                def run(args):
+                    if not github_read:
+                        return subprocess.run([sys.executable,'-B',str(ROOT/'tools/startup_preparation.py'),*args[1:]],
+                                              cwd=directory,capture_output=True,encoding='utf-8')
+                    with patch('sys.argv',args),patch.dict('os.environ',{'GH_TOKEN':'synthetic'}), \
+                         patch('tools.update_automation_dashboard.GitHub',return_value=api),patch('builtins.print'):
+                        return p.main()
+                result=run(command+owner_args)
+                self.assertEqual(0,result if github_read else result.returncode)
+                result=run(command)
+                self.assertEqual(0,result if github_read else result.returncode)
+                saved=(base/'state.json').read_text(encoding='utf-8')
+                self.assertNotEqual('PREPARATION_COMPLETE',p.loads(saved)['status'])
+                self.assertEqual('UNCONFIRMED',p.loads(saved)['stages']['review']['status'])
+                (base/'owner.json').write_text(p.canonical(old),encoding='utf-8')
+                if github_read:
+                    with self.assertRaisesRegex(ValueError,'Older owner observation'): run(command+owner_args)
+                else:
+                    result=run(command+owner_args)
+                    self.assertNotEqual(0,result.returncode); self.assertIn('Older owner observation',result.stderr)
+                after=p.loads((base/'state.json').read_text(encoding='utf-8'))
+                self.assertEqual(p.loads(saved)['owner_observations'],after['owner_observations'])
+                self.assertNotEqual('PREPARATION_COMPLETE',after['status'])
+                if not github_read: self.assertEqual(p.loads(saved),after)
+                self.assertEqual([],api.writes)
+
     def test_other_synthetic_issue_purpose_generate_save_resume_and_shared_record(self):
         for issue,purpose in ((101,'synthetic-feature'),(202,'synthetic-preparation-2')):
             value={**input_fixture(),'issue':issue,'purpose':purpose,
@@ -515,6 +578,48 @@ class GithubTransport(unittest.TestCase):
         state['input_history']=[{**self.v,'issue':999}]
         with self.assertRaisesRegex(ValueError,'Unrelated or unordered'):
             p.validate_state(state)
+
+    def test_shared_missing_owner_facts_preserve_watermark_and_reject_old_success(self):
+        recent=owner_facts(self.v); recent['review'].update(event_verified=False,actual_event=None)
+        def replace_owner(observation):
+            body=self.api.comment['body']; start=body.index(p.REQUEST_START); end=body.index(p.REQUEST_END)+len(p.REQUEST_END)
+            request=p.generate(self.v,self.api.config,owner_facts=observation)['github_record.md'].rstrip()
+            self.api.comment['body']=body[:start]+request+body[end:]
+        replace_owner(recent); self.update()
+        replace_owner(None); self.update()
+        state=snapshot(self.api.comment['body'])['state']
+        self.assertEqual(NOW,state['owner_observations']['review']['observed_at'])
+        self.assertEqual('UNCONFIRMED',state['stages']['review']['status'])
+        old=owner_facts(self.v); old['observed_at']='2026-01-01T00:00:00Z'
+        replace_owner(old)
+        with self.assertRaisesRegex(ValueError,'Older owner observation'): self.update()
+        self.assertEqual(2,len(self.api.writes))
+
+    def test_multiple_unpublished_input_transitions_preserve_snapshot_and_operations(self):
+        local=p.mark_unknown(p.new_state(self.v),'implementation_task')
+        self.api.comment['body']=p.generate(self.v,self.api.config,local)['github_record.md']
+        self.update(); saved=snapshot(self.api.comment['body'])['state']
+        intermediate={**self.v,'input_version':2,'start_main_sha':'c'*40}
+        current={**self.v,'input_version':3,'start_main_sha':'d'*40}
+        local=p.rebase(p.rebase(saved,intermediate),current); p.validate_state(local)
+        self.api.value=current; self.api.config['issues']['88']=p.policy_entry(current)
+        body=self.api.comment['body']; start=body.index(p.REQUEST_START); end=body.index(p.REQUEST_END)+len(p.REQUEST_END)
+        request=p.generate(current,self.api.config,local)['github_record.md'].rstrip()
+        self.api.comment['body']=body[:start]+request+body[end:]
+        self.assertEqual('UPDATED',reconcile_preparation(self.api,88,p.policy_entry(current),NOW))
+        state=snapshot(self.api.comment['body'])['state']
+        self.assertEqual([self.v,intermediate],state['input_history'])
+        self.assertEqual(saved['operations'],state['operations'])
+        self.assertEqual('UNKNOWN',next(iter(state['operations'].values()))['status'])
+        self.assertEqual('NO_OP',reconcile_preparation(self.api,88,p.policy_entry(current),NOW))
+        self.assertEqual(2,len(self.api.writes))
+        request_data=p.loads(request.split(p.REQUEST_START)[1].split(p.REQUEST_END)[0])
+        request_data['operations']={}
+        body=self.api.comment['body']; start=body.index(p.REQUEST_START); end=body.index(p.REQUEST_END)+len(p.REQUEST_END)
+        self.api.comment['body']=body[:start]+p.REQUEST_START+p.canonical(request_data)+p.REQUEST_END+body[end:]
+        with self.assertRaisesRegex(ValueError,'removed unresolved operation'):
+            reconcile_preparation(self.api,88,p.policy_entry(current),NOW)
+        self.assertEqual(2,len(self.api.writes))
     def test_existing_snapshot_rejects_rewritten_owner_history(self):
         self.update(); old=self.api.comment['body']; saved=snapshot(old)['state']
         current={**self.v,'input_version':2}

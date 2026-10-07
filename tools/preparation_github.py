@@ -255,9 +255,17 @@ def reconcile_preparation(api, issue, policy, now):
     value = record['input']
     if prior:
         if prior['comment_id'] != comment['id']: raise PreparationConflict('Snapshot comment identity mismatch')
-        state = preparation.rebase(prior['state'], value)
+        state = prior['state']
+        prefix = state['input_history'] + ([] if value == state['input'] else [state['input']])
+        if record['input_history'][:len(prefix)] != prefix or (value == state['input'] and record['input_history'] != prefix):
+            raise PreparationConflict('Owner input transition history differs from saved history')
+        for intermediate in record['input_history'][len(prefix):] + [value]:
+            state = preparation.rebase(state, intermediate)
         if record['input_history'] != state['input_history']:
             raise PreparationConflict('Owner input transition history differs from saved history')
+        if any(operation['status'] == 'UNKNOWN' and key not in record['operations']
+               for key, operation in state['operations'].items()):
+            raise PreparationConflict('Owner request removed unresolved operation history')
     else:
         state = preparation.new_state(value)
         state['input_history'] = copy.deepcopy(record['input_history'])

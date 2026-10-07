@@ -22,6 +22,10 @@ input digest/start SHA/観測時刻/確認担当 Work(root) に結び付け、re
 record に反映する。`--github-read` 併用時は公開情報と同じ再開処理へ渡す。非併用時は
 owner の確認対象だけを反映し、Issue/policy/Dashboard を確認済みにはしない。
 登録済みで実イベント未確認なら `event_verified=false, actual_event=null` として待機できる。
+`owner_observations` は現在入力のdigestとreview/publicationの最後の認証観測時刻を保持する。
+入力なし・取得不能でもこの履歴を消さず、古い肯定結果による巻戻しを拒否する。
+入力版/SHAの変更ではbindingを失効させ、新入力に結び付いた証拠を要求する。
+旧v1 cache/snapshotにこの欄がない場合は残存stage証拠から観測時刻を引継ぐ。
 JSON・生成ファイル・CLI標準出力はUTF-8。Windowsで出力を取り込む場合もUTF-8として読む。
 
 入力 Issue は未取得時 null、取得後は実正整数 ID。purpose は入力目的の識別子。
@@ -78,6 +82,9 @@ input_version を増やして変更する。仕様/担当/owner/SHA/requirements
 正式 record は同じ repository/purpose/owner に限定した昇順の `input_history` も保持し、各
 operation の digest/key を当時入力へ照合する。これにより Issue=null から実 Issue、版/SHA
 変更後も UNKNOWN を削除せず初回共有でき、既存 snapshot の更新にも同じ検証を適用する。
+既存snapshotの履歴と現在入力を改変不可のprefixとして照合し、未共有の中間版を順に
+rebaseする。v1共有後にローカルだけでv2→v3へ変更しても同じ記録を再開できる。
+保存済みUNKNOWN ledgerの削除は拒否し、入力移行後も未解決操作を保持する。
 履歴のない旧 key、実 Issue から別 Issue への移動、無関係 purpose/owner、順序逆転は拒否する。
 ローカル保存は環境間共有済みとは表示しない。runtimeごとの自動 commit はしない。
 

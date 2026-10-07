@@ -14,7 +14,7 @@ import re
 import sys
 import tempfile
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     from tools.automation_dashboard import REPOSITORY, sha, author_matches
@@ -136,7 +136,8 @@ def new_state(value):
     validate_input(value)
     return {'schema_version': 1, 'kind': 'startup_preparation', 'input': copy.deepcopy(value),
             'input_digest': digest(value), 'stages': {k: empty_stage() for k in STAGES},
-            'operations': {}, 'input_history': [], 'last_progress_at': None, 'last_observed_at': None,
+            'operations': {}, 'input_history': [], 'owner_observations': {},
+            'last_progress_at': None, 'last_observed_at': None,
             'next_owner': value['actors']['dispatch'], 'next_action': 'Work(root) must verify the Issue and review registration',
             'status': 'UNCONFIRMED', 'gate_scope': 'Separate; no Merge/Completion certification',
             'shared_persistence': False}
@@ -156,7 +157,7 @@ def validate_state(state):
     if not isinstance(state, dict) or 'input' not in state:
         raise ValueError('Broken preparation state')
     template = new_state(state['input'])
-    if (set(state) != set(template) or type(state['schema_version']) is not int or state['schema_version'] != 1
+    if (set(state) not in (set(template), set(template) - {'owner_observations'}) or type(state['schema_version']) is not int or state['schema_version'] != 1
             or state['kind'] != template['kind'] or state['input_digest'] != digest(state['input'])
             or set(state['stages']) != set(STAGES) or not isinstance(state['operations'], dict)
             or state['gate_scope'] != template['gate_scope'] or type(state['shared_persistence']) is not bool
@@ -168,6 +169,14 @@ def validate_state(state):
                 or (stage['status'] == 'CONFIRMED' and not isinstance(stage['evidence'], dict))):
             raise ValueError('Broken stage evidence')
         if stage['observed_at'] is not None: timestamp(stage['observed_at'])
+    observations = state.get('owner_observations', {})
+    if not isinstance(observations, dict) or set(observations) - {'review', 'publication'}:
+        raise ValueError('Broken owner observation history')
+    for observation in observations.values():
+        if (not isinstance(observation, dict) or set(observation) != {'input_digest', 'observed_at'}
+                or observation['input_digest'] != state['input_digest']):
+            raise ValueError('Owner observation input binding differs from current input')
+        timestamp(observation['observed_at'])
     for key, operation in state['operations'].items():
         if (not isinstance(key, str) or re.fullmatch(re.escape(REPOSITORY) + r':issue(null|[1-9][0-9]*):[0-9a-f]{40}:(issue|review|policy_pr|implementation_task|fix_task):[A-Za-z0-9_-]{1,100}', key) is None or not isinstance(operation, dict)
                 or set(operation) != {'status', 'external_id', 'input_digest'}
@@ -212,6 +221,8 @@ def rebase(state, value):
     if value['input_version'] <= state['input']['input_version']:
         raise ValueError('Old version or changed input without new version')
     output = copy.deepcopy(state)
+    # A different input version requires freshly bound owner evidence.
+    output['owner_observations'] = {}
     output['input_history'].append(copy.deepcopy(state['input']))
     for name, dependencies in DEPENDENCIES.items():
         if any(state['input'][k] != value[k] for k in dependencies):
@@ -249,13 +260,25 @@ def resume(state, facts, observed_at):
     value = state['input']
     if facts.get('input_digest') != state['input_digest']:
         raise ValueError('Facts are for another input version')
+    observations = copy.deepcopy(state.get('owner_observations', {}))
+    # Read pre-watermark v1 caches without losing their most recent observation.
+    if 'owner_observations' not in state:
+        for name in ('review', 'publication'):
+            evidence = state['stages'][name]['evidence'] or {}
+            if evidence.get('owner_observed_at'):
+                observations[name] = {'input_digest': state['input_digest'],
+                                      'observed_at': evidence['owner_observed_at']}
     for name in ('review', 'publication'):
         current = facts.get(name) or {}
-        prior = state['stages'][name]['evidence'] or {}
-        if current.get('owner_observed_at') and prior.get('owner_observed_at'):
-            if datetime.fromisoformat(current['owner_observed_at'].replace('Z', '+00:00')) < datetime.fromisoformat(prior['owner_observed_at'].replace('Z', '+00:00')):
+        if current.get('owner_observed_at'):
+            timestamp(current['owner_observed_at'])
+            prior = observations.get(name)
+            if prior and datetime.fromisoformat(current['owner_observed_at'].replace('Z', '+00:00')) < datetime.fromisoformat(prior['observed_at'].replace('Z', '+00:00')):
                 raise ValueError('Older owner observation cannot roll back current evidence')
+            observations[name] = {'input_digest': state['input_digest'],
+                                  'observed_at': current['owner_observed_at']}
     output = copy.deepcopy(state)
+    output['owner_observations'] = observations
     output['stages'] = {k: empty_stage() for k in STAGES}
     def observe(name, status, evidence, reason, target):
         output['stages'][name] = {'status': status, 'evidence': evidence,
@@ -448,7 +471,6 @@ def main():
                 from preparation_github import read_facts
                 from preparation_github import reconcile_operations
                 from update_automation_dashboard import GitHub
-            from datetime import timezone
             try:
                 api = GitHub(os.environ['GH_TOKEN'])
                 facts = apply_owner_facts(read_facts(api, value), owner_facts, value)
@@ -464,6 +486,9 @@ def main():
                 raise
         elif owner_facts is not None:
             state = resume(state, facts, owner_facts['observed_at'])
+        elif old is not None:
+            # No current facts were supplied; preserve history, not cached confirmation.
+            state = resume(state, facts, datetime.now(timezone.utc).isoformat())
         products = generate(value, config, state, owner_facts)
         atomic_save(args.state, state)
         args.output.mkdir(parents=True, exist_ok=True)
