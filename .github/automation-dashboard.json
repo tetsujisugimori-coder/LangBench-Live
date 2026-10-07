@@ -122,6 +122,35 @@
         "work_review": "Work(6ac620a911e881918d0c5ae42bdf784d)",
         "local_main_sync": ".github/workflows/pull-local-main.yml"
       }
+    },
+    "96": {
+      "dashboard_comment_id": null,
+      "dispatch_owners": {
+        "fix_task": "Work(root)",
+        "implementation_task": "Work(root)",
+        "local_main_sync": ".github/workflows/pull-local-main.yml",
+        "work_review": "Work(6ac6c977f09c81918f8bd4afef855e74)"
+      },
+      "initial_dispatch": null,
+      "owner": {
+        "id": 265440097,
+        "login": "tetsujisugimori-coder",
+        "type": "User"
+      },
+      "purpose": "work-owner-resume-i01",
+      "requirements": {
+        "artifact_integrity": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "windows_validation": "NOT_REQUIRED"
+      },
+      "work_author": {
+        "id": 265440097,
+        "login": "tetsujisugimori-coder",
+        "type": "User"
+      },
+      "work_automation_id": "6ac6c977f09c81918f8bd4afef855e74"
     }
   }
 }
