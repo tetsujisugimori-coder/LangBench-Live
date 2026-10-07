@@ -33,27 +33,33 @@ def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, 
     return {"schema_version": "1.0", "unit": "ms", "runs": runs}
 
 
-def print_text(report: dict) -> None:
+def print_text(report: dict, summary_only: bool = False) -> None:
     print("検証済み履歴のサンプル。入力順、単位 ms。中央値は samples_ms から再計算。")
     for index, run in enumerate(report["runs"], 1):
         print(f"履歴 {index}: {run['path']} (experiment_id={run['experiment_id']}, "
               f"archive_id={run['archive_id']}, archived_at={run['archived_at']})")
         for row in run["cases"]:
-            print(f"  {row['language']}/{row['case']}: 中央値 {format_number(row['median_ms'])}, "
+            count = f"件数 {len(row['samples_ms'])}, " if summary_only else ""
+            print(f"  {row['language']}/{row['case']}: {count}中央値 {format_number(row['median_ms'])}, "
                   f"最小 {format_number(row['min_ms'])}, 最大 {format_number(row['max_ms'])}, "
                   f"前半 {format_number(row['first_half_median_ms'])}, "
                   f"後半 {format_number(row['second_half_median_ms'])}")
-            print(f"    samples_ms (1-{len(row['samples_ms'])}): " + ", ".join(
-                f"{i}:{format_number(value)}" for i, value in enumerate(row["samples_ms"], 1)))
+            if not summary_only:
+                print(f"    samples_ms (1-{len(row['samples_ms'])}): " + ", ".join(
+                    f"{i}:{format_number(value)}" for i, value in enumerate(row["samples_ms"], 1)))
     print("Cの各サンプルは0.001 ms単位で保存。丸め幅程度の差を原因として解釈しないでください。")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument("--summary-only", action="store_true",
+                        help="show sample counts and statistics without individual samples (text only)")
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
     parser.add_argument("archives", type=Path, nargs="+", help="one or more archive directories")
     args = parser.parse_args()
+    if args.summary_only and args.json:
+        parser.error("--summary-only is text-only and cannot be combined with --json")
     try:
         resolved = [path.resolve() for path in args.archives]
         if len(set(resolved)) != len(resolved):
@@ -73,7 +79,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
     else:
-        print_text(report)
+        print_text(report, summary_only=args.summary_only)
     return 0
 
 
