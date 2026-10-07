@@ -559,11 +559,15 @@ python tools/validate_function_call_analysis.py <new-output-directory> --expecte
 
 ## C/direct の保存サンプルを調べる（2026-09-24）
 
+`--summary-only` は履歴のpath・experiment_id・archive_id・archived_atと、各言語・ケースの件数、中央値、最小・最大、前半・後半の中央値を表示し、個別サンプル一覧だけを省きます。通常表示と統計計算、入力検証、保存精度の注意文は維持します。`--all-languages`と併用できます。`--json`単独の内容・schemaは変わりませんが、`--summary-only`との併用はテキスト専用であることを説明する引数エラー（終了コード2）になります。
+
 `show_archive_samples.py` は既存の `load_archive` によって各履歴の `archive.json` と4ファイルのSHA-256、結果Validator、保存された実験定義との一致を確認してから表示します。履歴は書き換えません。既定はCの `direct` / `function_call`、`--all-languages` でJavaScriptとPythonも表示します。`--json` は入力順の50個の `samples_ms` と、各ケースのサンプル由来の中央値、最小・最大、前半25件・後半25件の中央値を出します。テキストも1〜50の順番を付けて全サンプルを出します。中央値は既存の `median_from_samples` を共用します。欠落・改変・定義不一致は数値を出さず検証エラー（終了コード2）です。
 
 ```powershell
 python -B tools/show_archive_samples.py "results/history/<experiment_id>/<archive_id>"
 python -B tools/show_archive_samples.py --json --all-languages "results/history/<experiment_id>/<archive_id>"
+python -B tools/show_archive_samples.py --summary-only "results/history/<experiment_id>/<archive_id>"
+python -B tools/show_archive_samples.py --summary-only --all-languages "results/history/<experiment_id>/<archive_id>"
 ```
 
 同じソース・設定のWindows実機で10回を**逐次**実行する場合は、独立したチェックアウトで次を実行します。`run_all.ps1` の言語順は Python → JavaScript → C、C内は `direct` → `function_call` です。スクリプトはベンチマーク入力ファイルのSHA-256が途中で変わらないことを各回の前後に確認します。各回の開始・終了時刻、成否、失敗理由、`experiment_id`、`archive_id`、履歴パス、順番を `runs.json` に記録し、各履歴を保存後に同じ診断ツールで再検証します。失敗回は成功回に含めません。通常出力は `run-XX.log`、検証済みサンプルは `run-XX-samples.json` に残します。これらは `results/diagnostics/` に置き、Git管理しません。
