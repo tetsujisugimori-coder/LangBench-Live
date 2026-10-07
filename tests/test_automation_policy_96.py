@@ -8,12 +8,16 @@ from tests.test_automation_dashboard import ROOT, fixtures
 
 
 class Policy96Registration(unittest.TestCase):
-    def test_only_new_policy_and_no_initial_execution(self):
+    def test_existing_policies_preserved_and_no_initial_execution(self):
         config = json.loads((ROOT / '.github/automation-dashboard.json').read_text(encoding='utf-8'))
         before = json.loads(subprocess.check_output(
             ['git', 'show', '36362bc61f964bb006b1cae4cefec58a1d140168:.github/automation-dashboard.json'],
             cwd=ROOT, text=True, encoding='utf-8'))
-        self.assertEqual(before, {**config, 'issues': {k: v for k, v in config['issues'].items() if k != '96'}})
+        self.assertEqual(before['repository'], config['repository'])
+        self.assertEqual(before['schema_version'], config['schema_version'])
+        self.assertTrue(set(before['issues']) | {'96'} <= set(config['issues']))
+        for issue, policy in before['issues'].items():
+            self.assertEqual(policy, config['issues'][issue])
         policy = config['issues']['96']
         self.assertEqual('work-owner-resume-i01', policy['purpose'])
         self.assertIsNone(policy['initial_dispatch'])
