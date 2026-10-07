@@ -243,14 +243,37 @@ def replace_snapshot(body, content):
     return body + '\n\n' + content
 
 
+def authenticate_comment(comment, issue, policy, expected_id=None):
+    """Validate the REST target and owner record independently of metadata."""
+    if (not isinstance(comment, dict) or type(comment.get('id')) is not int
+            or comment['id'] <= 0 or (expected_id is not None and comment['id'] != expected_id)
+            or comment.get('issue_url') != f'https://api.github.com/repos/{REPOSITORY}/issues/{issue}'
+            or not isinstance(comment.get('body'), str)):
+        raise PreparationConflict('Preparation comment identity/body unavailable or mismatched')
+    user = comment.get('user')
+    if (not isinstance(user, dict) or type(user.get('id')) is not int or user['id'] <= 0
+            or not isinstance(user.get('login'), str) or not isinstance(user.get('type'), str)):
+        raise PreparationConflict('Preparation comment author identity unavailable')
+    preparation.timestamp(comment.get('updated_at'))
+    record = authenticated_request(comment, issue, policy)
+    if record is None:
+        raise PreparationConflict('Preparation request missing from same comment')
+    saved = snapshot(comment['body'])
+    if saved is not None and saved['comment_id'] != comment['id']:
+        raise PreparationConflict('Snapshot comment identity mismatch')
+    return record
+
+
 def reconcile_preparation(api, issue, policy, now):
     if type(issue) is not int or issue <= 0: raise PreparationConflict('Formal Issue ID unavailable')
     comments = api.pages(f'/issues/{issue}/comments')
+    if any(not isinstance(c, dict) or not isinstance(c.get('body'), str) for c in comments):
+        raise PreparationConflict('Comment list body unavailable; cannot select preparation record')
     candidates = [c for c in comments if preparation.REQUEST_START in c.get('body', '')]
     if not candidates: return 'NO_RECORD'
     if len(candidates) != 1: raise PreparationConflict('Multiple preparation records; do not create another')
     comment = candidates[0]
-    record = authenticated_request(comment, issue, policy)
+    record = authenticate_comment(comment, issue, policy)
     prior = snapshot(comment['body'])
     value = record['input']
     if prior:
@@ -285,8 +308,13 @@ def reconcile_preparation(api, issue, policy, now):
     second = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
     second['operations'] = reconcile_operations(api, issue, policy, state, second)
     latest = api.get(f'/issues/comments/{comment["id"]}')
-    if first != second or latest != comment:
+    authenticate_comment(latest, issue, policy, comment['id'])
+    if first != second or latest['body'] != comment['body']:
         raise PreparationConflict('Concurrent preparation edit/fact change; no write')
+    # An update timestamp is an auxiliary edit signal, not a body fingerprint.
+    # Even if an edit restored identical text, require a fresh reconciliation.
+    if latest['updated_at'] != comment['updated_at']:
+        raise PreparationConflict('Comment update information changed; fresh read required; no write')
     updated = preparation.resume(state, second, now)
     updated['shared_persistence'] = True
     # Request changes and human-only edits have distinct source fingerprints.
@@ -299,16 +327,18 @@ def reconcile_preparation(api, issue, policy, now):
                + '\n'.join('    ' + line for line in preparation.summary(updated).splitlines())
                + '\n\n' + preparation.SNAPSHOT_START + preparation.canonical(saved)
                + preparation.SNAPSHOT_END + '\n' + VIEW_END)
-    body = replace_snapshot(comment['body'], content)
+    body = replace_snapshot(latest['body'], content)
     if len(body.encode()) > 60000: raise PreparationConflict('Preparation comment exceeds bound')
     # There is no resend loop: transport errors may have committed remotely.
     try:
         written = api.request(api.root + f'/issues/comments/{comment["id"]}', 'PATCH', {'body': body})
         checked = api.get(f'/issues/comments/{comment["id"]}')
+        authenticate_comment(written, issue, policy, comment['id'])
+        authenticate_comment(checked, issue, policy, comment['id'])
         after = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
         after['operations'] = reconcile_operations(api, issue, policy, updated, after)
     except Exception as exc:
         raise PreparationWriteUnknown('Preparation write outcome unknown; inspect same comment before retry') from exc
-    if written.get('id') != comment['id'] or checked.get('body') != body or after != second:
+    if written['body'] != body or checked['body'] != body or after != second:
         raise PreparationWriteUnknown('Post-write conflict; stored snapshot is not certified; fresh read required')
     return 'UPDATED'
