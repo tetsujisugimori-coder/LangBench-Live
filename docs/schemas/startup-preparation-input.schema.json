@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Development startup preparation input v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "issue",
+    "purpose",
+    "input_version",
+    "start_main_sha",
+    "specification",
+    "owner",
+    "work_author",
+    "work_automation_id",
+    "actors",
+    "requirements",
+    "requirement_reasons"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "repository": {
+      "const": "tetsujisugimori-coder/LangBench-Live"
+    },
+    "issue": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 1
+        }
+      ]
+    },
+    "purpose": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,100}$"
+    },
+    "input_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "start_main_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "specification": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "login",
+        "id",
+        "type"
+      ],
+      "properties": {
+        "login": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,39}$"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "const": "User"
+        }
+      }
+    },
+    "work_author": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "login",
+        "id",
+        "type"
+      ],
+      "properties": {
+        "login": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,39}$"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "const": "User"
+        }
+      }
+    },
+    "work_automation_id": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$"
+        }
+      ]
+    },
+    "actors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "publication",
+        "dispatch",
+        "review",
+        "sync"
+      ],
+      "properties": {
+        "implementation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "publication": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dispatch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sync": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windows_validation",
+        "windows_measurement",
+        "artifact_integrity",
+        "measurement_result_pr",
+        "live_smoke"
+      ],
+      "properties": {
+        "windows_validation": {
+          "enum": [
+            "REQUIRED",
+            "NOT_REQUIRED"
+          ]
+        },
+        "windows_measurement": {
+          "enum": [
+            "REQUIRED",
+            "NOT_REQUIRED"
+          ]
+        },
+        "artifact_integrity": {
+          "enum": [
+            "REQUIRED",
+            "NOT_REQUIRED"
+          ]
+        },
+        "measurement_result_pr": {
+          "enum": [
+            "REQUIRED",
+            "NOT_REQUIRED"
+          ]
+        },
+        "live_smoke": {
+          "enum": [
+            "REQUIRED",
+            "NOT_REQUIRED"
+          ]
+        }
+      }
+    },
+    "requirement_reasons": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "windows_validation",
+        "windows_measurement",
+        "artifact_integrity",
+        "measurement_result_pr",
+        "live_smoke"
+      ],
+      "properties": {
+        "windows_validation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "windows_measurement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_integrity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "measurement_result_pr": {
+          "type": "string",
+          "minLength": 1
+        },
+        "live_smoke": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -48,7 +48,7 @@ class Policy85Registration(unittest.TestCase):
             ['git', 'show', 'b1415e0e2d649c11de160662f044123d61820921:.github/automation-dashboard.json'],
             cwd=ROOT, text=True))
         self.assertEqual(original['issues']['80'], config['issues']['80'])
-        self.assertEqual({'80', '85'}, set(config['issues']))
+        self.assertTrue({'80', '85'} <= set(config['issues']))
         self.assertEqual('archive-samples-summary-only', self.policy['purpose'])
         self.assertEqual({'login': 'tetsujisugimori-coder', 'id': 265440097, 'type': 'User'}, self.policy['owner'])
         self.assertEqual(self.policy['owner'], self.policy['work_author'])

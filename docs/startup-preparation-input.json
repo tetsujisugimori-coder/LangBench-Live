@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "repository": "tetsujisugimori-coder/LangBench-Live",
+  "issue": 88,
+  "purpose": "automation-startup-preparation",
+  "input_version": 1,
+  "start_main_sha": "5eda8bbf5be8433b2f3909c4e7a17a0cd13b9aef",
+  "specification": "https://github.com/tetsujisugimori-coder/LangBench-Live/issues/88 (full body; V3.6 sections 4/6/16/17/51-58)",
+  "owner": {
+    "login": "tetsujisugimori-coder",
+    "id": 265440097,
+    "type": "User"
+  },
+  "work_author": {
+    "login": "tetsujisugimori-coder",
+    "id": 265440097,
+    "type": "User"
+  },
+  "work_automation_id": "6ac5a9e2b1708191b122d3d91687b94d",
+  "actors": {
+    "implementation": "Cloud Codex (dedicated original task)",
+    "publication": "Cloud Codex git/PR; Work(root) official Cloud UI/connector fallback",
+    "dispatch": "Work(root)",
+    "review": "Work(6ac5a9e2b1708191b122d3d91687b94d)",
+    "sync": ".github/workflows/pull-local-main.yml"
+  },
+  "requirements": {
+    "windows_validation": "NOT_REQUIRED",
+    "windows_measurement": "NOT_REQUIRED",
+    "artifact_integrity": "NOT_REQUIRED",
+    "measurement_result_pr": "NOT_REQUIRED",
+    "live_smoke": "REQUIRED"
+  },
+  "requirement_reasons": {
+    "windows_validation": "Preparation management only; no unmerged self-hosted execution",
+    "windows_measurement": "No machine measurement",
+    "artifact_integrity": "No measurement artifact; synchronization safety artifact digest remains mandatory",
+    "measurement_result_pr": "No measurement output",
+    "live_smoke": "After human merge, real Issue #88 read/generate/resume/same record update/NO_OP"
+  }
+}
