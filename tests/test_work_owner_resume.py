@@ -184,6 +184,25 @@ class MergeObservation(unittest.TestCase):
             value[field]['observed_at'] = '2026-10-07T00:00:00Z'
             self.assertEqual(resume.observe(value, facts)['status'], 'STOPPED')
 
+    def test_rejected_late_evidence_keeps_accepted_baseline(self):
+        newer, facts = fixture()
+        newer['event']['observed_at'] = T2
+        newer['receipt']['observed_at'] = T2
+        accepted = resume.observe(newer, facts)
+        self.assertEqual(accepted['status'], 'OBSERVED')
+        for input_field, output_field, late_time in (
+                ('event', 'event', T1), ('receipt', 'receipt', T1),
+                ('next_action', 'action', T2)):
+            with self.subTest(field=input_field):
+                late = copy.deepcopy(newer)
+                late[input_field]['observed_at'] = late_time
+                stopped = resume.observe(late, facts, accepted)
+                self.assertEqual(stopped['status'], 'STOPPED')
+                self.assertEqual(stopped[output_field], accepted[output_field])
+                repeated = resume.observe(late, facts, stopped)
+                self.assertEqual(repeated['status'], 'STOPPED')
+                self.assertEqual(repeated[output_field], accepted[output_field])
+
     def test_read_adapter_reuses_current_policy_and_sync(self):
         value, facts = fixture()
         class API:
@@ -264,6 +283,15 @@ class MergeObservation(unittest.TestCase):
             self.assertEqual(again.returncode, 0, again.stderr)
             self.assertIn('NO_OP', again.stdout)
             self.assertEqual((folder / 'state.json').stat().st_mtime_ns, stamp)
+            value['next_action']['observed_at'] = T2
+            (folder / 'handoff.json').write_text(json.dumps(value), encoding='utf-8')
+            late = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+            self.assertEqual(late.returncode, 1)
+            saved = json.loads((folder / 'state.json').read_text(encoding='utf-8'))
+            self.assertEqual(saved['action']['observed_at'], T3)
+            repeated = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+            self.assertEqual(repeated.returncode, 1)
+            self.assertEqual(json.loads((folder / 'state.json').read_text(encoding='utf-8'))['action']['observed_at'], T3)
             facts['pr']['merged'] = False
             (folder / 'facts.json').write_text(json.dumps(facts), encoding='utf-8')
             failed = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
