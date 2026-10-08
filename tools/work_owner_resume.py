@@ -268,6 +268,11 @@ def observe(value, facts, previous=None):
             current = value['next_action'] if field == 'action' else value[field]
             prior = previous.get(field)
             if prior and current and instant(current['observed_at']) < instant(prior['observed_at']):
+                # Keep the last accepted evidence in the persisted observation.
+                # Otherwise the rejected late value becomes the next comparison
+                # baseline and an identical retry can incorrectly recover to
+                # OBSERVED.
+                out[field] = copy.deepcopy(prior)
                 return stop('Late observation must not roll back newer Work evidence')
     claim = value['claim']
     if claim is None or claim['status'] != 'RUNNING':
