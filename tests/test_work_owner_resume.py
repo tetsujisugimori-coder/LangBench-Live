@@ -374,6 +374,32 @@ class MergeObservation(unittest.TestCase):
             saved = json.loads((folder / 'state.json').read_text(encoding='utf-8'))
             self.assertEqual(saved['evidence_history']['action']['status'], 'FAILED')
 
+    def test_receipt_before_claim_is_rejected_after_save_and_in_cli(self):
+        value, facts = fixture()
+        value['claim']['observed_at'] = T2
+        facts['issue_comments'][1]['body'] = resume.CLAIM_START + json.dumps(value['claim']) + resume.CLAIM_END
+        stopped = resume.observe(value, facts)
+        self.assertEqual(stopped['status'], 'STOPPED')
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            state = folder / 'state.json'
+            resume.save_observation(state, stopped)
+            restored = resume.preparation.loads(state.read_text(encoding='utf-8'))
+            self.assertEqual(resume.observe(value, facts, restored)['status'], 'STOPPED')
+            (folder / 'handoff.json').write_text(json.dumps(value), encoding='utf-8')
+            (folder / 'facts.json').write_text(json.dumps(facts), encoding='utf-8')
+            args = [sys.executable, '-B', 'tools/work_owner_resume.py', '--handoff', str(folder / 'handoff.json'),
+                    '--state', str(state), '--fixture-facts', str(folder / 'facts.json')]
+            for _ in range(2):
+                result = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(json.loads(state.read_text(encoding='utf-8'))['status'], 'STOPPED')
+            value['receipt']['observed_at'] = T2
+            (folder / 'handoff.json').write_text(json.dumps(value), encoding='utf-8')
+            result = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(state.read_text(encoding='utf-8'))['status'], 'FIXTURE_ONLY')
+
     def test_read_adapter_reuses_current_policy_and_sync(self):
         value, facts = fixture()
         class API:

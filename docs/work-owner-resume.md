@@ -97,7 +97,7 @@ handoffはschema_version=1の独立した観測入力。正確なトップレベ
 | recheck | id、enabled=true、dedup_key、run_id、stop_condition=sync terminal or target changed、evidence_url、observed_at |
 
 dedup_key=`<repository>:issue<番号>:<full_target_sha>:owner_resume:work-owner-resume-i01`。
-時刻はtimezone付きISO8601、証拠参照はHTTPS。receiptはWork開始以後、実次操作はreceiptと
+時刻はtimezone付きISO8601、証拠参照はHTTPS。receiptは認証済み共有claim以後、実次操作はreceiptと
 正式同期run完了以後でなければ認めない。古い観測による新しい証拠の巻戻しは拒否する。
 保存stateの`evidence_history`は対象・担当・共有claimへ束縛された観測の最新時刻と全文を保持し、
 拒否した遅延入力で上書きしない。現在の試行は別に表示する。新しいFAILED/UNKNOWN等の否定も
@@ -137,6 +137,8 @@ STOPPED保存後の古い入力再送で受理済み履歴が失われないこ�
 限り、GitHub取得不能時もWork明示観測の新しい否定を保留する（成功を許可する効力はない）。
 正当なより新しい肯定は現在GitHubと共有claimの照合を経てから取り込み、混合snapshotの
 pure/保存再読込/CLI再送回帰で古い肯定が成功へ戻らないことを確認。
+独立レビューR5対応: pre-sync/finalともreceipt時刻の下限をclaim時刻として、
+claim成立前のreceiptをpure/保存再読込/CLIで拒否。R3/R4の否定保持は維持。
 合成fixtureで対象違い・遅延・二重Work・UNKNOWN回復・同期各状態・artifact不一致・NO_OP・
 次操作欠損を試験。subprocess CLIは既存unittest discovery経由でLinux/Hosted Windowsに載る。
 実機能PRのイベント登録/実受信/実Work開始、merge後の実main live smoke、同期ZIP/保護保持、

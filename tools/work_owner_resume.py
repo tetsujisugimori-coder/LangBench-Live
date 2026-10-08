@@ -361,7 +361,7 @@ def observe(value, facts, previous=None):
         return stop('Work receipt of the exact prior waiting record is missing')
     receipt_time = instant(value['receipt']['observed_at'])
     action = value['next_action']
-    if (receipt_time < instant(value['work']['started_at'])
+    if (receipt_time < instant(claim['observed_at'])
             or (action is not None and instant(action['observed_at']) < receipt_time)):
         return stop('Receipt/next operation predates the owner claim or receipt')
     # The history contains bound observations, including newer negative results.
@@ -396,7 +396,7 @@ def observe(value, facts, previous=None):
     # Action and receipt observations must belong to this execution and postdate merge/sync.
     action_time = instant(action['observed_at'])
     run = next((r for r in facts['sync_runs'] if r['id'] == sync['run_id']), None)
-    if (receipt_time < instant(value['work']['started_at']) or action_time < receipt_time
+    if (receipt_time < instant(claim['observed_at']) or action_time < receipt_time
             or run is None or not run.get('updated_at')
             or action_time < instant(run['updated_at'])):
         return stop('Receipt/next operation predates Work start or formal sync completion')
