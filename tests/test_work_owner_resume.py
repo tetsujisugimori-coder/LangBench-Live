@@ -244,6 +244,53 @@ class MergeObservation(unittest.TestCase):
         value['next_action']['observed_at'] = '2026-10-08T00:05:00Z'
         self.assertEqual(resume.observe(value, facts, conflict)['status'], 'OBSERVED')
 
+    def test_non_temporal_stops_preserve_all_evidence_high_water(self):
+        for failure in ('api', 'missing_action', 'unknown_action'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                value, facts = fixture()
+                value['event']['observed_at'] = T3
+                value['receipt']['observed_at'] = T3
+                accepted = resume.observe(value, facts)
+                attempt = copy.deepcopy(value)
+                if failure == 'api':
+                    attempt['next_action']['observed_at'] = '2026-10-08T00:02:30Z'
+                    stopped = resume.observe(attempt, {'fetch_error': True}, accepted)
+                else:
+                    if failure == 'missing_action': attempt['next_action'] = None
+                    else: attempt['next_action']['status'] = 'UNKNOWN'
+                    stopped = resume.observe(attempt, facts, accepted)
+                self.assertEqual(stopped['status'], 'STOPPED')
+                path = Path(directory) / 'state.json'
+                resume.save_observation(path, stopped)
+                prior = resume.preparation.loads(path.read_text(encoding='utf-8'))
+                late = copy.deepcopy(value)
+                late['event']['observed_at'] = T2
+                late['receipt']['observed_at'] = T2
+                late['next_action']['observed_at'] = '2026-10-08T00:02:30Z'
+                for _ in range(2):
+                    prior = resume.observe(late, facts, prior)
+                    self.assertEqual(prior['status'], 'STOPPED')
+                    for field in ('event', 'receipt', 'action'):
+                        self.assertEqual(prior['evidence_history'][field]['observed_at'], T3)
+                    resume.save_observation(path, prior)
+                    prior = resume.preparation.loads(path.read_text(encoding='utf-8'))
+
+    def test_cli_missing_action_does_not_erase_accepted_evidence(self):
+        value, facts = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / 'facts.json').write_text(json.dumps(facts), encoding='utf-8')
+            args = [sys.executable, '-B', 'tools/work_owner_resume.py', '--handoff', str(folder / 'handoff.json'),
+                    '--state', str(folder / 'state.json'), '--fixture-facts', str(folder / 'facts.json')]
+            for action, expected in ((value['next_action'], 0), (None, 1),
+                                     ({**value['next_action'], 'observed_at': '2026-10-08T00:02:30Z'}, 1)):
+                current = {**value, 'next_action': action}
+                (folder / 'handoff.json').write_text(json.dumps(current), encoding='utf-8')
+                result = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+                self.assertEqual(result.returncode, expected, result.stderr)
+                saved = json.loads((folder / 'state.json').read_text(encoding='utf-8'))
+                self.assertEqual(saved['evidence_history']['action']['observed_at'], T3)
+
     def test_read_adapter_reuses_current_policy_and_sync(self):
         value, facts = fixture()
         class API:

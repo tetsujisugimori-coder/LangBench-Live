@@ -130,6 +130,8 @@ Work実起動を独立認証した扱いにしない。捏造入力の機械検�
 2026-10-08 I-01: read-only handoff CLI、共有claim重複停止、正式review/merge/main照合、
 既存正式sync artifact検証、Work受領/実次操作/待機再開の観測contractを追加。
 独立レビューR1対応: 拒否観測と証拠履歴を分離し、保存・再読込後の遅延再送と最新否定の保持を回帰確認。
+独立レビューR2対応: API失敗・次操作欠損/UNKNOWN・複数fieldの遅延・同時刻競合についても、
+STOPPED保存後の古い入力再送で受理済み履歴が失われないことをpure/CLIで回帰確認。
 合成fixtureで対象違い・遅延・二重Work・UNKNOWN回復・同期各状態・artifact不一致・NO_OP・
 次操作欠損を試験。subprocess CLIは既存unittest discovery経由でLinux/Hosted Windowsに載る。
 実機能PRのイベント登録/実受信/実Work開始、merge後の実main live smoke、同期ZIP/保護保持、
