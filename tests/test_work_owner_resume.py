@@ -315,6 +315,65 @@ class MergeObservation(unittest.TestCase):
         replay, replay_facts = fixture()
         self.assertEqual(resume.observe(replay, replay_facts, stopped)['status'], 'STOPPED')
 
+    def test_mixed_negative_and_stale_fields_survive_persisted_replay(self):
+        for negative_field in ('claim', 'next_action'):
+            for status in ('FAILED', 'UNKNOWN', 'CANCELLED'):
+                for failure in ('mixed', 'api', 'missing_receipt'):
+                    with self.subTest(field=negative_field, status=status, failure=failure), tempfile.TemporaryDirectory() as directory:
+                        original, facts = fixture()
+                        accepted = resume.observe(original, facts)
+                        mixed, current_facts = copy.deepcopy(original), copy.deepcopy(facts)
+                        mixed[negative_field].update(status=status, observed_at='2026-10-08T00:04:00Z')
+                        if negative_field == 'next_action':
+                            mixed['event']['observed_at'] = '2026-10-08T00:00:30Z'
+                        else:
+                            mixed['next_action']['observed_at'] = '2026-10-08T00:02:30Z'
+                            current_facts['issue_comments'][1]['body'] = resume.CLAIM_START + json.dumps(mixed['claim']) + resume.CLAIM_END
+                        if failure == 'api': current_facts = {'fetch_error': True}
+                        elif failure == 'missing_receipt': mixed['receipt'] = None
+                        stopped = resume.observe(mixed, current_facts, accepted)
+                        self.assertEqual(stopped['status'], 'STOPPED')
+                        field = 'action' if negative_field == 'next_action' else negative_field
+                        self.assertEqual(stopped['evidence_history'][field]['status'], status)
+                        path = Path(directory) / 'state.json'
+                        for _ in range(2):
+                            resume.save_observation(path, stopped)
+                            restored = resume.preparation.loads(path.read_text(encoding='utf-8'))
+                            stopped = resume.observe(original, facts, restored)
+                            self.assertEqual(stopped['status'], 'STOPPED')
+                            self.assertEqual(stopped['evidence_history'][field]['status'], status)
+
+    def test_mixed_same_time_conflict_retains_later_negative(self):
+        original, facts = fixture()
+        accepted = resume.observe(original, facts)
+        mixed = copy.deepcopy(original)
+        mixed['event']['delivery_id'] = 'conflicting-at-same-time'
+        mixed['next_action'].update(status='FAILED', observed_at='2026-10-08T00:04:00Z')
+        stopped = resume.observe(mixed, facts, accepted)
+        self.assertEqual(stopped['status'], 'STOPPED')
+        self.assertEqual(stopped['evidence_history']['action']['status'], 'FAILED')
+        self.assertEqual(resume.observe(original, facts, stopped)['status'], 'STOPPED')
+        original['event']['observed_at'] = T2
+        original['next_action']['observed_at'] = '2026-10-08T00:05:00Z'
+        self.assertEqual(resume.observe(original, facts, stopped)['status'], 'OBSERVED')
+
+    def test_cli_mixed_newer_failure_blocks_old_positive_replay(self):
+        original, facts = fixture()
+        mixed = copy.deepcopy(original)
+        mixed['event']['observed_at'] = '2026-10-08T00:00:30Z'
+        mixed['next_action'].update(status='FAILED', observed_at='2026-10-08T00:04:00Z')
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / 'facts.json').write_text(json.dumps(facts), encoding='utf-8')
+            args = [sys.executable, '-B', 'tools/work_owner_resume.py', '--handoff', str(folder / 'handoff.json'),
+                    '--state', str(folder / 'state.json'), '--fixture-facts', str(folder / 'facts.json')]
+            for value, expected in ((original, 0), (mixed, 1), (original, 1), (original, 1)):
+                (folder / 'handoff.json').write_text(json.dumps(value), encoding='utf-8')
+                result = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+                self.assertEqual(result.returncode, expected, result.stderr)
+            saved = json.loads((folder / 'state.json').read_text(encoding='utf-8'))
+            self.assertEqual(saved['evidence_history']['action']['status'], 'FAILED')
+
     def test_read_adapter_reuses_current_policy_and_sync(self):
         value, facts = fixture()
         class API:

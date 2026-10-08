@@ -132,6 +132,11 @@ Work実起動を独立認証した扱いにしない。捏造入力の機械検�
 独立レビューR1対応: 拒否観測と証拠履歴を分離し、保存・再読込後の遅延再送と最新否定の保持を回帰確認。
 独立レビューR2対応: API失敗・次操作欠損/UNKNOWN・複数fieldの遅延・同時刻競合についても、
 STOPPED保存後の古い入力再送で受理済み履歴が失われないことをpure/CLIで回帰確認。
+独立レビューR3対応: fieldごとの評価を全件走査してから停止を判定し、古いfieldや同時刻競合と
+同居する新しいFAILED/UNKNOWN/CANCELLEDを保持する。既に束縛済みの同owner/run/対象に
+限り、GitHub取得不能時もWork明示観測の新しい否定を保留する（成功を許可する効力はない）。
+正当なより新しい肯定は現在GitHubと共有claimの照合を経てから取り込み、混合snapshotの
+pure/保存再読込/CLI再送回帰で古い肯定が成功へ戻らないことを確認。
 合成fixtureで対象違い・遅延・二重Work・UNKNOWN回復・同期各状態・artifact不一致・NO_OP・
 次操作欠損を試験。subprocess CLIは既存unittest discovery経由でLinux/Hosted Windowsに載る。
 実機能PRのイベント登録/実受信/実Work開始、merge後の実main live smoke、同期ZIP/保護保持、

@@ -232,6 +232,50 @@ def observe(value, facts, previous=None):
         out['reason'] = reason
         return out
 
+    observations = {field: value['next_action'] if field == 'action' else value[field]
+                    for field in ('event', 'work', 'claim', 'receipt', 'action', 'recheck')}
+    out['attempted_evidence'] = copy.deepcopy(observations)
+
+    def inspect_history(negative_only=False):
+        # Classify EVERY field before returning a rejection. Independently newer
+        # negative observations must survive a stale/conflicting sibling field.
+        errors, candidates = [], {}
+        for field, current in observations.items():
+            if current is None:
+                continue
+            negative = current.get('status') in {'FAILED', 'CANCELLED', 'UNKNOWN'}
+            if negative_only and not negative:
+                continue
+            prior = history.get(field)
+            observed_at = instant(current['observed_at'])
+            if field != 'event' and observed_at < instant(value['work']['started_at']):
+                errors.append('Evidence predates this Work start')
+            elif field in conflicts and observed_at <= instant(conflicts[field]):
+                errors.append('Conflicting evidence requires a newer authenticated observation')
+            elif prior and observed_at < instant(prior['observed_at']):
+                errors.append('Late observation must not roll back newer Work evidence')
+            elif prior and observed_at == instant(prior['observed_at']) and current != prior:
+                conflicts[field] = current['observed_at']
+                errors.append('Different Work evidence at the same observation time')
+            else:
+                candidates[field] = copy.deepcopy(current)
+                if negative:
+                    history[field] = copy.deepcopy(current)
+                    conflicts.pop(field, None)
+        return errors, candidates
+
+    # Work observations are explicit owner attestations. For the previously
+    # bound owner/run/scope only, retain newer negatives even when fresh GitHub
+    # facts cannot be collected. This can prohibit success, never authorize it.
+    bound_event = history.get('event', {})
+    if (previous and previous.get('owner') == value['owner']
+            and previous.get('waiting_record') == value['waiting_record']
+            and out['claimed_run_id'] == value['work']['run_id']
+            and out['claimed_started_at'] == value['work']['started_at']
+            and all(bound_event.get(k) == value['event'][k]
+                    for k in ('repository', 'pr', 'head_sha', 'merge_sha'))):
+        inspect_history(negative_only=True)
+
     if facts.get('fetch_error'):
         return stop('GitHub retrieval failed; cached success is not current evidence')
     try:
@@ -273,10 +317,6 @@ def observe(value, facts, previous=None):
     if previous:
         if out['claimed_started_at'] != value['work']['started_at']:
             return stop('Work start identity changed')
-    observations = {field: value['next_action'] if field == 'action' else value[field]
-                    for field in ('event', 'work', 'claim', 'receipt', 'action', 'recheck')}
-    out['attempted_evidence'] = copy.deepcopy(observations)
-
     def reject_evidence(reason):
         # Retain the accepted current-view fields too (Work(root)'s minimal R1
         # repair), while keeping the rejected attempt separately inspectable.
@@ -285,25 +325,7 @@ def observe(value, facts, previous=None):
                 out[field] = copy.deepcopy(record)
         return stop(reason)
 
-    evidence_rejections = []
-    evidence_updates = {}
-    for field, current in observations.items():
-        prior = history.get(field)
-        if current is None:
-            continue
-        observed_at = instant(current['observed_at'])
-        if field in conflicts and observed_at <= instant(conflicts[field]):
-            evidence_rejections.append('Conflicting evidence requires a newer authenticated observation')
-            continue
-        if prior:
-            if observed_at < instant(prior['observed_at']):
-                evidence_rejections.append('Late observation must not roll back newer Work evidence')
-                continue
-            if observed_at == instant(prior['observed_at']) and current != prior:
-                conflicts[field] = current['observed_at']
-                evidence_rejections.append('Different Work evidence at the same observation time')
-                continue
-        evidence_updates[field] = copy.deepcopy(current)
+    errors, candidates = inspect_history()
     claim = value['claim']
     if claim is None:
         return stop('Single-owner claim missing; no next operation')
@@ -328,21 +350,23 @@ def observe(value, facts, previous=None):
             return stop('Missing/conflicting shared claim; no cross-environment exclusion established')
     except (KeyError, TypeError, ValueError):
         return stop('Shared claim could not be authenticated')
+    # Positive observations require fresh GitHub scope and shared ownership.
+    # Negative candidates have already been retained regardless of siblings.
+    history.update(candidates)
+    for field in candidates:
+        conflicts.pop(field, None)
+    if errors:
+        return reject_evidence('; '.join(dict.fromkeys(errors)))
     if value['receipt'] is None:
         return stop('Work receipt of the exact prior waiting record is missing')
     receipt_time = instant(value['receipt']['observed_at'])
     action = value['next_action']
-    if (receipt_time < instant(claim['observed_at'])
+    if (receipt_time < instant(value['work']['started_at'])
             or (action is not None and instant(action['observed_at']) < receipt_time)):
         return stop('Receipt/next operation predates the owner claim or receipt')
     # The history contains bound observations, including newer negative results.
     # A rejected attempt stays in the current view but never lowers this history.
     # Updating history is not an execution/success certification.
-    for field, current in evidence_updates.items():
-        history[field] = current
-        conflicts.pop(field, None)
-    if evidence_rejections:
-        return reject_evidence(evidence_rejections[0])
     if claim['status'] != 'RUNNING':
         return stop('Single-owner claim non-running; no next operation')
     try:
@@ -372,7 +396,7 @@ def observe(value, facts, previous=None):
     # Action and receipt observations must belong to this execution and postdate merge/sync.
     action_time = instant(action['observed_at'])
     run = next((r for r in facts['sync_runs'] if r['id'] == sync['run_id']), None)
-    if (receipt_time < instant(claim['observed_at']) or action_time < receipt_time
+    if (receipt_time < instant(value['work']['started_at']) or action_time < receipt_time
             or run is None or not run.get('updated_at')
             or action_time < instant(run['updated_at'])):
         return stop('Receipt/next operation predates Work start or formal sync completion')
