@@ -153,6 +153,52 @@ def verify_possession(value, secret):
         raise ValueError('Execution capability possession mismatch')
 
 
+def validate_journal(journal, value):
+    """Empty means no send only inside the explicit state envelope/API contract.
+
+    Legacy complete attempts remain GET-only. Missing fields never grant a send.
+    """
+    if not isinstance(journal, dict): raise ValueError('Invalid send journal')
+    if not journal: return
+    required={'status','binding','ref','commit_sha'}
+    if not required <= set(journal) or set(journal)-required-{'phase','reservation','diagnostic'}:
+        raise ValueError('Incomplete or corrupt send journal')
+    if journal['status'] not in {'ATTEMPTING','UNKNOWN','ACQUIRED'}:
+        raise ValueError('Invalid send journal status')
+    if journal['binding'] != binding(value): raise ValueError('Saved attempt binding differs')
+    if journal['ref'] != reservation_ref(value): raise ValueError('Saved attempt ref differs')
+    phase=journal.get('phase','ref')
+    if phase not in {'commit','ref'} or (phase=='commit' and
+            (journal['commit_sha'] is not None or journal['status']=='ACQUIRED')) or (
+            phase=='ref' and not p.sha(journal['commit_sha'])):
+        raise ValueError('Contradictory send journal phase/commit')
+    if 'diagnostic' in journal and not isinstance(journal['diagnostic'],dict):
+        raise ValueError('Invalid legacy diagnostic')
+    if 'reservation' in journal and journal['reservation'] != dict(
+            ref=journal['ref'],commit_sha=journal['commit_sha'],record=journal['binding']):
+        raise ValueError('Saved reservation differs from send journal')
+
+
+def load_state(path, value):
+    if not path.exists():
+        return dict(schema_version=1,kind='i01_reservation_state',journal={},diagnostics=[])
+    saved=p.loads(path.read_text(encoding='utf-8'))
+    if isinstance(saved,dict) and saved.get('kind')=='i01_reservation_state':
+        if (set(saved)!={'schema_version','kind','journal','diagnostics'} or
+                type(saved['schema_version']) is not int or saved['schema_version']!=1 or
+                not isinstance(saved['diagnostics'],list) or
+                any(not isinstance(item,dict) for item in saved['diagnostics'])):
+            raise ValueError('Invalid reservation state envelope')
+        validate_journal(saved['journal'],value)
+        return saved
+    # Only complete legacy send records migrate. A legacy stop without a send
+    # record is ambiguous; retain it for human reconciliation, never reset it.
+    validate_journal(saved,value)
+    if not saved: raise ValueError('Legacy empty state has no explicit send provenance')
+    return dict(schema_version=1,kind='i01_reservation_state',journal=saved,
+                diagnostics=[saved['diagnostic']] if 'diagnostic' in saved else [])
+
+
 def acquire(api, value, secret, journal, persist):
     """One create-ref attempt. Ambiguous results are GET-reconciled, never resent.
 
@@ -163,13 +209,17 @@ def acquire(api, value, secret, journal, persist):
     if value['schema_version'] != 2 or value['work']['identity']['route'] != 'automatic':
         raise ValueError('Only explicit automatic capability reservations may be acquired')
     verify_possession(value,secret)
+    validate_journal(journal,value)
     refname = reservation_ref(value)
     if journal:
         # A durable ATTEMPTING/UNKNOWN/ACQUIRED journal is never a send permit.
-        if journal.get('binding') != binding(value): raise ValueError('Saved attempt binding differs')
         saved=read_reservation(api,value)
-        if saved['record'] != binding(value) or saved['commit_sha'] != journal.get('commit_sha'):
-            raise ValueError('Uncertain reservation needs human reconciliation')
+        if journal.get('phase')=='commit':
+            raise ValueError('Reservation commit result UNKNOWN; retain journal; no POST')
+        if saved['record'] != binding(value):
+            raise ValueError('Reservation conflict: another binding owns the ref; no takeover or resend')
+        if saved['commit_sha'] != journal['commit_sha']:
+            raise ValueError('Reservation commit changed; human reconciliation required; no resend')
         return saved
     # List exact name via matching-refs: an empty complete response proves absence.
     matches = api.get('/git/matching-refs/' + refname.removeprefix('refs/'))
@@ -183,10 +233,12 @@ def acquire(api, value, secret, journal, persist):
     base = api.get('/git/commits/' + value['merge_sha'])
     if base.get('sha') != value['merge_sha'] or not p.sha(base.get('tree',{}).get('sha')):
         raise ValueError('Current merge commit unavailable')
+    journal.update(status='ATTEMPTING',phase='commit',binding=binding(value),ref=refname,commit_sha=None)
+    persist(journal) # A commit POST is also an external send; journal it first.
     commit = api.request(api.root+'/git/commits','POST',dict(message=p.canonical(binding(value)),
                          tree=base['tree']['sha'],parents=[value['merge_sha']]))
     if not p.sha(commit.get('sha')): raise ValueError('Reservation commit result UNKNOWN; no ref send')
-    journal.update(status='ATTEMPTING',binding=binding(value),ref=refname,commit_sha=commit['sha'])
+    journal.update(status='ATTEMPTING',phase='ref',binding=binding(value),ref=refname,commit_sha=commit['sha'])
     persist(journal) # Must complete before any create-ref attempt.
     try:
         api.request(api.root+'/git/refs','POST',dict(ref=refname,sha=commit['sha']))
@@ -243,8 +295,11 @@ def main():
         print(p.canonical({'scheme':'capability_v1','public_id':hashlib.sha256(bytes.fromhex(secret)).hexdigest(),
                            'source':'local_csprng','assurance':ASSURANCE}))
         return 0
+    state=None
     try:
         value=w.validate(p.loads(args.handoff.read_text(encoding='utf-8')))
+        state=load_state(args.state,value)
+        w.save_observation(args.state,state) # Explicit no-send provenance before preflight.
         api=ReservationGitHub(os.environ.get('GH_TOKEN'),value)
         # Fresh bound Issue/PR/waiting/policy must precede a claim write.
         reader=w.ObservationGitHub(os.environ.get('GH_TOKEN'),args.sync_artifact_zip)
@@ -265,10 +320,12 @@ def main():
                 or len(waiting)!=1 or not author_matches(waiting[0].get('user'),value['owner'])
                 or hashlib.sha256(waiting[0]['body'].encode()).hexdigest()!=value['waiting_record']['body_sha256']):
             raise ValueError('Fresh reservation scope/waiting/policy mismatch')
-        journal=p.loads(args.state.read_text(encoding='utf-8')) if args.state.exists() else {}
-        saved=acquire(api,value,args.capability_file.read_text(encoding='utf-8').strip(),journal,
-                      lambda record:w.save_observation(args.state,record))
-        w.save_observation(args.state,{**journal,'status':'ACQUIRED','reservation':saved})
+        journal=state['journal']
+        def persist(record):
+            w.save_observation(args.state,{**state,'journal':copy.deepcopy(record)})
+        saved=acquire(api,value,args.capability_file.read_text(encoding='utf-8').strip(),journal,persist)
+        journal.update(status='ACQUIRED',reservation=saved)
+        persist(journal)
         print(p.canonical(saved))
         return 0
     except (OSError,KeyError,TypeError,ValueError) as error:
@@ -276,10 +333,34 @@ def main():
                      reason=str(error) if isinstance(error,ValueError) else type(error).__name__,
                      next_owner='Work(root)',next_action='Read exact ref and current facts; never resend unknown writes',
                      retained=['private capability file','handoff','existing reservation if any'])
-        # Keep durable attempted binding; a diagnostic must not erase it.
-        if args.state.exists():
-            prior=p.loads(args.state.read_text(encoding='utf-8'));stopped={**prior,'diagnostic':stopped}
-        w.save_observation(args.state,stopped);print(p.canonical(stopped));return 1
+        # Reload durable bytes: a failed save must not promote an in-memory
+        # attempt into a sent record or erase the last persisted phase.
+        try:
+            prior=load_state(args.state,value) if state is not None else None
+            if prior is None:
+                raise ValueError('State could not be authenticated; retain original file')
+            durable=prior['journal']
+            stopped['send_state']=('NOT_SENT' if not durable else
+                'COMMIT_RESULT_UNKNOWN' if durable.get('phase')=='commit' else
+                'ACQUIRED' if durable['status']=='ACQUIRED' else 'REF_RESULT_UNKNOWN')
+            if not durable:
+                stopped['next_action']='Restore current conditions; rerun same arguments/state to recheck facts before sending'
+            prior['diagnostics'].append(stopped)
+            w.save_observation(args.state,prior)
+            output={**prior,'diagnostic':stopped}
+        except (OSError,KeyError,TypeError,ValueError):
+            # Corrupt/incompatible state remains byte-for-byte intact. Never
+            # replace it with a fresh no-send envelope. Report separately.
+            output={**stopped,'state_retained':True,
+                    'next_action':'Retain state and capability; human reconciliation required; do not reset or resend'}
+            try:
+                diagnostic_path=args.state.with_name(args.state.name+'.diagnostics.json')
+                history=p.loads(diagnostic_path.read_text(encoding='utf-8')) if diagnostic_path.exists() else []
+                if not isinstance(history,list): raise ValueError('Invalid diagnostic history')
+                w.save_observation(diagnostic_path,history+[output])
+            except (OSError,TypeError,ValueError):
+                output['diagnostic_save_failed']=True
+        print(p.canonical(output));return 1
 
 
 if __name__=='__main__':raise SystemExit(main())

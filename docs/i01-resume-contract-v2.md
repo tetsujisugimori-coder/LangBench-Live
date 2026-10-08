@@ -44,7 +44,7 @@ GitHubのcreate-ref（存在しない同名ref一件の作成）が取得の原�
 |---|---|
 | GitHub GET、既存ZIP取得/検算、Dashboard読取smoke | 外部副作用なし。繰返し可。現対象・否定履歴を毎回再照合 |
 | ローカルcapability/cache保存 | O_EXCLで秘密を新規作成。cacheのatomic replaceはローカルだけ |
-| inert予約commit作成 | コード/branchを変更しないgit object。結果不明ならrefを送らず停止 |
+| inert予約commit作成 | コード/branchを変更しないgit object。送信前にphase=commit/ATTEMPTINGを保存。結果不明ならrefを送らず停止し、commitも再送しない |
 | 一回限りref作成 | 送信前ATTEMPTINGをfsync保存。結果不明/途中停止後は実ref/commit GET照合だけ。再送しない |
 | owner共有入力更新・receipt公開・正式smoke公開・登録停止 | 本予約では自動実行を許可しない。外部副作用には各正式owner/唯一writerの経路が必要。条件未確立なら停止 |
 | 手動引受 | owner-authenticatedの独立authorization commentで読取だけ継続。自動担当の取消/枠移譲ではない |
@@ -109,6 +109,39 @@ gh資格無効であり、この環境でlive取得成功を主張しない。�
 
 CLI結果はMANUAL_OBSERVEDで、自動経路のOWNER_OBSERVED/I-01一周へ昇格しない。
 承認commentの発行自体は人間/正式ownerの操作で、本実装担当は代筆しない。
+
+## 予約CLIの停止と通信復旧
+
+`--state` は `schema_version=1, kind=i01_reservation_state` の保存envelope。
+`journal`（外部送信履歴）と追記型 `diagnostics`（工程・停止理由・次操作）を分離する。
+最初のfacts取得前に明示的な `journal={}` をatomic保存し、以後診断だけで送信済みへ
+昇格させない。journalが空であるという区別はこのenvelopeで明示した未送信履歴に限る。
+ファイルの欠落を復旧手段にしない。外部送信後は同じstateと秘密を必ず保持する。
+
+| 保存した状態 | 同じ引数・同じファイルで再実行したとき |
+|---|---|
+| 明示未送信journal + facts通信/対象/権限/待機の停止診断 | 現在factsを二度再取得し、対象・policy・承認・待機・秘密を再確認。条件成立時だけ予約へ進む。過去の診断を残す |
+| phase=commit、ATTEMPTING、commit_sha=null | commit送信結果は不明。実ref/commitのGET照合経路だけを使用し、commit/ref POSTを増やさず停止。SHA不明のcommitを推測して代入しない |
+| phase=ref、ATTEMPTING/UNKNOWN、有効commit SHA | 送信直前記録。送ったか不明な途中停止も含む。実ref/commitをGETし、保存binding/SHAと一致した場合だけACQUIRED。存在未確認/通信失敗なら保持して停止し、再送しない |
+| ACQUIRED | 現在factsと秘密を再確認し、実ref/commitをGET再照合。別担当/異なるbinding/SHAなら競合・改変として停止。過去の取得記録は消さない |
+| 破損・不完全・矛盾したjournal、旧形式の停止診断だけ | 未送信と推定しない。元ファイルをbyte単位で保持し、別の `<state>.diagnostics.json` へ停止履歴を追記。人間による実記録照合が必要 |
+
+完全な旧ATTEMPTING/UNKNOWN/ACQUIREDはbinding/ref/commit SHAを検証して移行し、
+既存diagnosticも保持する。送信履歴が欠落した旧停止記録は自動移行できない。
+各POST前のjournal保存失敗時、そのPOSTを送らない。commit作成後・ref送信前の保存失敗は
+最後のdurable phase=commitを保持して停止する。診断保存も失敗した場合はstdoutへ
+`diagnostic_save_failed` を出し、元stateと秘密を保持して引渡す。
+
+復旧は停止した工程・理由を確認して通信/現在条件を直し、上記予約CLIを同じ引数で再実行する。
+未送信の停止を含め全診断は取得成功後も残る。結果不明・競合・秘密不一致・破損ならstateを
+削除/空にして取得し直さず、正式ownerへ元state、handoff、実ref/commit GET結果と不足条件を
+引渡す。秘密そのものは公開しない。人間の読取引受は既存の別承認経路を使用し、担当枠を
+解除・譲渡しない。これはローカル送信記録の復旧であり、跨環境leaseではない。
+
+Issue102専用のWork登録・policy・共有入力は依然未整備であり、独立再レビューと並行して
+確認するmerge前準備である。実automation ID/保存設定を正式経路で取得するまでpolicyへ
+架空値を追加しない。登録成功、実起動、待機受領、fixture成功はそれぞれ別の証拠として扱う。
+PR103は独立再レビューとこの準備の確認までdraftを維持する。
 
 ## 共有入力の改版とwriter照合
 
