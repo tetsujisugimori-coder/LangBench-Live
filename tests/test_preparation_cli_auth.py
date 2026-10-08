@@ -16,7 +16,7 @@ from pathlib import Path
 from tests.test_preparation_evidence import writer_api
 from tools import startup_preparation as p
 from tools import update_automation_dashboard as u
-scenario=json.loads(Path(sys.argv.pop(1)).read_text())
+scenario=json.loads(Path(sys.argv.pop(1)).read_text(encoding='utf-8'))
 v,r,f,api=writer_api()
 api.config['schema_version']=2
 record=scenario['record']
@@ -54,11 +54,11 @@ class FormalCLIAuthenticationTests(unittest.TestCase):
                 if negative=='disabled':r['review']['settings']['enabled']=False
                 else:r['review']['status']=negative
                 failed=run(r,fail=True);self.assertEqual(failed.returncode,1,failed.stderr.decode())
-                saved=p.loads((d/'state.json').read_text());self.assertEqual(saved['status'],'STOPPED')
+                saved=p.loads((d/'state.json').read_text(encoding='utf-8'));self.assertEqual(saved['status'],'STOPPED')
                 self.assertEqual(saved['owner_watermarks']['review']['record'],r['review'])
                 for _ in range(2):
                     stale=run(positive);self.assertEqual(stale.returncode,0,stale.stderr.decode())
-                    saved=p.loads((d/'state.json').read_text());self.assertEqual(saved['status'],'WAITING')
+                    saved=p.loads((d/'state.json').read_text(encoding='utf-8'));self.assertEqual(saved['status'],'WAITING')
                     self.assertEqual(saved['owner_watermarks']['review']['record'],r['review'])
     def test_wrong_author_duplicate_local_owner_mismatch_and_local_draft(self):
         v,r,f,api=writer_api();api.config['schema_version']=2
@@ -72,10 +72,10 @@ class FormalCLIAuthenticationTests(unittest.TestCase):
         # Even owner names equal to public Issue identity cannot authenticate a file.
         with tempfile.TemporaryDirectory() as directory:
             d=Path(directory)
-            for name,item in [('input',v),('owner',r),('config',{'schema_version':2,'repository':v['repository'],'issues':{}})]: (d/(name+'.json')).write_text(p.canonical(item))
+            for name,item in [('input',v),('owner',r),('config',{'schema_version':2,'repository':v['repository'],'issues':{}})]: (d/(name+'.json')).write_text(p.canonical(item),encoding='utf-8')
             result=subprocess.run([sys.executable,'-B','tools/startup_preparation.py','--input',str(d/'input.json'),'--owner-facts',str(d/'owner.json'),'--config',str(d/'config.json'),'--state',str(d/'state.json'),'--output',str(d/'out')],cwd=ROOT,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr.decode())
-            state=p.loads((d/'state.json').read_text());self.assertEqual(state['status'],'WAITING');self.assertNotIn('review',state['owner_watermarks'])
+            state=p.loads((d/'state.json').read_text(encoding='utf-8'));self.assertEqual(state['status'],'WAITING');self.assertNotIn('review',state['owner_watermarks'])
 
 class PolicyVersionBarrierTests(unittest.TestCase):
     def test_actual_old_reader_rejects_new_policy_before_token_or_pass(self):
@@ -83,7 +83,7 @@ class PolicyVersionBarrierTests(unittest.TestCase):
         result=subprocess.run([sys.executable,'-B','tests/fixtures/policy_reader_v1_main.py','--config','.github/automation-dashboard.json'],cwd=ROOT,env=env,capture_output=True)
         self.assertEqual(result.returncode,1);self.assertIn('Unexpected repository/config schema',result.stderr.decode());self.assertNotIn('PASS',result.stdout.decode())
     def test_new_reader_legacy_policy_and_old_issue_entries_preserved(self):
-        current=json.loads((ROOT/'.github/automation-dashboard.json').read_text())
+        current=json.loads((ROOT/'.github/automation-dashboard.json').read_text(encoding='utf-8'))
         legacy=copy.deepcopy(current);legacy['schema_version']=1;legacy['issues'].pop('100')
         self.assertIs(validate_policy_config(legacy),legacy);self.assertIs(validate_policy_config(current),current)
         for key in ('80','85','88','91','96'):self.assertEqual(legacy['issues'][key],current['issues'][key])
