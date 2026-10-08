@@ -34,7 +34,7 @@ Workサービス内部の設定・イベント・runをGitHub tokenで直接認�
 非公開API、credential複製、GitHub ActionsからWorkを任意起動する機能は仮定しない。
 JSONのdigestは改変検出/bindingであり署名やサービス認証ではない。
 
-`registration_prompts`はrole別の承認済み**全文**/version/UTF-8 byte SHA256を保持する。
+`registration_prompts`はrole別の承認済み**全文**/version/UTF-8 byte SHA256と承認済み外側eventsを保持する。
 未取得はnullとして不足にする。実登録の詳細Promptを短いテンプレートに置換しない。
 独立reviewの同HEAD確認、必要Ubuntu/Windows CI、禁止操作、結果引渡し等を含む実際の承認済み全文を
 本担当が入力し、保存UIの全文と完全一致することを照合する。
@@ -52,7 +52,7 @@ Prompt内のscopeと外側Triggerを別々に確認し、Promptだけで起動�
 | FINISHED | 上記結果、専用停止操作と両roleのenabled=false保存読戻し | 停止依頼・予定だけの完了 |
 
 実PR前のreview外側scopeはrepository一致・pr=null・正確な`^Issue #100:` title_match。
-実PR後は正しいPR番号・title_match=null。広いrepo全体scopeへ解除しない。
+実PR後は正しいPR番号を必須とし、title_matchはnullまたは同Issueの正確なprefix。保存済みの狭いIssue title filterは維持できる。広いrepo全体scopeへ解除しない。
 owner_resumeは別実IDでevents=[closed]/only_on_merge=trueを保存読戻しする。
 reviewはonly_on_merge=false。opened/ready/closed、明示opt-in synchronize/review/commentの正式UI設定を
 観測する。実イベントと保存設定は別record。未来merge SHAは入力へ作らない。
@@ -72,7 +72,7 @@ python -B tools/startup_preparation.py \
 ```
 
 このcandidate入力の実review IDは`6ac71f9572a48191bbf36c742b9e1720`。
-実PR/HEAD/owner_resume ID/保存Prompt全文は未取得なのでnull。未確認を合成値で埋めない。
+このファイルは実PR確定前のPRE_IMPLEMENTATION初期seedを保持するためPR/HEAD/owner_resume ID/保存Promptはnullで、現在の登録状況を表さない。現実にはPR101と両実ID/保存UI読戻しを取得済み（接続図参照）。本担当が最終HEAD・承認済みevents・実Promptを新input版へ入れて同共有recordを更新する。初期seedを現在不足の正式入力へそのまま転用しない。
 CLI生成物は案であり外部投稿/登録/受領/実動証拠ではない。
 保存設定のowner factsを用意したら `--owner-facts work/issue100/owner-facts.json` を付ける。
 公開repoのGETは `--github-read` でtokenなしでも利用できる。認証が必要な取得先は正規GH_TOKENの実行経路を使い、取得不能ならSTOPPED。POST/PATCHと正式writerはtoken必須を維持する。
@@ -92,7 +92,7 @@ UNKNOWN/ATTEMPTINGは照合対象で、登録再作成を許可しない。NOT_A
 SETTINGS_CONFIRMED/FAILED/DISABLED_CONFIRMEDを区別し、role-ID混同と旧PR転用を拒否。
 入力変更後も否定watermarkと未解決ledgerを保存する。古い肯定二回、同時刻矛盾、混合snapshotの
 新しい否定、API失敗でも、新否定とconflict barrierを落とさない。独立roleを全部検査してから不足判定する。
-時刻だけの再観測はNO_OP。last_progress_at/last_observed_atを成功監視時刻や予定時刻へ読み替えない。
+時刻だけの再観測は進捗NO_OPで、last_progress_atを進めない。ただしowner_watermarksの最新観測時刻は保存する。writerは必要なら同commentのsnapshotだけをPATCHした上でNO_OPを返すので、NO_OPは「保存更新なし」を意味しない。禁止境界を古い時刻へ戻さず、CLIの保存再読込にも保持する。last_progress_at/last_observed_atを成功監視時刻や予定時刻へ読み替えない。
 意味のあるinput/設定/否定/工程変更だけが進捗時刻を更新する。
 
 コメント本文の無関係部分と人間追記はbyte保持。共有待機commentはwriter領域を含まない独立comment。
@@ -142,3 +142,15 @@ GitHub comment PATCH/claimもローカルlockも跨環境CAS/leaseではない�
 
 接続状況は[接続図](i01-preparation-connection.md)、実装/実動の区別と改定は
 [Log](automation-change-log.md)を参照。PR99の既存実sync/手動ZIP回収は背景証拠であり、今回の実動成功へ代入しない。
+
+承認済み外側eventsはregistration_promptsの各非null role期待値に必須。reviewはopened/readyを含め、commit(synchronize)/review/comment等のopt-inを実承認どおり列挙し、保存Triggerと集合の完全一致を検証する。owner_resumeはclosedのみ/only_on_merge=true。events追加やscope/Prompt変更時はinput版/digestを更新し同共有recordで再bindingする。閉じる時だけのreviewは拒否する。UNKNOWN/ATTEMPTING operationは同digestでもNOT_ATTEMPTED/FAILED/null IDで消さず、同scopeの実IDを正式ownerが正当に照合したREGISTERED/SETTINGS_CONFIRMED/DISABLED_CONFIRMEDのみが解決する。別PRへ移行しても旧未解決ledgerが新登録を禁止する。
+
+共有comment容量は完成本文全体（owner request、snapshot、全phase履歴、人間本文）で60000文字相当（保守的UTF-16 code units）および240000 UTF-8 bytesの二重上限。GitHub公式[Agentic Workflows specification](https://github.github.io/gh-aw/specs/safe-outputs-specification/#add-comment)は完成commentに65536 charactersを掲げる。REST [issue comments docs](https://docs.github.com/en/rest/issues/comments#update-an-issue-comment)自体はbody stringと422 validation failureを定義するがbyte上限/文字の数え方は明記しない。240000 bytesは本実装の防御境界でありGitHubの実byte保証とは称しない。60000 UTF-16 unitsで文字数余裕を確保し、APIの既存2MB読取上限は維持する。サービス拒否時は従来同様不足/停止。
+
+writer/CLI/collectorは同一renderと容量検証を使う。詳細Promptを削減/捏造せず、同commentのowner・人間本文・snapshot分離、race検知/読戻しを維持する。履歴がいずれかの上限を超える場合はPATCHせずcapacity不足へ停止し、過去PASSや別comment/Dashboardへの分割で解除しない。回帰の詳細Prompt/実handoff相当は明示した合成値で、実Promptの取得証拠へ転用しない。
+
+全phaseの詳細Prompt履歴は文字上限も超え得るため、writer専用snapshot.stateのwireは可逆`zlib-base64-v1`を使用する（encoding/decoded_bytes/sha256/dataのstrict object）。旧raw v2 snapshotもreaderが明示読解する。owner request・全文Prompt・input_history・人間本文はrawのまま保持する。zlibはZIP artifact transportではなく共有stateの表現だけで、測定コードを実行/抽出しない。最大展開2MB、宣言sizeと実展開size・SHA256・canonical UTF8 inert JSON・単一完結stream・strict state schemaを検証し、余剰stream/改変/未知encoding/過大展開を拒否する。既存API2MB上限とGitHub author/binding/race/同comment writer境界は変更しない。CLI/collector/writerはsnapshot readerの展開済み同stateを評価する。
+
+旧raw v2のPrompt期待値がevents導入前の厳密3field(version/text/digest)の場合も、過去state/historyは明示読取できる。ただし現owner要求はevents欠損で認証不足として拒否し、進捗/正式Gateを完了にしない。旧入力を履歴へ残しinput_versionを増やして承認済みeventsを補い、同commentの新owner観測へdigestを再bindingする。新4field/旧3field以外の未知fieldは拒否する。未対応raw-v2 readerの実関数を凍結した回帰で新encoded wireの拒否を確認する。
+
+正式automation peekの両実IDから2026-10-08に取得した実Prompt全文を保持して5phase容量を評価した。合成lifecycle/handoff shapeを合わせた最大は50973 UTF-16 units/71461 UTF8 bytes（FINISHED）、snapshot展開68153 bytes。これは実Prompt容量の確認であり、GitHub正式owner入力の更新、実phase履歴、merge後実handoff、Gate/I01成功の実証ではない。外側TriggerのUI読戻しは本担当申告で、peekだけでは代替しない。無制限の履歴/証拠本文を収める保証ではなく、上限超過は不足へ停止する。

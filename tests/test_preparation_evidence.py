@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from tools import preparation_evidence as e, startup_preparation as p
 from tools import preparation_github as g
 from tools.automation_dashboard import evaluate, initial_state
@@ -30,7 +31,7 @@ def fixture(phase='PRE_IMPLEMENTATION'):
         # Fixtures are explicitly synthetic; real saved full Prompts belong to Work.
         if role == 'owner_resume' and phase == 'PRE_IMPLEMENTATION': continue
         prompt = e.prompt(v, role) + 'Same full HEAD Ubuntu/Windows CI, independent review, no merge, result handoff.\n日本語の合成詳細指示\n'
-        v['registration_prompts'][role] = dict(version=1, text=prompt, digest=hashlib.sha256(prompt.encode()).hexdigest())
+        v['registration_prompts'][role] = dict(version=1, text=prompt, digest=hashlib.sha256(prompt.encode()).hexdigest(), events=['closed'] if role == 'owner_resume' else ['opened', 'ready', 'closed'])
     def registration(role):
         ident = v['work_automation_id'] if role == 'review' else v['owner_resume_id']
         return dict(status='SETTINGS_CONFIRMED' if ident else 'NOT_ATTEMPTED', id=ident,
@@ -96,6 +97,58 @@ class EvidenceContractTests(unittest.TestCase):
         self.assertEqual(p.resume(p.new_state(v),f,T0)['status'],'WAITING')
         r['review']['settings']['trigger']['title_match']='^Issue #100:'
         self.assertEqual(p.generate(v,{'schema_version':1,'repository':v['repository'],'issues':{}})['review_registration.md'],r['review']['settings']['prompt'])
+    def test_pr_bound_missing_prompt_generation_reports_actual_deficiency(self):
+        v,r,f=fixture('PR_BOUND');v['registration_prompts']['owner_resume']=None
+        products=p.generate(v,{'schema_version':2,'repository':v['repository'],'issues':{}})
+        self.assertNotIn('PR unconfirmed',products['owner_resume_registration.md'])
+        self.assertIn('Prompt not yet acquired',products['owner_resume_registration.md'])
+        self.assertIn('preserve existing registration',products['owner_resume_registration.md'])
+    def test_review_closed_only_and_approved_event_loss_rejected(self):
+        v,r,f=fixture();r['review']['settings']['trigger']['events']=['closed']
+        self.assertFalse(e.ready(r['review'],v,'review'))
+        self.assertEqual(p.resume(p.new_state(v),f,T0)['status'],'WAITING')
+        v,r,f=fixture();v['registration_prompts']['review']['events']+=['synchronize','review','comment']
+        r['input_digest']=p.digest(v);f['input_digest']=p.digest(v)
+        self.assertFalse(e.ready(r['review'],v,'review'))
+        r['review']['settings']['trigger']['events']+=['synchronize','review','comment']
+        self.assertTrue(e.ready(r['review'],v,'review'))
+        v['registration_prompts']['review']['events']=['closed']
+        with self.assertRaises(ValueError):p.validate_input(v)
+    def test_same_digest_unresolved_cannot_be_erased_before_input_pr_change(self):
+        for pending in ('UNKNOWN','ATTEMPTING'):
+            v,r,f=fixture('PR_BOUND');s=p.mark_unknown(p.new_state(v),'owner_resume')
+            key=e.op_key(v,'owner_resume');s['operations'][key]['status']=pending
+            r['owner_resume'].update(status='NOT_ATTEMPTED',id=None,settings=None,settings_version=None)
+            s=p.resume(s,f,T0);s=p.loads(p.canonical(s))
+            self.assertEqual(s['operations'][key]['status'],pending)
+            v2=copy.deepcopy(v);v2.update(input_version=2,pr=90,head_sha='c'*40)
+            s=p.rebase(s,v2)
+            with self.assertRaises(ValueError):p.mark_unknown(s,'owner_resume')
+            self.assertEqual(s['operations'][key]['status'],pending)
+            # Same bound actual ID readback is the positive reconciliation boundary.
+            v,r,f=fixture('PR_BOUND');s=p.mark_unknown(p.new_state(v),'owner_resume')
+            r['owner_resume'].update(status='REGISTERED',settings=None)
+            resolved=p.resume(s,f,T0)
+            self.assertEqual(resolved['operations'][e.op_key(v,'owner_resume')]['external_id'],v['owner_resume_id'])
+    def test_negative_refresh_retains_latest_rejection_time_without_progress(self):
+        v,r,f=fixture('PRE_MERGE');r['owner_resume']['settings']['enabled']=False
+        r['owner_resume']['observed_at']=T1;r['observed_at']=T1
+        s=p.resume(p.new_state(v),f,T1)
+        t3='2026-10-08T03:03:00Z';r['owner_resume']['observed_at']=t3;r['observed_at']=t3
+        out=p.loads(p.canonical(p.resume(s,f,t3)))
+        self.assertEqual(out['last_progress_at'],s['last_progress_at'])
+        self.assertEqual(out['owner_watermarks']['owner_resume']['record']['observed_at'],t3)
+        r['owner_resume']['observed_at']=T2;r['observed_at']=T2
+        r['owner_resume']['settings']['enabled']=True;r['owner_resume']['settings_version']=2
+        for _ in range(2):
+            out=p.resume(out,f,t3)
+            self.assertEqual(out['status'],'WAITING')
+            self.assertEqual(out['owner_watermarks']['owner_resume']['record']['observed_at'],t3)
+    def test_pr_bound_review_can_preserve_exact_issue_title_filter(self):
+        v,r,f=fixture('PR_BOUND');r['review']['settings']['trigger']['title_match']='^Issue #100:'
+        self.assertTrue(e.ready(r['review'],v,'review'))
+        r['review']['settings']['trigger']['pr']=None
+        self.assertFalse(e.ready(r['review'],v,'review'))
     def test_full_prompt_version_digest_strict(self):
         for field,val in [('version',True),('digest','a'*64),('extra',True)]:
             v,r,f=fixture();v['registration_prompts']['review'][field]=val
@@ -224,6 +277,53 @@ class WriterV2Tests(unittest.TestCase):
         self.assertEqual(unknown['operations'][e.op_key(v,'owner_resume')]['status'],'UNKNOWN')
         with self.assertRaises(ValueError):p.mark_unknown(unknown,'owner_resume')
 
+    def test_same_comment_negative_refresh_saved_even_when_progress_noop(self):
+        v,r,f,api=writer_api();r['review']['settings']['enabled']=False
+        t3='2026-10-08T03:03:00Z'
+        def update(at,enabled=False,revision=1):
+            r['observed_at']=at;r['review'].update(observed_at=at,settings_version=revision)
+            r['review']['settings']['enabled']=enabled
+            request=p.generate(v,api.config,owner_facts=r)['github_record.md'].strip()
+            if e.REQUEST_START in api.comment['body']:
+                a=api.comment['body'].index(e.REQUEST_START);b=api.comment['body'].index(p.REQUEST_END)+len(p.REQUEST_END)
+                api.comment['body']=api.comment['body'][:a]+request+api.comment['body'][b:]
+            return g.reconcile_preparation(api,100,p.policy_entry(v),at)
+        update(T1);initial=g.snapshot(api.comment['body'])['state'];writes=len(api.writes)
+        self.assertEqual(update(t3),'NO_OP');self.assertEqual(len(api.writes),writes+1)
+        saved=p.loads(p.canonical(g.snapshot(api.comment['body'])['state']))
+        self.assertEqual(saved['last_progress_at'],initial['last_progress_at'])
+        self.assertEqual(saved['owner_watermarks']['review']['record']['observed_at'],t3)
+        for _ in range(2):
+            update(T2,True,2);saved=g.snapshot(api.comment['body'])['state']
+            self.assertEqual(saved['status'],'WAITING')
+            self.assertFalse(saved['owner_watermarks']['review']['record']['settings']['enabled'])
+            self.assertEqual(saved['owner_watermarks']['review']['record']['observed_at'],t3)
+    def test_same_comment_unresolved_reset_and_closed_review_remain_blocked(self):
+        for pending in ('UNKNOWN','ATTEMPTING'):
+            v,r,f,api=writer_api('PR_BOUND')
+            r['owner_resume'].update(status=pending,id=None,settings=None,settings_version=None)
+            def update(record,state=None):
+                request=p.generate(v,api.config,state=state,owner_facts=record)['github_record.md'].strip()
+                a=api.comment['body'].index(e.REQUEST_START);b=api.comment['body'].index(p.REQUEST_END)+len(p.REQUEST_END)
+                api.comment['body']=api.comment['body'][:a]+request+api.comment['body'][b:]
+                with patch.object(g,'current_preparation_facts',return_value={**f,'owner_record':record}):
+                    g.reconcile_preparation(api,100,p.policy_entry(v),record['observed_at'])
+                return g.snapshot(api.comment['body'])['state']
+            state=update(r);key=e.op_key(v,'owner_resume')
+            self.assertEqual(state['operations'][key]['status'],pending)
+            r['observed_at']=T1;r['owner_resume'].update(status='NOT_ATTEMPTED',observed_at=T1)
+            state=p.loads(p.canonical(update(r,state)))
+            self.assertEqual(state['operations'][key]['status'],pending)
+            changed=copy.deepcopy(v);changed.update(input_version=2,pr=90,head_sha='c'*40)
+            with self.assertRaises(ValueError):p.mark_unknown(p.rebase(state,changed),'owner_resume')
+        v,r,f,api=writer_api('PRE_MERGE');r['review']['settings']['trigger']['events']=['closed']
+        request=p.generate(v,api.config,owner_facts=r)['github_record.md'].strip()
+        a=api.comment['body'].index(e.REQUEST_START);b=api.comment['body'].index(p.REQUEST_END)+len(p.REQUEST_END)
+        api.comment['body']=api.comment['body'][:a]+request+api.comment['body'][b:]
+        with patch.object(g,'current_preparation_facts',return_value=f):
+            g.reconcile_preparation(api,100,p.policy_entry(v),T0)
+            gate=g.collect_preparation_gate(api,100,p.policy_entry(v))
+        self.assertEqual(gate['status'],'WAITING');self.assertTrue(any('review:' in m for m in gate['missing']))
     def test_writer_author_and_snapshot_version_rejected(self):
         v,r,f,api=writer_api();api.comment['user']={'login':'other','id':1,'type':'User'}
         with self.assertRaises(ValueError):g.reconcile_preparation(api,100,p.policy_entry(v),T0)

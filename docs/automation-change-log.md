@@ -23,3 +23,10 @@ policy opt-inの#100だけへMerge/Completion条件を接続。既存再開CLI�
 
 - policy top-level v2版障壁を追加。新readerのlegacy1互換、旧main実readerの2拒否、既存Issue entry不変を回帰。
 - v2 CLIは唯一共有inputのREST投稿者認証・現在main policy binding・local案一致を必須とし、認証後API失敗の否定保存と古い肯定二度の再投入をCLI subprocessで回帰。
+
+- 独立Work実指摘comment6053210723のF1/F2/F3をIN_SCOPE blockingとして補修。進捗NO_OPと拒否時刻保存を分離、同digest未解決ledgerの消失を禁止、承認済みrole eventsをinputへ束縛。実opened deliveryは本担当回収済みだがrun ID UNKNOWN、修正HEADの独立再照合/正式PASSは未受領。
+
+- 共有comment容量をv2限定で60000文字相当/240000UTF8bytesの二重上限へ補修。CLI/collector/writer共通の完成本文renderで検証し、詳細Prompt/多phase履歴/合成handoffを保持、容量不足で正式PASS不可。GitHub一次資料とREST上限保証の限界を運用文書へ記載。
+- 本担当実要約6052718244に基づきPR101の両登録/両保存UI読戻し完了・review実opened受信を図へ反映。owner未来受信/実再開/I01成功は未確認、最終修正HEADの独立PASSは未受領。
+
+- 二重上限だけでは全phaseの詳細Prompt履歴が文字上限を超えるため、writer専用snapshot.stateにstrict可逆zlib-base64-v1表現を追加。全文input/owner/historyは維持、bounded展開/digest/canonical inert JSON/単一stream/旧raw-v2互換を検証する。同じ共有comment以外の保存場所は作らない。

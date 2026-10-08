@@ -70,9 +70,17 @@ def validate_input(value):
     for role, expected in value['registration_prompts'].items():
         if expected is None:
             continue
-        fields(expected, {'version', 'text', 'digest'}, 'approved Prompt')
+        if not isinstance(expected, dict) or set(expected) not in ({'version', 'text', 'digest'}, {'version', 'text', 'digest', 'events'}):
+            raise ValueError('Unknown approved Prompt/outer events fields')
         if not positive(expected['version']) or not text(expected['text']) or expected['digest'] != p.hashlib.sha256(expected['text'].encode('utf-8')).hexdigest():
             raise ValueError('Approved Prompt version/full UTF-8 digest invalid')
+        if 'events' not in expected:
+            continue  # Read legacy raw v2 history; cannot certify current readiness.
+        events = expected['events']
+        if (not isinstance(events, list) or not events or any(not isinstance(event, str) for event in events)
+                or len(set(events)) != len(events) or set(events) - {'opened', 'ready', 'closed', 'synchronize', 'review', 'comment'}
+                or (set(events) != {'closed'} if role == 'owner_resume' else not {'opened', 'ready'} <= set(events))):
+            raise ValueError('Approved role events missing or invalid')
     return value
 
 
@@ -150,10 +158,13 @@ def ready(record, value, role, stopped=False):
     return (record['id'] is not None and record['settings_version'] is not None
             and settings['enabled'] is (False if stopped else True)
             and trigger['repository'] == value['repository'] and trigger['pr'] == value['pr']
-            and trigger['title_match'] == (f"^Issue #{value['issue']}:" if value['pr'] is None else None)
+            and (trigger['title_match'] == f"^Issue #{value['issue']}:" if value['pr'] is None
+                 else trigger['title_match'] in (None, f"^Issue #{value['issue']}:"))
             and value['registration_prompts'][role] is not None
             and record['settings_version'] >= value['registration_prompts'][role]['version']
             and settings['prompt'] == value['registration_prompts'][role]['text']
+            and 'events' in value['registration_prompts'][role]
+            and set(trigger['events']) == set(value['registration_prompts'][role]['events'])
             and (trigger['events'] == ['closed'] and trigger['only_on_merge'] is True
                  if role == 'owner_resume' else trigger['only_on_merge'] is False))
 
@@ -457,8 +468,8 @@ def resume(state, facts, observed_at):
             previous_op = output['operations'].get(key)
             # A new digest with the same scope/key needs explicit re-binding;
             # old unresolved operations are resolved only by matching real ID.
-            if previous_op and previous_op['input_digest'] != p.digest(value) and previous_op['status'] in UNRESOLVED and current['id'] is None:
-                missing.insert(0, role + ': old UNKNOWN operation needs real identity reconciliation')
+            if previous_op and previous_op['status'] in UNRESOLVED and (current['id'] is None or current['status'] not in {'REGISTERED', 'SETTINGS_CONFIRMED', 'DISABLED_CONFIRMED'}):
+                missing.insert(0, role + ': unresolved operation needs authenticated real-ID reconciliation')
             else:
                 output['operations'][key] = dict(role=action, pr=value['pr'], head_sha=value['head_sha'],
                     input_digest=p.digest(value), status=current['status'], external_id=current['id'],
@@ -518,7 +529,8 @@ def resume(state, facts, observed_at):
     # Retained clocks are not progress. A new negative/setting/phase is progress;
     # pure timestamp refresh is NO_OP and does not advance progress time.
     if semantic(output) == semantic(state):
-        return copy.deepcopy(state)
+        # Progress NO_OP still persists the newest rejection boundary.
+        return validate_state(output)
     output['last_progress_at'] = observed_at; output['last_observed_at'] = observed_at
     return validate_state(output)
 
@@ -546,7 +558,7 @@ def generate(value, config, state=None, owner_facts=None):
                    legacy_operations={k: {**v, 'status': 'UNKNOWN', 'external_id': None} for k, v in state['legacy']['operations'].items()})
     return {'issue_body.md': '## 段階別準備 v2\n' + p.canonical(value) + '\n',
             'review_registration.md': (value['registration_prompts']['review'] or {}).get('text') or 'Approved saved review Prompt not yet acquired; preserve existing registration.\n',
-            'owner_resume_registration.md': (value['registration_prompts']['owner_resume'] or {}).get('text') or 'PR unconfirmed; owner-resume registration is not required yet.\n',
+            'owner_resume_registration.md': (value['registration_prompts']['owner_resume'] or {}).get('text') or ('PR unconfirmed; owner-resume registration is not required yet.\n' if value['pr'] is None else 'Approved saved owner-resume Prompt not yet acquired; preserve existing registration and obtain full readback.\n'),
             'policy_diff.json': p.canonical(p.policy_diff(value, config)) + '\n',
             'preparation.json': p.canonical(state) + '\n', 'summary.md': summary(state),
             'github_record.md': REQUEST_START + p.canonical(request) + p.REQUEST_END + '\n'}

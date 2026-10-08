@@ -499,6 +499,7 @@ def main():
             from tools.preparation_github import apply_owner_facts
         except ModuleNotFoundError:
             from preparation_github import apply_owner_facts
+        cached_state = copy.deepcopy(state)
         facts = apply_owner_facts({'input_digest': digest(value)}, owner_facts, value)
         if args.github_read:
             try:
@@ -513,9 +514,9 @@ def main():
                 api = GitHub(os.environ.get('GH_TOKEN'), args.sync_artifact_zip)
                 if value['schema_version'] == 2:
                     try:
-                        from tools.preparation_github import current_preparation_facts, authenticated_cli_record, preserve_negative_failure, authenticate_comment
+                        from tools.preparation_github import current_preparation_facts, authenticated_cli_record, preserve_negative_failure, authenticate_comment, preparation_body_v2
                     except ModuleNotFoundError:
-                        from preparation_github import current_preparation_facts, authenticated_cli_record, preserve_negative_failure, authenticate_comment
+                        from preparation_github import current_preparation_facts, authenticated_cli_record, preserve_negative_failure, authenticate_comment, preparation_body_v2
                     record, state, authenticated_comment = authenticated_cli_record(api, value, owner_facts, state)
                     facts = apply_owner_facts({'input_digest': digest(value)}, record['owner_facts'], value)
                     facts = current_preparation_facts(api, value, record, state)
@@ -528,12 +529,19 @@ def main():
                 if value['issue'] is not None and value['schema_version'] == 1:
                     facts['operations'] = reconcile_operations(api, value['issue'], policy_entry(value), state, facts)
                 state = resume(state, facts, datetime.now(timezone.utc).isoformat())
-            except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
+                if value['schema_version'] == 2 and evidence_contract().semantic(state) == evidence_contract().semantic(cached_state):
+                    # The local cache cannot authorize evidence; it only supplies
+                    # progress clocks once fresh authenticated facts recompute identically.
+                    state['last_progress_at'] = cached_state['last_progress_at']
+                    state['last_observed_at'] = cached_state['last_observed_at']
+                if value['schema_version'] == 2:
+                    preparation_body_v2(authenticated_comment, state, record)
+            except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile) as exc:
                 # Keep history, but never show an old completed cache as current success.
                 if value['schema_version'] == 2:
                     state = preserve_negative_failure(state, record, datetime.now(timezone.utc).isoformat()) if 'record' in locals() else evidence_contract().resume(state, {'input_digest': digest(value), 'fetch_error': True}, datetime.now(timezone.utc).isoformat())
                 state.update(status='STOPPED', next_owner=value['actors']['dispatch'],
-                             next_action='External facts unavailable; inspect saved evidence and reconnect; no retransmission')
+                             next_action=str(exc) if str(exc).startswith(('Shared preparation capacity missing:', 'Shared snapshot decoded capacity missing;')) else 'External facts unavailable; inspect saved evidence and reconnect; no retransmission')
                 atomic_save(args.state, state)
                 print(summary(state), end='')
                 raise

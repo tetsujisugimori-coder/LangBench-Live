@@ -21,6 +21,7 @@ v,r,f,api=writer_api()
 api.config['schema_version']=2
 record=scenario['record']
 api.comment['body']=p.generate(v,api.config,owner_facts=record)['github_record.md']
+if scenario.get('oversize'):api.comment['body']='大'*60000+'\\n'+api.comment['body']
 if scenario.get('bad_author'):api.comment['user']={'login':'other','id':1,'type':'User'}
 if scenario.get('duplicate'):api.extra=[dict(api.comment,id=101)]
 if scenario.get('fail'):
@@ -60,6 +61,32 @@ class FormalCLIAuthenticationTests(unittest.TestCase):
                     stale=run(positive);self.assertEqual(stale.returncode,0,stale.stderr.decode())
                     saved=p.loads((d/'state.json').read_text(encoding='utf-8'));self.assertEqual(saved['status'],'WAITING')
                     self.assertEqual(saved['owner_watermarks']['review']['record'],r['review'])
+    def test_cli_negative_refresh_save_reload_rejects_in_between_positive_twice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            d=Path(directory);v,r,f=fixture();config={'schema_version':2,'repository':v['repository'],'issues':{'100':p.policy_entry(v)}}
+            for name,item in [('input',v),('owner',r),('config',config)]:
+                (d/(name+'.json')).write_text(p.canonical(item),encoding='utf-8')
+            (d/'cli.py').write_text(SHIM,encoding='utf-8')
+            cmd=[sys.executable,'-B',str(d/'cli.py'),str(d/'scenario.json'),'--input',str(d/'input.json'),
+                 '--owner-facts',str(d/'owner.json'),'--config',str(d/'config.json'),
+                 '--state',str(d/'state.json'),'--output',str(d/'out'),'--github-read']
+            env={**os.environ,'PYTHONPATH':str(ROOT)};env.pop('GH_TOKEN',None);env.pop('GITHUB_TOKEN',None)
+            def run(at,enabled=False,revision=1):
+                r['observed_at']=at;r['review'].update(observed_at=at,settings_version=revision)
+                r['review']['settings']['enabled']=enabled
+                (d/'scenario.json').write_text(p.canonical({'record':r}),encoding='utf-8')
+                (d/'owner.json').write_text(p.canonical(r),encoding='utf-8')
+                result=subprocess.run(cmd,cwd=ROOT,env=env,capture_output=True)
+                self.assertEqual(result.returncode,0,result.stderr.decode('utf-8'))
+                return p.loads((d/'state.json').read_text(encoding='utf-8'))
+            initial=run(T1);t3='2026-10-08T03:03:00Z';saved=run(t3)
+            self.assertEqual(saved['last_progress_at'],initial['last_progress_at'])
+            self.assertEqual(saved['owner_watermarks']['review']['record']['observed_at'],t3)
+            for _ in range(2):
+                saved=run(T2,True,2)
+                self.assertEqual(saved['status'],'WAITING')
+                self.assertFalse(saved['owner_watermarks']['review']['record']['settings']['enabled'])
+                self.assertEqual(saved['owner_watermarks']['review']['record']['observed_at'],t3)
     def test_wrong_author_duplicate_local_owner_mismatch_and_local_draft(self):
         v,r,f,api=writer_api();api.config['schema_version']=2
         self.assertEqual(g.authenticated_cli_record(api,v,r,p.new_state(v))[0]['owner_facts'],r)

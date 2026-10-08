@@ -87,6 +87,23 @@
                 {
                   "type": "object",
                   "additionalProperties": false,
+                  "required": ["version","text","digest","events"],
+                  "properties": {
+                    "version": {"type": "integer","minimum": 1},
+                    "text": {"type": "string","minLength": 1},
+                    "digest": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+                    "events": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": {"enum": ["opened","ready","closed","synchronize","review","comment"]},
+                      "allOf": [{"contains": {"const": "opened"}},{"contains": {"const": "ready"}}]
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
                   "required": ["version","text","digest"],
                   "properties": {"version": {"type": "integer","minimum": 1},"text": {"type": "string","minLength": 1},"digest": {"type": "string","pattern": "^[a-f0-9]{64}$"}}
                 },
@@ -95,6 +112,23 @@
             },
             "owner_resume": {
               "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["version","text","digest","events"],
+                  "properties": {
+                    "version": {"type": "integer","minimum": 1},
+                    "text": {"type": "string","minLength": 1},
+                    "digest": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+                    "events": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": {"enum": ["opened","ready","closed","synchronize","review","comment"]},
+                      "const": ["closed"]
+                    }
+                  }
+                },
                 {
                   "type": "object",
                   "additionalProperties": false,
@@ -601,7 +635,7 @@
         "comment_id": {"type": "integer","minimum": 1},
         "input_version": {"type": "integer","minimum": 1},
         "input_digest": {"type": "string","pattern": "^[a-f0-9]{64}$"},
-        "state": {"$ref": "#/$defs/state"},
+        "state": {"anyOf": [{"$ref": "#/$defs/state"},{"$ref": "#/$defs/encodedSnapshotState"}]},
         "source_digest": {"type": "string","pattern": "^[a-f0-9]{64}$"}
       }
     },
@@ -866,6 +900,17 @@
       "additionalProperties": false,
       "required": ["comment_id","body_sha256"],
       "properties": {"comment_id": {"type": "integer","minimum": 1},"body_sha256": {"type": "string","minLength": 1}}
+    },
+    "encodedSnapshotState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding","decoded_bytes","sha256","data"],
+      "properties": {
+        "encoding": {"const": "zlib-base64-v1"},
+        "decoded_bytes": {"type": "integer","minimum": 1,"maximum": 2000000},
+        "sha256": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+        "data": {"type": "string","maxLength": 240000,"pattern": "^[A-Za-z0-9+/]*={0,2}$"}
+      }
     }
   }
 }

@@ -6,6 +6,7 @@ verify after write. Ambiguous writes raise and are never automatically retried.
 """
 from __future__ import annotations
 import zipfile
+import zlib
 import base64
 import copy
 import re
@@ -398,6 +399,8 @@ def authenticated_request_v2(comment, issue, policy):
                    for k in ('repository', 'purpose', 'owner', 'input_version'))
             or record['input_digest'] != preparation.digest(value) or contract.policy_entry(value) != policy):
         raise PreparationConflict('v2 author/policy/scope/input binding failed')
+    if any(expected is not None and 'events' not in expected for expected in value['registration_prompts'].values()):
+        raise PreparationConflict('Legacy v2 approved events absent; explicit input version migration required')
     candidate = contract.new_state(value)
     candidate['input_history'] = copy.deepcopy(record['input_history'])
     candidate['operations'] = copy.deepcopy(record['operations'])
@@ -422,7 +425,8 @@ def snapshot_v2(body):
             or saved['kind'] != 'startup_preparation_snapshot' or not contract.positive(saved['comment_id'])
             or not isinstance(saved['source_digest'], str) or not re.fullmatch('[a-f0-9]{64}', saved['source_digest'])):
         raise PreparationConflict('Invalid snapshot identity/version')
-    state = contract.validate_state(saved['state'])
+    state = decode_snapshot_state(saved['state'])
+    saved['state'] = state
     if saved['input_version'] != state['input']['input_version'] or saved['input_digest'] != state['input_digest']:
         raise PreparationConflict('Mixed snapshot input binding')
     return saved
@@ -514,6 +518,75 @@ def authenticated_cli_record(api, value, local_owner, local_state):
     return record, state, comment
 
 
+SNAPSHOT_DECODED_BYTE_LIMIT = 2_000_000
+
+
+def encode_snapshot_state(state):
+    preparation.evidence_contract().validate_state(state)
+    raw = preparation.canonical(state).encode('utf-8')
+    if len(raw) > SNAPSHOT_DECODED_BYTE_LIMIT:
+        raise PreparationConflict('Shared snapshot decoded capacity missing; no write')
+    return dict(encoding='zlib-base64-v1', decoded_bytes=len(raw), sha256=preparation.hashlib.sha256(raw).hexdigest(),
+                data=base64.b64encode(zlib.compress(raw, 9)).decode('ascii'))
+
+
+def decode_snapshot_state(value):
+    contract = preparation.evidence_contract()
+    if not isinstance(value, dict) or 'encoding' not in value:
+        return contract.validate_state(value)  # Explicit legacy raw v2 wire compatibility.
+    contract.fields(value, {'encoding', 'decoded_bytes', 'sha256', 'data'}, 'encoded v2 snapshot state')
+    if (value['encoding'] != 'zlib-base64-v1' or type(value['decoded_bytes']) is not int
+            or not 0 < value['decoded_bytes'] <= SNAPSHOT_DECODED_BYTE_LIMIT
+            or not isinstance(value['sha256'], str) or not re.fullmatch('[a-f0-9]{64}', value['sha256'])
+            or not isinstance(value['data'], str) or len(value['data']) > PREPARATION_COMMENT_BYTE_LIMIT):
+        raise PreparationConflict('Unsupported/malformed bounded snapshot encoding')
+    try:
+        packed = base64.b64decode(value['data'], validate=True)
+        if base64.b64encode(packed).decode('ascii') != value['data']:
+            raise PreparationConflict('Noncanonical snapshot base64')
+        decoder = zlib.decompressobj()
+        raw = decoder.decompress(packed, value['decoded_bytes'] + 1)
+        if (len(raw) != value['decoded_bytes'] or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail
+                or preparation.hashlib.sha256(raw).hexdigest() != value['sha256']):
+            raise PreparationConflict('Snapshot decoded size/digest/stream mismatch')
+        state = preparation.loads(raw.decode('utf-8'))
+        if preparation.canonical(state).encode('utf-8') != raw:
+            raise PreparationConflict('Snapshot must contain canonical inert JSON')
+    except (ValueError, zlib.error, UnicodeError) as exc:
+        raise PreparationConflict('Invalid bounded snapshot encoding') from exc
+    return contract.validate_state(state)
+
+
+PREPARATION_COMMENT_CHAR_LIMIT = 60000
+PREPARATION_COMMENT_BYTE_LIMIT = 240000
+
+
+def validate_comment_capacity(body):
+    # UTF-16 units are conservative for GitHub's documented character limit,
+    # including astral characters. Measure the whole preserved final comment.
+    if not isinstance(body, str): raise PreparationConflict('Comment text unavailable')
+    if len(body.encode('utf-16-le')) // 2 > PREPARATION_COMMENT_CHAR_LIMIT:
+        raise PreparationConflict('Shared preparation capacity missing: character limit exceeded; no write')
+    if len(body.encode('utf-8')) > PREPARATION_COMMENT_BYTE_LIMIT:
+        raise PreparationConflict('Shared preparation capacity missing: UTF-8 byte limit exceeded; no write')
+    return body
+
+
+def preparation_body_v2(comment, state, record):
+    """Same prospective body for CLI, writer and Gate; no truncation/split record."""
+    contract = preparation.evidence_contract()
+    persisted = copy.deepcopy(state); persisted['shared_persistence'] = True
+    value = persisted['input']
+    saved = dict(schema_version=2, kind='startup_preparation_snapshot', comment_id=comment['id'],
+                 input_version=value['input_version'], input_digest=preparation.digest(value),
+                 state=encode_snapshot_state(persisted), source_digest=preparation.digest(contract.semantic(record)))
+    content = (VIEW_START + '\n## 段階別準備の現在要約\n\n'
+               + '\n'.join('    ' + line for line in preparation.summary(persisted).splitlines())
+               + '\n\n' + contract.SNAPSHOT_START + preparation.canonical(saved)
+               + preparation.SNAPSHOT_END + '\n' + VIEW_END)
+    return validate_comment_capacity(replace_snapshot(comment['body'], content))
+
+
 def current_preparation_facts(api, value, record, state=None):
     """Fresh public facts plus authenticated owner attestation; no private API."""
     facts = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
@@ -565,15 +638,10 @@ def reconcile_preparation_v2(api, issue, policy, now):
     saved = dict(schema_version=2, kind='startup_preparation_snapshot', comment_id=comment['id'],
                  input_version=value['input_version'], input_digest=preparation.digest(value),
                  state=updated, source_digest=preparation.digest(contract.semantic(record)))
-    if prior == saved:
+    body = preparation_body_v2(latest, updated, record)
+    if prior == saved and latest['body'] == body:
         if failure: raise PreparationConflict('Public facts unavailable; retained negative history')
         return 'NO_OP'
-    content = (VIEW_START + '\n## 段階別準備の現在要約\n\n'
-               + '\n'.join('    ' + line for line in preparation.summary(updated).splitlines())
-               + '\n\n' + contract.SNAPSHOT_START + preparation.canonical(saved)
-               + preparation.SNAPSHOT_END + '\n' + VIEW_END)
-    body = replace_snapshot(latest['body'], content)
-    if len(body.encode('utf-8')) > 60000: raise PreparationConflict('Comment exceeds safe bound')
     try:
         written = api.request(api.root + f'/issues/comments/{comment["id"]}', 'PATCH', {'body': body})
         checked = api.get(f'/issues/comments/{comment["id"]}')
@@ -586,7 +654,7 @@ def reconcile_preparation_v2(api, issue, policy, now):
     except Exception as exc:
         raise PreparationWriteUnknown('Write result UNKNOWN; reconcile same comment, never resend registration') from exc
     if failure: raise PreparationConflict('Public facts unavailable; negative history persisted; no success')
-    return 'UPDATED'
+    return 'NO_OP' if prior and contract.semantic(prior['state']) == contract.semantic(updated) else 'UPDATED'
 
 
 def collect_preparation_gate(api, issue, policy):
@@ -598,6 +666,7 @@ def collect_preparation_gate(api, issue, policy):
     state = state_for_request(record, prior)
     facts = current_preparation_facts(api, record['input'], record, state)
     updated = preparation.resume(state, facts, (record['owner_facts'] or {}).get('observed_at') or comment['updated_at'])
+    preparation_body_v2(comment, updated, record)  # Capacity failure cannot certify Gate success.
     return {'contract': 2, 'input_digest': updated['input_digest'], 'pr': updated['input']['pr'],
             'head_sha': updated['input']['head_sha'], 'phase': updated['input']['phase'],
             'status': updated['status'], 'missing': updated['phase_evidence']['missing'],
