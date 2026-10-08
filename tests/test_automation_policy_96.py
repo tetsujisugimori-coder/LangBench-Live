@@ -14,7 +14,8 @@ class Policy96Registration(unittest.TestCase):
             ['git', 'show', '36362bc61f964bb006b1cae4cefec58a1d140168:.github/automation-dashboard.json'],
             cwd=ROOT, text=True, encoding='utf-8'))
         self.assertEqual(before['repository'], config['repository'])
-        self.assertEqual(before['schema_version'], config['schema_version'])
+        self.assertEqual(1, before['schema_version'])
+        self.assertEqual(2, config['schema_version'])  # Explicit reader barrier; entries below retain legacy meanings.
         self.assertTrue(set(before['issues']) | {'96'} <= set(config['issues']))
         for issue, policy in before['issues'].items():
             self.assertEqual(policy, config['issues'][issue])

@@ -144,3 +144,24 @@ claim成立前のreceiptをpure/保存再読込/CLIで拒否。R3/R4の否定保
 実機能PRのイベント登録/実受信/実Work開始、merge後の実main live smoke、同期ZIP/保護保持、
 独立同HEADレビュー、公開同HEAD Hosted CIは本担当が実証拠を追記する。
 前提PR #98の結果と合成fixtureは今回機能の実動証拠に転用しない。
+
+
+Issue #100の段階別共有準備・保存設定・認証付き実main CLI経路の不足は[preparation-evidence-v2.md](preparation-evidence-v2.md)を参照。collectorのinclude_preparation=Falseは公開事実読取から正式準備Gateへの自己参照を防ぐ。
+
+
+## 公開GETと正式pluginの実同期ZIP（Issue #100補修）
+
+公開repoのGETはGH_TOKEN未設定でも実行可能。取得不能・rate limitはSTOPPEDで、cached successを現在証拠にしない。
+正式writerとPOST/PATCHはtoken必須のまま。非公開APIやcredential複製は使わない。
+
+```sh
+python -B tools/work_owner_resume.py \
+  --handoff work/issue100/handoff.json --state work/issue100/resume.json \
+  --github-read --sync-artifact-zip work/issue100/official-sync.zip
+```
+
+正式GitHub plugin/UIで回収した実ZIP bytesを任意で提供する。現在公開APIが返すartifact ID/run/attempt/name/expired=false/digest、
+提供bytes SHA256、単一bounded inert sync-report、全SHAと保護保持を既存reader/照合処理で検証する。
+--fixture-factsとの併用は拒否。別run/attempt・過去ZIP・改変・未取得・API失敗は成功にしない。
+同期のdispatch/rerunは行わない。提供ZIPとこのCLIのreadbackログは本担当が保持する。
+旧CLIのsafe_stop/OBSERVEDは実対応観測で、v2 I-01成功やCompletionのlive_smoke成功へ昇格させない。

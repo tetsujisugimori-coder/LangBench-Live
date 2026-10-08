@@ -5,6 +5,7 @@ Work supplies observations from its supported event/UI execution. This module
 does not claim access to a private Work API or cross-environment exclusion.
 """
 from __future__ import annotations
+import zipfile
 
 import argparse
 import base64
@@ -150,8 +151,8 @@ def waiting_digest(body):
 
 class ObservationGitHub(GitHub):
     """Keep ZIP verification references alongside the existing safety report."""
-    def __init__(self, token):
-        super().__init__(token)
+    def __init__(self, token=None, sync_artifact_zip=None):
+        super().__init__(token, sync_artifact_zip)
         self.artifacts = {}
         self.zip_digest = None
 
@@ -167,10 +168,13 @@ class ObservationGitHub(GitHub):
         self.zip_digest = None
         report = super().sync_report(run)
         if report is not None:
+            if self.sync_artifact_zip is not None:
+                self.zip_digest = self.sync_artifacts[str(run['id'])]['digest']
             expected = f'local-main-sync-{run["id"]}-attempt{run["run_attempt"]}'
             artifacts = self.pages(f'/actions/runs/{run["id"]}/artifacts', 'artifacts')
             matches = [a for a in artifacts if a.get('name') == expected and a.get('expired') is False]
-            if len(matches) != 1 or matches[0].get('digest') != self.zip_digest:
+            if (len(matches) != 1 or matches[0].get('digest') != self.zip_digest
+                    or matches[0].get('id') != self.sync_artifacts[str(run['id'])]['artifact_id']):
                 raise ValueError('Artifact identity changed after ZIP verification')
             item = matches[0]
             self.artifacts[str(run['id'])] = {'artifact_id': item['id'], 'name': expected,
@@ -190,12 +194,18 @@ def read_facts(api, value):
     if not sha(main):
         raise ValueError('Invalid current main SHA')
     config = api.get(f'/contents/.github/automation-dashboard.json?ref={main}')
-    policy = preparation.loads(base64.b64decode(config['content']).decode())['issues'][str(value['issue'])]
+    decoded = preparation.loads(base64.b64decode(config['content']).decode())
+    try:
+        from tools.automation_dashboard import validate_policy_config
+    except ModuleNotFoundError:
+        from automation_dashboard import validate_policy_config
+    validate_policy_config(decoded)
+    policy = decoded['issues'][str(value['issue'])]
     prior = initial_state(value['issue'], policy)
     prior['pr'] = value['pr']
-    _, facts = collect(api, value['issue'], policy, prior)
+    _, facts = collect(api, value['issue'], policy, prior, include_preparation=False)
     facts.update(main_sha=main, policy=policy, issue=api.get(f'/issues/{value["issue"]}'))
-    facts['sync_artifacts'] = copy.deepcopy(getattr(api, 'artifacts', {}))
+    facts['sync_artifacts'] = copy.deepcopy(getattr(api, 'artifacts', getattr(api, 'sync_artifacts', {})))
     if api.get('/branches/main')['commit']['sha'] != main:
         raise ValueError('main advanced during collection')
     return facts
@@ -412,23 +422,26 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--handoff', required=True, type=Path)
     parser.add_argument('--state', required=True, type=Path)
+    parser.add_argument('--sync-artifact-zip', type=Path, help='Actual official ZIP download; current API identity/digest still required')
     sources = parser.add_mutually_exclusive_group(required=True)
     sources.add_argument('--github-read', action='store_true')
     sources.add_argument('--fixture-facts', type=Path, help='Synthetic testing only; cannot certify live results')
     args = parser.parse_args()
+    if args.sync_artifact_zip is not None and not args.github_read:
+        parser.error('--sync-artifact-zip requires --github-read; it is not fixture evidence')
     value = validate(preparation.loads(args.handoff.read_text(encoding='utf-8')))
     with preparation.state_lock(args.state):
         old = preparation.loads(args.state.read_text(encoding='utf-8')) if args.state.exists() else None
         try:
             if args.github_read:
-                api = ObservationGitHub(os.environ['GH_TOKEN'])
+                api = ObservationGitHub(os.environ.get('GH_TOKEN'), args.sync_artifact_zip)
                 facts = read_facts(api, value)
                 if preparation.digest(facts) != preparation.digest(read_facts(api, value)):
                     raise ValueError('External facts changed during observation')
             else:
                 facts = preparation.loads(args.fixture_facts.read_text(encoding='utf-8'))
             out = observe(value, facts, old)
-        except (OSError, KeyError, TypeError, ValueError) as error:
+        except (OSError, KeyError, TypeError, ValueError, zipfile.BadZipFile) as error:
             # Preserve history and invalidate cached success; never retry a mutation.
             out = observe(value, {'fetch_error': True}, old)
             out['reason'] = 'Current fact collection failed: ' + type(error).__name__

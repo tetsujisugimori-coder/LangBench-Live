@@ -176,3 +176,8 @@ Work非公開API、手動PASS/独立PASS代筆、dispatch receipt捏造、自動
 別実行の独立コード・設定レビュー、既存Dashboard/Gate/receipt回帰、人間最終mergeによる
 限定初回導入。**機械Merge Gate未認定**。通常/将来Issueへ一般化しない。
 人間 merge 待ちで止める。Completionを準備完了で代用しない。
+
+
+## V3.9段階別補助確認
+
+追加の--lifecycle入力と境界は[preparation-lifecycle-v39.md](preparation-lifecycle-v39.md)を参照。旧v1とローカル補助判定は正式Gate・I-01全体成功を表さない。正式v2契約は[preparation-evidence-v2.md](preparation-evidence-v2.md)を参照。

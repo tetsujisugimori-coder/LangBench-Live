@@ -406,7 +406,7 @@ class MergeObservation(unittest.TestCase):
             def get(self, path):
                 if path == '/branches/main': return {'commit': {'sha': MERGE}}
                 if path.startswith('/contents/'):
-                    return {'content': base64.b64encode(json.dumps({'issues': {'96': facts['policy']}}).encode()).decode()}
+                    return {'content': base64.b64encode(json.dumps({'schema_version':1,'repository':REPOSITORY,'issues': {'96': facts['policy']}}).encode()).decode()}
                 if path == '/issues/96': return facts['issue']
                 raise AssertionError(path)
         with patch.object(resume, 'collect', return_value=(None, copy.deepcopy(facts))) as collect:
@@ -429,7 +429,7 @@ class MergeObservation(unittest.TestCase):
             self.assertEqual(method, 'GET')
             suffix = path.removeprefix(api.root).split('?')[0]
             routes = {'/branches/main': {'commit': {'sha': MERGE}},
-                      '/contents/.github/automation-dashboard.json': {'content': base64.b64encode(json.dumps({'issues': {'96': facts['policy']}}).encode()).decode()},
+                      '/contents/.github/automation-dashboard.json': {'content': base64.b64encode(json.dumps({'schema_version':1,'repository':REPOSITORY,'issues': {'96': facts['policy']}}).encode()).decode()},
                       '/issues/96': facts['issue'], '/issues/96/comments': facts['issue_comments'],
                       '/pulls/101': facts['pr'], '/issues/101/comments': facts['pr_comments'],
                       '/pulls/101/reviews': [], '/actions/workflows': {'workflows': workflows},

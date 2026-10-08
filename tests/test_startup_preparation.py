@@ -46,7 +46,7 @@ class PreparationAPI:
     def __init__(self, value):
         self.root = '/repos/' + p.REPOSITORY
         self.value = value
-        self.config = {'schema_version':1,'repository':p.REPOSITORY,'issues':{str(value['issue']):p.policy_entry(value)}}
+        self.config = {'schema_version':value['schema_version'],'repository':p.REPOSITORY,'issues':{str(value['issue']):p.policy_entry(value)}}
         body = p.generate(value, self.config)['github_record.md']
         self.comment = {'id':100,'body':'Human before\n'+body+'\nHuman after','user':value['owner'],
                         'issue_url':f'https://api.github.com/repos/{p.REPOSITORY}/issues/{value["issue"]}',

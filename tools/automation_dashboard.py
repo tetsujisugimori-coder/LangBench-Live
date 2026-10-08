@@ -23,6 +23,20 @@ STATUSES = {"PASS", "PENDING", "BLOCKED", "STALE", "ERROR", "NOT_REQUIRED"}
 DISPATCH = {"REQUESTED", "DISPATCHING", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "UNKNOWN"}
 
 
+def validate_policy_config(config):
+    """Version barrier: v1 remains readable; mandatory v2 entries require v2."""
+    if (not isinstance(config, dict) or type(config.get('schema_version')) is not int
+            or config['schema_version'] not in (1, 2) or config.get('repository') != REPOSITORY
+            or not isinstance(config.get('issues'), dict)):
+        raise ValueError('Unsupported repository/policy schema')
+    for entry in config['issues'].values():
+        if not isinstance(entry, dict): raise ValueError('Invalid Issue policy')
+        if 'preparation_contract' in entry and (config['schema_version'] != 2
+                or type(entry['preparation_contract']) is not int or entry['preparation_contract'] != 2):
+            raise ValueError('Mandatory preparation requires policy/reader v2')
+    return config
+
+
 def sha(value):
     return isinstance(value, str) and SHA.fullmatch(value) is not None
 
@@ -566,7 +580,19 @@ def evaluate(issue, policy, previous, facts):
     # authorization is a separate lifecycle condition and cannot be reused for
     # a closed, merged PR's Completion Gate.
     verification = [work, state["required_ci"], public]
-    checks = [*verification, *state["conditions"].values(),
+    preparation_check = None
+    if 'preparation_contract' in policy:
+        prepared = facts.get('preparation_gate')
+        valid = (type(policy['preparation_contract']) is int and policy['preparation_contract'] == 2
+                 and isinstance(prepared, dict) and prepared.get('contract') == 2
+                 and prepared.get('pr') == pull['number'] and prepared.get('head_sha') == head
+                 and prepared.get('phase') in {'PRE_MERGE', 'POST_MERGE', 'FINISHED'}
+                 and prepared.get('status') == 'PHASE_EVIDENCE_COMPLETE' and prepared.get('missing') == [])
+        preparation_check = result('PASS' if valid else 'BLOCKED',
+                                   'Scoped v2 preparation evidence current' if valid else
+                                   'Scoped v2 registration/settings/waiting evidence missing: ' +
+                                   '; '.join((prepared or {}).get('missing', ['fresh preparation reader required'])))
+    checks = [*verification, *([preparation_check] if preparation_check else []), *state["conditions"].values(),
               result("PASS" if metadata_ok else "PENDING", "PR title/Refs/current head must be current; auto-close is prohibited"),
               result("BLOCKED" if state["blockers"] else "PASS", "Active/IN_SCOPE/ownership blockers"),
               result("PASS" if pull.get("state") == "open" and not pull.get("draft") else "BLOCKED", "PR must be open and ready")]
@@ -593,7 +619,14 @@ def evaluate(issue, policy, previous, facts):
                 smoke = result("PASS", "Owner confirmed same-comment merge/sync live smoke")
         state["conditions"]["live_smoke"] = (result("NOT_REQUIRED", "Explicit trusted policy")
                                                       if policy["requirements"].get("live_smoke") == "NOT_REQUIRED" else smoke)
-        post = [*verification, state["local_sync"], *state["conditions"].values(),
+        preparation_post = []
+        if preparation_check:
+            prepared = facts.get('preparation_gate') or {}
+            preparation_post = [preparation_check,
+                result('PASS' if prepared.get('phase') in {'POST_MERGE', 'FINISHED'}
+                       and prepared.get('i01_live') == 'OWNER_OBSERVED' else 'PENDING',
+                       'Actual owner resume event/start/claim/receipt/ZIP/next operation must be observed')]
+        post = [*verification, *preparation_post, state["local_sync"], *state["conditions"].values(),
                 result("PASS" if state["follow_up_recorded"] else "PENDING", "FOLLOW_UP must be explicitly recorded"),
                 result("BLOCKED" if state["blockers"] else "PASS", "Active/IN_SCOPE/ownership blockers")]
         state["completion_gate"] = combine(post)

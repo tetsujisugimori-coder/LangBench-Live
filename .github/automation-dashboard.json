@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "repository": "tetsujisugimori-coder/LangBench-Live",
   "issues": {
     "80": {
@@ -151,6 +151,36 @@
         "type": "User"
       },
       "work_automation_id": "6ac6c977f09c81918f8bd4afef855e74"
+    },
+    "100": {
+      "purpose": "work-owner-resume-i01",
+      "owner": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_author": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_automation_id": "6ac71f9572a48191bbf36c742b9e1720",
+      "dashboard_comment_id": null,
+      "initial_dispatch": null,
+      "requirements": {
+        "windows_validation": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "artifact_integrity": "NOT_REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED"
+      },
+      "dispatch_owners": {
+        "implementation_task": "Work(root)",
+        "fix_task": "Work(root)",
+        "work_review": "Work(6ac71f9572a48191bbf36c742b9e1720)",
+        "local_main_sync": ".github/workflows/pull-local-main.yml"
+      },
+      "preparation_contract": 2
     }
   }
 }

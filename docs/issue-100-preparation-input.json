@@ -1,0 +1,49 @@
+{
+  "schema_version": 2,
+  "repository": "tetsujisugimori-coder/LangBench-Live",
+  "issue": 100,
+  "purpose": "work-owner-resume-i01",
+  "input_version": 1,
+  "start_main_sha": "82d4d0ab8212b4025610fc3d16a85b92176a907d",
+  "specification": "https://github.com/tetsujisugimori-coder/LangBench-Live/issues/100; user V3.9 with current explicit Issue100 instructions",
+  "owner": {
+    "login": "tetsujisugimori-coder",
+    "id": 265440097,
+    "type": "User"
+  },
+  "work_author": {
+    "login": "tetsujisugimori-coder",
+    "id": 265440097,
+    "type": "User"
+  },
+  "work_automation_id": "6ac71f9572a48191bbf36c742b9e1720",
+  "actors": {
+    "implementation": "Cloud Codex (dedicated original task)",
+    "publication": "Cloud Codex git/PR; Work(root) official Cloud UI/connector fallback",
+    "dispatch": "Work(root)",
+    "review": "Work(6ac71f9572a48191bbf36c742b9e1720)",
+    "sync": ".github/workflows/pull-local-main.yml"
+  },
+  "requirements": {
+    "windows_validation": "NOT_REQUIRED",
+    "windows_measurement": "NOT_REQUIRED",
+    "artifact_integrity": "NOT_REQUIRED",
+    "measurement_result_pr": "NOT_REQUIRED",
+    "live_smoke": "REQUIRED"
+  },
+  "requirement_reasons": {
+    "windows_validation": "No new measurements or measurement artifacts; hosted Ubuntu/Windows CI and exact formal sync ZIP remain required",
+    "windows_measurement": "No new measurements or measurement artifacts; hosted Ubuntu/Windows CI and exact formal sync ZIP remain required",
+    "artifact_integrity": "No new measurements or measurement artifacts; hosted Ubuntu/Windows CI and exact formal sync ZIP remain required",
+    "measurement_result_pr": "No new measurements or measurement artifacts; hosted Ubuntu/Windows CI and exact formal sync ZIP remain required",
+    "live_smoke": "Post-merge actual owner input update/sole-writer readback and existing CLI live smoke required"
+  },
+  "phase": "PRE_IMPLEMENTATION",
+  "pr": null,
+  "head_sha": null,
+  "owner_resume_id": null,
+  "registration_prompts": {
+    "review": null,
+    "owner_resume": null
+  }
+}
