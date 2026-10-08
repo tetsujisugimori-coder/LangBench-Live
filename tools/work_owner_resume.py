@@ -285,19 +285,25 @@ def observe(value, facts, previous=None):
                 out[field] = copy.deepcopy(record)
         return stop(reason)
 
+    evidence_rejections = []
+    evidence_updates = {}
     for field, current in observations.items():
         prior = history.get(field)
         if current is None:
             continue
         observed_at = instant(current['observed_at'])
         if field in conflicts and observed_at <= instant(conflicts[field]):
-            return reject_evidence('Conflicting evidence requires a newer authenticated observation')
+            evidence_rejections.append('Conflicting evidence requires a newer authenticated observation')
+            continue
         if prior:
             if observed_at < instant(prior['observed_at']):
-                return reject_evidence('Late observation must not roll back newer Work evidence')
+                evidence_rejections.append('Late observation must not roll back newer Work evidence')
+                continue
             if observed_at == instant(prior['observed_at']) and current != prior:
                 conflicts[field] = current['observed_at']
-                return reject_evidence('Different Work evidence at the same observation time')
+                evidence_rejections.append('Different Work evidence at the same observation time')
+                continue
+        evidence_updates[field] = copy.deepcopy(current)
     claim = value['claim']
     if claim is None:
         return stop('Single-owner claim missing; no next operation')
@@ -332,10 +338,11 @@ def observe(value, facts, previous=None):
     # The history contains bound observations, including newer negative results.
     # A rejected attempt stays in the current view but never lowers this history.
     # Updating history is not an execution/success certification.
-    for field, current in observations.items():
-        if current is not None:
-            history[field] = copy.deepcopy(current)
-            conflicts.pop(field, None)
+    for field, current in evidence_updates.items():
+        history[field] = current
+        conflicts.pop(field, None)
+    if evidence_rejections:
+        return reject_evidence(evidence_rejections[0])
     if claim['status'] != 'RUNNING':
         return stop('Single-owner claim non-running; no next operation')
     try:
