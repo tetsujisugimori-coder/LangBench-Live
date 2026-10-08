@@ -27,7 +27,7 @@ URL = 'https://github.com/tetsujisugimori-coder/LangBench-Live/issues/96#issueco
 
 
 def fixture():
-    policy = json.loads((ROOT / '.github/automation-dashboard.json').read_text())['issues']['96']
+    policy = json.loads((ROOT / '.github/automation-dashboard.json').read_text(encoding='utf-8'))['issues']['96']
     owner = policy['owner']
     value = {'schema_version': 1, 'repository': REPOSITORY, 'issue': 96, 'purpose': resume.PURPOSE,
              'pr': 101, 'reviewed_head_sha': HEAD, 'merge_sha': MERGE, 'target_main_sha': MERGE,
@@ -268,7 +268,7 @@ class MergeObservation(unittest.TestCase):
             (folder / 'facts.json').write_text(json.dumps(facts), encoding='utf-8')
             failed = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
             self.assertEqual(failed.returncode, 1)
-            self.assertEqual(json.loads((folder / 'state.json').read_text())['status'], 'STOPPED')
+            self.assertEqual(json.loads((folder / 'state.json').read_text(encoding='utf-8'))['status'], 'STOPPED')
 
 
 if __name__ == '__main__':
