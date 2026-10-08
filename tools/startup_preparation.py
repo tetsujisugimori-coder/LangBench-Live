@@ -4,6 +4,7 @@
 No dispatch/Work API or GitHub writes. Trusted-main owns shared persistence.
 """
 from __future__ import annotations
+import zipfile
 import argparse
 import copy
 import hashlib
@@ -43,6 +44,14 @@ SNAPSHOT_START = '<!-- langbench-preparation-snapshot:v1\n'
 SNAPSHOT_END = '\nlangbench-preparation-snapshot:end -->'
 
 
+def evidence_contract():
+    try:
+        from tools import preparation_evidence
+    except ModuleNotFoundError:
+        import preparation_evidence
+    return preparation_evidence
+
+
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
 
@@ -71,6 +80,8 @@ def identity(value):
 
 
 def validate_input(value):
+    if isinstance(value, dict) and value.get('schema_version') == 2:
+        return evidence_contract().validate_input(value)
     if not isinstance(value, dict) or set(value) != INPUT_FIELDS:
         raise ValueError('Unknown/missing input fields')
     if (type(value['schema_version']) is not int or value['schema_version'] != 1
@@ -100,6 +111,8 @@ def validate_input(value):
 
 
 def policy_entry(value):
+    if isinstance(value, dict) and value.get('schema_version') == 2:
+        return evidence_contract().policy_entry(value)
     validate_input(value)
     if value['work_automation_id'] is None:
         raise ValueError('Review registration ID unavailable; policy cannot be registered')
@@ -114,16 +127,18 @@ def policy_entry(value):
 
 
 def policy_diff(value, config):
-    if (type(config.get('schema_version')) is not int or config.get('schema_version') != 1 or config.get('repository') != REPOSITORY
-            or not isinstance(config.get('issues'), dict)):
-        raise ValueError('Invalid existing policy configuration')
+    try:
+        from tools.automation_dashboard import validate_policy_config
+    except ModuleNotFoundError:
+        from automation_dashboard import validate_policy_config
+    validate_policy_config(config)
     if value['issue'] is None:
         raise ValueError('Issue ID unavailable; policy registration must wait')
     proposed = policy_entry(value)
     existing = config['issues'].get(str(value['issue']))
     if existing is not None and existing != proposed:
         raise ValueError('Conflicting policy registration')
-    return {'schema_version': 1, 'repository': REPOSITORY,
+    return {'schema_version': 2 if value['schema_version'] == 2 else config['schema_version'], 'repository': REPOSITORY,
             'issues': {} if existing is not None else {str(value['issue']): proposed}}
 
 
@@ -133,6 +148,8 @@ def empty_stage():
 
 
 def new_state(value):
+    if isinstance(value, dict) and value.get('schema_version') == 2:
+        return evidence_contract().new_state(value)
     validate_input(value)
     return {'schema_version': 1, 'kind': 'startup_preparation', 'input': copy.deepcopy(value),
             'input_digest': digest(value), 'stages': {k: empty_stage() for k in STAGES},
@@ -154,8 +171,12 @@ def external_id(value):
 
 
 def validate_state(state):
+    if isinstance(state, dict) and state.get('schema_version') == 2:
+        return evidence_contract().validate_state(state)
     if not isinstance(state, dict) or 'input' not in state:
         raise ValueError('Broken preparation state')
+    if state.get('schema_version') != state['input'].get('schema_version'):
+        raise ValueError('Mixed preparation state/input contract')
     template = new_state(state['input'])
     if (set(state) not in (set(template), set(template) - {'owner_observations'}) or type(state['schema_version']) is not int or state['schema_version'] != 1
             or state['kind'] != template['kind'] or state['input_digest'] != digest(state['input'])
@@ -216,6 +237,8 @@ def validate_state(state):
 
 
 def rebase(state, value):
+    if isinstance(state, dict) and state.get('schema_version') == 2 or isinstance(value, dict) and value.get('schema_version') == 2:
+        return evidence_contract().rebase(state, value)
     validate_state(state); validate_input(value)
     if value == state['input']: return copy.deepcopy(state)
     if value['input_version'] <= state['input']['input_version']:
@@ -239,6 +262,8 @@ def operation_key(value, action):
 
 
 def mark_unknown(state, action):
+    if isinstance(state, dict) and state.get('schema_version') == 2:
+        return evidence_contract().mark_unknown(state, action)
     """Persist BEFORE handing an explicit request to its external owner."""
     validate_state(state)
     if action not in ACTIONS:
@@ -255,6 +280,8 @@ def mark_unknown(state, action):
 
 
 def resume(state, facts, observed_at):
+    if isinstance(state, dict) and state.get('schema_version') == 2:
+        return evidence_contract().resume(state, facts, observed_at)
     """Facts come from current read-only adapter, never saved cached PASS."""
     validate_state(state); timestamp(observed_at)
     value = state['input']
@@ -401,6 +428,8 @@ def atomic_save(path, state):
 
 
 def summary(state):
+    if isinstance(state, dict) and state.get('schema_version') == 2:
+        return evidence_contract().summary(state)
     validate_state(state)
     dashboard = state['stages']['dashboard']['evidence']
     return '\n'.join([
@@ -417,6 +446,8 @@ def summary(state):
 
 
 def generate(value, config, state=None, owner_facts=None):
+    if isinstance(value, dict) and value.get('schema_version') == 2:
+        return evidence_contract().generate(value, config, state, owner_facts)
     validate_input(value)
     if owner_facts is not None:
         try:
@@ -447,13 +478,20 @@ def main():
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--github-read', action='store_true', help='Read public GitHub facts; never writes')
+    parser.add_argument('--sync-artifact-zip', type=Path, help='Actual official sync ZIP; only with public GitHub read')
     parser.add_argument('--owner-facts', type=Path, help='Formal owner observations; never fetched from a private Work API')
-    parser.add_argument('--mark-unknown', choices=('issue', 'review', 'policy_pr', 'implementation_task', 'fix_task'))
+    parser.add_argument('--migrate-v2', action='store_true', help='Explicit v1 state to v2 migration; preserves unresolved operations')
+    parser.add_argument('--lifecycle', type=Path, help='V3.9 local phase evidence sidecar; never a formal Gate')
+    parser.add_argument('--mark-unknown', choices=('issue', 'review', 'policy_pr', 'implementation_task', 'fix_task', 'owner_resume', 'review_bind'))
     args = parser.parse_args()
+    if args.sync_artifact_zip is not None and not args.github_read:
+        parser.error('--sync-artifact-zip requires --github-read')
     value = validate_input(loads(args.input.read_text(encoding='utf-8')))
     config = loads(args.config.read_text(encoding='utf-8'))
     with state_lock(args.state):
         old = validate_state(loads(args.state.read_text(encoding='utf-8'))) if args.state.exists() else None
+        if old and old['schema_version'] != value['schema_version'] and not args.migrate_v2:
+            raise ValueError('Explicit --migrate-v2 required for contract migration')
         state = rebase(old, value) if old else new_state(value)
         if args.mark_unknown: state = mark_unknown(state, args.mark_unknown)
         owner_facts = loads(args.owner_facts.read_text(encoding='utf-8')) if args.owner_facts else None
@@ -472,29 +510,63 @@ def main():
                 from preparation_github import reconcile_operations
                 from update_automation_dashboard import GitHub
             try:
-                api = GitHub(os.environ['GH_TOKEN'])
-                facts = apply_owner_facts(read_facts(api, value), owner_facts, value)
-                if value['issue'] is not None:
+                api = GitHub(os.environ.get('GH_TOKEN'), args.sync_artifact_zip)
+                if value['schema_version'] == 2:
+                    try:
+                        from tools.preparation_github import current_preparation_facts, authenticated_cli_record, preserve_negative_failure, authenticate_comment
+                    except ModuleNotFoundError:
+                        from preparation_github import current_preparation_facts, authenticated_cli_record, preserve_negative_failure, authenticate_comment
+                    record, state, authenticated_comment = authenticated_cli_record(api, value, owner_facts, state)
+                    facts = apply_owner_facts({'input_digest': digest(value)}, record['owner_facts'], value)
+                    facts = current_preparation_facts(api, value, record, state)
+                    latest = api.get(f'/issues/comments/{authenticated_comment["id"]}')
+                    authenticate_comment(latest, value['issue'], policy_entry(value), authenticated_comment['id'])
+                    if latest['body'] != authenticated_comment['body'] or latest['updated_at'] != authenticated_comment['updated_at']:
+                        raise ValueError('Shared input changed during CLI collection')
+                else:
+                    facts = apply_owner_facts(read_facts(api, value), owner_facts, value)
+                if value['issue'] is not None and value['schema_version'] == 1:
                     facts['operations'] = reconcile_operations(api, value['issue'], policy_entry(value), state, facts)
                 state = resume(state, facts, datetime.now(timezone.utc).isoformat())
-            except (OSError, ValueError, KeyError, TypeError):
+            except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile):
                 # Keep history, but never show an old completed cache as current success.
+                if value['schema_version'] == 2:
+                    state = preserve_negative_failure(state, record, datetime.now(timezone.utc).isoformat()) if 'record' in locals() else evidence_contract().resume(state, {'input_digest': digest(value), 'fetch_error': True}, datetime.now(timezone.utc).isoformat())
                 state.update(status='STOPPED', next_owner=value['actors']['dispatch'],
                              next_action='External facts unavailable; inspect saved evidence and reconnect; no retransmission')
                 atomic_save(args.state, state)
                 print(summary(state), end='')
                 raise
         elif owner_facts is not None:
+            # v2 local files are proposals, never authenticated formal evidence.
+            if value['schema_version'] == 2: facts['fetch_error'] = True
             state = resume(state, facts, owner_facts['observed_at'])
-        elif old is not None:
+        elif old is not None or value['schema_version'] == 2:
             # No current facts were supplied; preserve history, not cached confirmation.
             state = resume(state, facts, datetime.now(timezone.utc).isoformat())
         products = generate(value, config, state, owner_facts)
+        if args.lifecycle:
+            if value['schema_version'] != 1:
+                raise ValueError('Local lifecycle v1 cannot be mixed with formal v2')
+            try:
+                from tools import preparation_lifecycle as lifecycle
+            except ModuleNotFoundError:
+                import preparation_lifecycle as lifecycle
+            report_path = args.output / 'lifecycle-assessment.json'
+            prior = loads(report_path.read_text(encoding='utf-8')) if report_path.exists() else None
+            report = lifecycle.assess(value, loads(args.lifecycle.read_text(encoding='utf-8')), prior)
+            products['lifecycle-assessment.json'] = canonical(report) + '\n'
+            products['lifecycle-summary.md'] = lifecycle.summary(report)
+            products['owner_resume_registration.md'] = (
+                f"Work(root): repository={value['repository']} / Issue={value['issue']} / purpose={value['purpose']} / PR={report['record']['pr']}\n"
+                'Actual PR known -> register owner-resume -> read saved settings.\n'
+                'See 02-event-task-registration-prompt.md in V3.9 kit. No registration is sent here.\n')
+            products['summary.md'] += '\n' + lifecycle.summary(report)
         atomic_save(args.state, state)
         args.output.mkdir(parents=True, exist_ok=True)
         for name, content in products.items():
             (args.output / name).write_text(content, encoding='utf-8')
-        print(summary(state), end='')
+        print(products['summary.md'], end='')
     return 0
 
 

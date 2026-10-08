@@ -5,6 +5,7 @@ Comment PATCH lacks CAS: serialize in existing workflow, double-read before and
 verify after write. Ambiguous writes raise and are never automatically retried.
 """
 from __future__ import annotations
+import zipfile
 import base64
 import copy
 import re
@@ -29,6 +30,8 @@ def validate_owner_facts(record, value):
 
     This is deliberately an input contract, not a private Work API adapter.
     """
+    if value.get('schema_version') == 2:
+        return preparation.evidence_contract().validate_owner_facts(record, value)
     fields = {'schema_version', 'repository', 'issue', 'purpose', 'owner', 'input_version',
               'input_digest', 'start_main_sha', 'observed_at', 'review', 'publication'}
     if not isinstance(record, dict) or set(record) != fields:
@@ -74,6 +77,8 @@ def validate_owner_facts(record, value):
 
 def apply_owner_facts(facts, record, value):
     """Bind explicit owner observations before both CLI and writer resumes."""
+    if value.get('schema_version') == 2:
+        return preparation.evidence_contract().apply_owner_facts(facts, record, value)
     if record is None:
         return facts
     validate_owner_facts(record, value)
@@ -116,8 +121,11 @@ def read_facts(api, value):
     file = api.get('/contents/.github/automation-dashboard.json?ref=' + head)
     if file.get('encoding') != 'base64': raise PreparationConflict('Policy encoding unavailable')
     config = preparation.loads(base64.b64decode(file['content'], validate=False).decode('utf-8'))
-    if type(config.get('schema_version')) is not int or config.get('schema_version') != 1 or config.get('repository') != REPOSITORY:
-        raise PreparationConflict('Main policy schema/repository invalid')
+    try:
+        from tools.automation_dashboard import validate_policy_config
+    except ModuleNotFoundError:
+        from automation_dashboard import validate_policy_config
+    validate_policy_config(config)
     facts['main_sha'] = head
     if value['issue'] is None: return facts
     policy = config['issues'].get(str(value['issue']))
@@ -145,12 +153,19 @@ def read_facts(api, value):
             if parsed is not None:
                 facts['dashboard'] = {'repository': parsed['repository'], 'issue': parsed['issue'],
                     'purpose': parsed['purpose'], 'comment_id': dashboard['id']}
+    if value['schema_version'] == 2:
+        facts['issue_comments'] = [c for c in comments if request_version(c.get('body', '')) is None]
     # No dispatch state is transformed into preparation or Gate PASS.
     return facts
 
 
 def authenticated_request(comment, issue, policy):
     body = comment.get('body', '')
+    version = request_version(body)
+    if version == 2:
+        return authenticated_request_v2(comment, issue, policy)
+    if policy.get('preparation_contract') == 2 and version == 1:
+        raise PreparationConflict('Policy requires v2; explicit input migration required')
     record = block(body, preparation.REQUEST_START, preparation.REQUEST_END)
     if record is None: return None
     if not author_matches(comment.get('user'), policy['owner']):
@@ -180,6 +195,8 @@ def authenticated_request(comment, issue, policy):
 
 
 def snapshot(body):
+    if 'langbench-preparation-snapshot:v2' in body:
+        return snapshot_v2(body)
     value = block(body, preparation.SNAPSHOT_START, preparation.SNAPSHOT_END)
     if value is None: return None
     fields = {'schema_version', 'kind', 'comment_id', 'input_version', 'input_digest', 'state', 'source_digest'}
@@ -233,11 +250,11 @@ def replace_snapshot(body, content):
         if body.count(VIEW_START) != 1 or body.count(VIEW_END) != 1 or body.index(VIEW_END) <= body.index(VIEW_START):
             raise PreparationConflict('Malformed preparation view region')
         start = body.index(VIEW_START); end = body.index(VIEW_END) + len(VIEW_END)
-        block(body[start:end], preparation.SNAPSHOT_START, preparation.SNAPSHOT_END)
+        snapshot(body[start:end])
         return body[:start] + content + body[end:]
-    if preparation.SNAPSHOT_START in body:
-        block(body, preparation.SNAPSHOT_START, preparation.SNAPSHOT_END)
-        start = body.index(preparation.SNAPSHOT_START)
+    if 'langbench-preparation-snapshot:' in body:
+        snapshot(body)
+        start = body.index('<!-- langbench-preparation-snapshot:')
         end = body.index(preparation.SNAPSHOT_END) + len(preparation.SNAPSHOT_END)
         return body[:start] + content + body[end:]
     return body + '\n\n' + content
@@ -259,17 +276,24 @@ def authenticate_comment(comment, issue, policy, expected_id=None):
     if record is None:
         raise PreparationConflict('Preparation request missing from same comment')
     saved = snapshot(comment['body'])
-    if saved is not None and saved['comment_id'] != comment['id']:
-        raise PreparationConflict('Snapshot comment identity mismatch')
+    if saved is not None:
+        if saved['comment_id'] != comment['id']:
+            raise PreparationConflict('Snapshot comment identity mismatch')
+        if saved['schema_version'] != record['schema_version'] and not (
+                saved['schema_version'] == 1 and record['schema_version'] == 2
+                and saved['state']['input'] in record['input_history']):
+            raise PreparationConflict('Mixed snapshot/request contract without explicit migration')
     return record
 
 
 def reconcile_preparation(api, issue, policy, now):
+    if policy.get('preparation_contract') == 2:
+        return reconcile_preparation_v2(api, issue, policy, now)
     if type(issue) is not int or issue <= 0: raise PreparationConflict('Formal Issue ID unavailable')
     comments = api.pages(f'/issues/{issue}/comments')
     if any(not isinstance(c, dict) or not isinstance(c.get('body'), str) for c in comments):
         raise PreparationConflict('Comment list body unavailable; cannot select preparation record')
-    candidates = [c for c in comments if preparation.REQUEST_START in c.get('body', '')]
+    candidates = [c for c in comments if request_version(c.get('body', '')) is not None]
     if not candidates: return 'NO_RECORD'
     if len(candidates) != 1: raise PreparationConflict('Multiple preparation records; do not create another')
     comment = candidates[0]
@@ -342,3 +366,240 @@ def reconcile_preparation(api, issue, policy, now):
     if written['body'] != body or checked['body'] != body or after != second:
         raise PreparationWriteUnknown('Post-write conflict; stored snapshot is not certified; fresh read required')
     return 'UPDATED'
+
+
+def request_version(body):
+    """Never silently ignore unknown/mixed preparation contracts."""
+    versions = re.findall(r'<!-- langbench-preparation-input:([^\s]+)', body)
+    snapshots = re.findall(r'<!-- langbench-preparation-snapshot:([^\s]+)', body)
+    if len(versions) > 1 or len(snapshots) > 1 or any(v not in {'v1', 'v2'} for v in versions + snapshots):
+        raise PreparationConflict('Unknown/mixed preparation marker versions')
+    if not versions:
+        if preparation.REQUEST_END in body: raise PreparationConflict('Preparation end without start')
+        return None
+    return int(versions[0][1:])
+
+
+def authenticated_request_v2(comment, issue, policy):
+    contract = preparation.evidence_contract()
+    if type(policy.get('preparation_contract')) is not int or policy['preparation_contract'] != 2:
+        raise PreparationConflict('Reader/policy does not support v2 input')
+    if not author_matches(comment.get('user'), policy['owner']):
+        raise PreparationConflict('Preparation record author is not formal owner')
+    record = block(comment['body'], contract.REQUEST_START, preparation.REQUEST_END)
+    fields = {'schema_version', 'kind', 'repository', 'issue', 'purpose', 'owner', 'input_version',
+              'input_digest', 'input', 'input_history', 'owner_facts', 'operations', 'legacy_operations'}
+    contract.fields(record, fields, 'v2 request')
+    value = preparation.validate_input(record['input'])
+    if (type(record['schema_version']) is not int or record['schema_version'] != 2 or value['schema_version'] != 2
+            or record['kind'] != 'startup_preparation_input' or record['issue'] != issue
+            or type(record['issue']) is not int or value['issue'] != issue
+            or any(record[k] != value[k] or type(record[k]) is not type(value[k])
+                   for k in ('repository', 'purpose', 'owner', 'input_version'))
+            or record['input_digest'] != preparation.digest(value) or contract.policy_entry(value) != policy):
+        raise PreparationConflict('v2 author/policy/scope/input binding failed')
+    candidate = contract.new_state(value)
+    candidate['input_history'] = copy.deepcopy(record['input_history'])
+    candidate['operations'] = copy.deepcopy(record['operations'])
+    candidate['legacy']['input_history'] = [contract.legacy_input(v) if v['schema_version'] == 2 else v for v in record['input_history']]
+    candidate['legacy']['operations'] = copy.deepcopy(record['legacy_operations'])
+    contract.validate_state(candidate)
+    if any(o['status'] not in {'NOT_ATTEMPTED', 'ATTEMPTING', 'UNKNOWN'} or o['external_id'] is not None
+           for o in record['operations'].values()) or any(o['status'] != 'UNKNOWN' or o['external_id'] is not None
+           for o in record['legacy_operations'].values()):
+        raise PreparationConflict('Owner intents cannot claim operation success without readback')
+    if record['owner_facts'] is not None: contract.validate_owner_facts(record['owner_facts'], value)
+    return record
+
+
+def snapshot_v2(body):
+    contract = preparation.evidence_contract()
+    if body.count('<!-- langbench-preparation-snapshot:') != 1:
+        raise PreparationConflict('Mixed snapshot versions')
+    saved = block(body, contract.SNAPSHOT_START, preparation.SNAPSHOT_END)
+    contract.fields(saved, {'schema_version', 'kind', 'comment_id', 'input_version', 'input_digest', 'state', 'source_digest'}, 'v2 snapshot')
+    if (type(saved['schema_version']) is not int or saved['schema_version'] != 2
+            or saved['kind'] != 'startup_preparation_snapshot' or not contract.positive(saved['comment_id'])
+            or not isinstance(saved['source_digest'], str) or not re.fullmatch('[a-f0-9]{64}', saved['source_digest'])):
+        raise PreparationConflict('Invalid snapshot identity/version')
+    state = contract.validate_state(saved['state'])
+    if saved['input_version'] != state['input']['input_version'] or saved['input_digest'] != state['input_digest']:
+        raise PreparationConflict('Mixed snapshot input binding')
+    return saved
+
+
+def state_for_request(record, prior):
+    """Explicit migration uses the immutable input prefix; never copy cached PASS."""
+    contract = preparation.evidence_contract()
+    value = record['input']
+    if prior:
+        state = prior['state']
+        prefix = state['input_history'] + ([] if value == state['input'] else [state['input']])
+        if record['input_history'][:len(prefix)] != prefix or (value == state['input'] and record['input_history'] != prefix):
+            raise PreparationConflict('Input transition history changed')
+        for intermediate in record['input_history'][len(prefix):] + [value]:
+            state = preparation.rebase(state, intermediate)
+        if state['input_history'] != record['input_history']: raise PreparationConflict('Input migration prefix differs')
+    else:
+        state = contract.new_state(value)
+        state['input_history'] = copy.deepcopy(record['input_history'])
+        state['legacy']['input_history'] = [contract.legacy_input(v) if v['schema_version'] == 2 else v for v in record['input_history']]
+    out = copy.deepcopy(state)
+    for field, target in (('operations', out['operations']), ('legacy_operations', out['legacy']['operations'])):
+        requested = record[field]
+        if any(o['status'] in {'UNKNOWN', 'ATTEMPTING'} and k not in requested for k, o in target.items()):
+            raise PreparationConflict('Unresolved ledger was removed')
+        for key, operation in requested.items():
+            existing = target.get(key)
+            if existing and existing['input_digest'] != operation['input_digest']:
+                raise PreparationConflict('Operation binding changed without authenticated reconciliation')
+            if existing is None: target[key] = copy.deepcopy(operation)
+    return contract.validate_state(out)
+
+
+def select_preparation(comments, issue, policy):
+    if any(not isinstance(c, dict) or not isinstance(c.get('body'), str) for c in comments):
+        raise PreparationConflict('Comment bodies unavailable')
+    candidates = [c for c in comments if request_version(c['body']) is not None]
+    if len(candidates) != 1: raise PreparationConflict('Exactly one current formal preparation record required')
+    comment = candidates[0]
+    record = authenticate_comment(comment, issue, policy)
+    if record['schema_version'] != 2: raise PreparationConflict('Explicit v2 migration required')
+    return comment, record, snapshot(comment['body'])
+
+
+def authenticated_cli_record(api, value, local_owner, local_state):
+    """Formal REST comment identity, trusted main policy, exact local proposal.
+
+    Saved local state contributes only prohibitions, never positive authority.
+    """
+    contract = preparation.evidence_contract()
+    head = api.get('/git/ref/heads/main')['object']['sha']
+    if not preparation.sha(head): raise PreparationConflict('Main SHA unavailable')
+    file = api.get('/contents/.github/automation-dashboard.json?ref=' + head)
+    if file.get('encoding') != 'base64': raise PreparationConflict('Policy encoding unavailable')
+    config = preparation.loads(base64.b64decode(file['content']).decode('utf-8'))
+    try:
+        from tools.automation_dashboard import validate_policy_config
+    except ModuleNotFoundError:
+        from automation_dashboard import validate_policy_config
+    validate_policy_config(config)
+    policy = config['issues'].get(str(value['issue']))
+    if policy != preparation.policy_entry(value): raise PreparationConflict('Current main policy binding mismatch')
+    issue = api.get(f'/issues/{value["issue"]}')
+    if (issue.get('number') != value['issue'] or 'pull_request' in issue
+            or not author_matches(issue.get('user'), value['owner'])
+            or not re.search(r'(?m)^purpose:\s*' + re.escape(value['purpose']) + r'\s*$', issue.get('body', ''))):
+        raise PreparationConflict('Formal Issue identity/purpose mismatch')
+    comment, record, prior = select_preparation(api.pages(f'/issues/{value["issue"]}/comments'), value['issue'], policy)
+    if record['input'] != value or (local_owner is not None and local_owner != record['owner_facts']):
+        raise PreparationConflict('Local input/owner facts differ from authenticated shared input')
+    state = state_for_request(record, prior)
+    if local_state['input_history'] != state['input_history']:
+        raise PreparationConflict('Local/shared input history mismatch')
+    for role, watermark in local_state['owner_watermarks'].items():
+        bound = next((v for v in [value] + local_state['input_history'] if preparation.digest(v) == watermark['input_digest']), None)
+        negative = not watermark['record']['available'] if role == 'publication' else not contract.ready(watermark['record'], bound, role, bound['phase'] == 'FINISHED')
+        if not negative and watermark['conflict_at'] is None: continue
+        existing = state['owner_watermarks'].get(role)
+        if existing is None or max(contract.instant(watermark['record']['observed_at']), contract.instant(watermark['conflict_at'] or watermark['record']['observed_at'])) >= contract.instant(existing['record']['observed_at']):
+            state['owner_watermarks'][role] = copy.deepcopy(watermark)
+    for target, source in ((state['operations'], local_state['operations']), (state['legacy']['operations'], local_state['legacy']['operations'])):
+        for key, operation in source.items():
+            if operation['status'] in {'UNKNOWN', 'ATTEMPTING'}:
+                if key in target and target[key]['input_digest'] != operation['input_digest']:
+                    raise PreparationConflict('Local unresolved operation binding mismatch')
+                target[key] = copy.deepcopy(operation)
+    contract.validate_state(state)
+    return record, state, comment
+
+
+def current_preparation_facts(api, value, record, state=None):
+    """Fresh public facts plus authenticated owner attestation; no private API."""
+    facts = apply_owner_facts(read_facts(api, value), record['owner_facts'], value)
+    if state is not None:
+        legacy = state['legacy']
+        legacy_facts = {**facts, 'input_digest': legacy['input_digest']}
+        facts['legacy_operations'] = reconcile_operations(api, value['issue'], preparation.policy_entry(legacy['input']), legacy, legacy_facts)
+    execution = (record['owner_facts'] or {}).get('execution')
+    if execution is not None:
+        try:
+            from tools import work_owner_resume as resume
+        except ModuleNotFoundError:
+            import work_owner_resume as resume
+        facts['resume_facts'] = resume.read_facts(api, execution)
+        facts['resume_facts']['issue_comments'] = [c for c in facts['resume_facts']['issue_comments'] if request_version(c.get('body', '')) is None]
+    return facts
+
+
+def preserve_negative_failure(state, record, now):
+    """No API success: retain only bound negative role observations, fail closed."""
+    facts = {'input_digest': state['input_digest'], 'fetch_error': True}
+    facts = apply_owner_facts(facts, record['owner_facts'], state['input'])
+    return preparation.resume(state, facts, now)
+
+
+def reconcile_preparation_v2(api, issue, policy, now):
+    contract = preparation.evidence_contract()
+    comments = api.pages(f'/issues/{issue}/comments')
+    comment, record, prior = select_preparation(comments, issue, policy)
+    state = state_for_request(record, prior)
+    value = record['input']
+    failure = False
+    try:
+        first = current_preparation_facts(api, value, record, state)
+        second = current_preparation_facts(api, value, record, state)
+        if first != second: raise PreparationConflict('Concurrent public fact change')
+        updated = preparation.resume(state, second, now)
+    except (OSError, KeyError, TypeError, ValueError, zipfile.BadZipFile):
+        # A safe negative snapshot can still be persisted if the same owner
+        # comment can be authenticated; no positive evidence is certified.
+        updated = preserve_negative_failure(state, record, now)
+        failure = True
+        second = None
+    latest = api.get(f'/issues/comments/{comment["id"]}')
+    authenticate_comment(latest, issue, policy, comment['id'])
+    if latest['body'] != comment['body'] or latest['updated_at'] != comment['updated_at']:
+        raise PreparationConflict('Concurrent comment edit; no write')
+    updated['shared_persistence'] = True
+    saved = dict(schema_version=2, kind='startup_preparation_snapshot', comment_id=comment['id'],
+                 input_version=value['input_version'], input_digest=preparation.digest(value),
+                 state=updated, source_digest=preparation.digest(contract.semantic(record)))
+    if prior == saved:
+        if failure: raise PreparationConflict('Public facts unavailable; retained negative history')
+        return 'NO_OP'
+    content = (VIEW_START + '\n## 段階別準備の現在要約\n\n'
+               + '\n'.join('    ' + line for line in preparation.summary(updated).splitlines())
+               + '\n\n' + contract.SNAPSHOT_START + preparation.canonical(saved)
+               + preparation.SNAPSHOT_END + '\n' + VIEW_END)
+    body = replace_snapshot(latest['body'], content)
+    if len(body.encode('utf-8')) > 60000: raise PreparationConflict('Comment exceeds safe bound')
+    try:
+        written = api.request(api.root + f'/issues/comments/{comment["id"]}', 'PATCH', {'body': body})
+        checked = api.get(f'/issues/comments/{comment["id"]}')
+        authenticate_comment(written, issue, policy, comment['id'])
+        authenticate_comment(checked, issue, policy, comment['id'])
+        if written['body'] != body or checked['body'] != body:
+            raise PreparationConflict('Post-write comment conflict')
+        if not failure and current_preparation_facts(api, value, record, state) != second:
+            raise PreparationConflict('Post-write public facts changed')
+    except Exception as exc:
+        raise PreparationWriteUnknown('Write result UNKNOWN; reconcile same comment, never resend registration') from exc
+    if failure: raise PreparationConflict('Public facts unavailable; negative history persisted; no success')
+    return 'UPDATED'
+
+
+def collect_preparation_gate(api, issue, policy):
+    """Every Gate evaluation recomputes current phase evidence, never cached PASS."""
+    if 'preparation_contract' not in policy: return None
+    if type(policy['preparation_contract']) is not int or policy['preparation_contract'] != 2:
+        raise PreparationConflict('Unsupported required preparation reader version')
+    comment, record, prior = select_preparation(api.pages(f'/issues/{issue}/comments'), issue, policy)
+    state = state_for_request(record, prior)
+    facts = current_preparation_facts(api, record['input'], record, state)
+    updated = preparation.resume(state, facts, (record['owner_facts'] or {}).get('observed_at') or comment['updated_at'])
+    return {'contract': 2, 'input_digest': updated['input_digest'], 'pr': updated['input']['pr'],
+            'head_sha': updated['input']['head_sha'], 'phase': updated['input']['phase'],
+            'status': updated['status'], 'missing': updated['phase_evidence']['missing'],
+            'next_owner': updated['next_owner'], 'next_action': updated['next_action'],
+            'i01_live': updated['phase_evidence']['i01_live']}

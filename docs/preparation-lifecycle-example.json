@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "input_digest": "4d27d07c6ce43e1def9ba855c520969d75e00e5c291db666d8e0648a04564fad",
+  "phase": "PRE_IMPLEMENTATION",
+  "pr": null,
+  "observed_at": "2026-10-08T03:00:00Z",
+  "confirmed_by": "Work(root)",
+  "review": {
+    "status": "NOT_ATTEMPTED",
+    "id": null,
+    "enabled": null,
+    "repository": "tetsujisugimori-coder/LangBench-Live",
+    "issue": 88,
+    "purpose": "automation-startup-preparation",
+    "pr": null,
+    "role": "review",
+    "trigger": null,
+    "condition": null,
+    "prompt_digest": null,
+    "settings_verified": false,
+    "event_verified": false,
+    "evidence_ref": null
+  },
+  "owner_resume": {
+    "status": "NOT_ATTEMPTED",
+    "id": null,
+    "enabled": null,
+    "repository": "tetsujisugimori-coder/LangBench-Live",
+    "issue": 88,
+    "purpose": "automation-startup-preparation",
+    "pr": null,
+    "role": "owner_resume",
+    "trigger": null,
+    "condition": null,
+    "prompt_digest": null,
+    "settings_verified": false,
+    "event_verified": false,
+    "evidence_ref": null
+  },
+  "execution": {
+    "stop_ref": null,
+    "sync_ref": null,
+    "receipt_at": null,
+    "handoff_ref": null,
+    "work_run": null,
+    "artifact_ref": null,
+    "event_ref": null,
+    "claim_at": null,
+    "action_ref": null
+  }
+}

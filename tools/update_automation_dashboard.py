@@ -45,8 +45,10 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class GitHub:
-    def __init__(self, token):
+    def __init__(self, token=None, sync_artifact_zip=None):
+        self.sync_artifact_zip = Path(sync_artifact_zip) if sync_artifact_zip is not None else None
         self.token = token
+        self.sync_artifacts = {}
         self.root = f"/repos/{REPOSITORY}"
 
     def request(self, path, method="GET", data=None, raw=False):
@@ -54,9 +56,11 @@ class GitHub:
             raise ValueError("Unexpected API destination")
         if method != "GET" and not (method in {"POST", "PATCH"} and "/issues/" in path and "comments" in path):
             raise ValueError("Only Dashboard comment writes are supported")
+        if method != "GET" and not self.token:
+            raise ValueError("GitHub comment writes require the configured token")
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request("https://api.github.com" + path, data=body, method=method,
-                                     headers={"Authorization": f"Bearer {self.token}", "Accept": "application/vnd.github+json",
+                                     headers={**({"Authorization": f"Bearer {self.token}"} if self.token else {}), "Accept": "application/vnd.github+json",
                                               "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json"})
         with urllib.request.build_opener(SafeRedirect()).open(req, timeout=30) as response:
             value = response.read(2_000_001)
@@ -88,14 +92,35 @@ class GitHub:
         if len(items) != 1:
             return None
         artifact = items[0]
-        data = self.request(self.root + f'/actions/artifacts/{artifact["id"]}/zip', raw=True)
+        if self.sync_artifact_zip is None:
+            data = self.request(self.root + f'/actions/artifacts/{artifact["id"]}/zip', raw=True)
+        else:
+            # Supported plugin/UI download supplies bytes only. Identity and
+            # freshness still come from current API facts, never the local file.
+            ident = artifact.get('id')
+            if type(ident) is not int or ident <= 0:
+                raise ValueError('Current artifact ID unavailable')
+            metadata = self.get(f'/actions/artifacts/{ident}')
+            if (metadata.get('id') != ident or type(metadata.get('id')) is not int
+                    or metadata.get('name') != name or metadata.get('expired') is not False
+                    or (metadata.get('workflow_run') or {}).get('id') != run['id']
+                    or metadata.get('digest') != artifact.get('digest')):
+                raise ValueError('Provided ZIP current artifact/run/attempt identity mismatch')
+            with self.sync_artifact_zip.open('rb') as handle:
+                data = handle.read(2_000_001)
+            if len(data) > 2_000_000:
+                raise ValueError('Provided ZIP exceeds safe bound')
         if artifact.get("digest") != "sha256:" + hashlib.sha256(data).hexdigest():
             raise ValueError("Sync artifact digest mismatch or missing")
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             entries = archive.infolist()
-            if len(entries) != 1 or entries[0].filename != "sync-report.json" or entries[0].file_size > 65536:
+            if len(entries) != 1 or entries[0].filename != "sync-report.json" or entries[0].file_size > 65536 or entries[0].flag_bits & 1:
                 raise ValueError("Unexpected sync artifact layout")
-            return json.loads(archive.read(entries[0]).decode("utf-8-sig"))
+            report = json.loads(archive.read(entries[0]).decode("utf-8-sig"))
+        self.sync_artifacts[str(run['id'])] = {
+            'artifact_id': artifact['id'], 'name': name, 'digest': artifact['digest'], 'zip_verified': True,
+            'evidence_url': f'https://github.com/{REPOSITORY}/actions/runs/{run["id"]}/artifacts/{artifact["id"]}'}
+        return report
 
 
 def references(body, issue):
@@ -117,7 +142,7 @@ def select_dashboard(comments, policy):
     return candidates[0] if candidates else None
 
 
-def collect(api, issue, policy, previous):
+def collect(api, issue, policy, previous, include_preparation=True):
     comments = api.pages(f"/issues/{issue}/comments")
     dashboard = select_dashboard(comments, policy)
     comments = [c for c in comments if not dashboard or c["id"] != dashboard["id"]]
@@ -150,6 +175,12 @@ def collect(api, issue, policy, previous):
              "ci_runs": [], "sync_runs": [], "jobs": {}, "sync_reports": {},
              "workflow_ids": {}, "condition_runs": {}, "condition_artifacts": {},
              "result_pr": None, "dashboard_comment_id": dashboard["id"] if dashboard else None}
+    if include_preparation and 'preparation_contract' in policy:
+        try:
+            from tools.preparation_github import collect_preparation_gate
+        except ModuleNotFoundError:
+            from preparation_github import collect_preparation_gate
+        facts['preparation_gate'] = collect_preparation_gate(api, issue, policy)
     if not pull:
         return dashboard, facts
     number = pull["number"]
@@ -277,13 +308,24 @@ def main():
     parser.add_argument("--config", type=Path, default=Path(".github/automation-dashboard.json"))
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding="utf-8"))
-    if type(config.get("schema_version")) is not int or config.get("schema_version") != 1 or config.get("repository") != REPOSITORY or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
+    try:
+        from tools.automation_dashboard import validate_policy_config
+    except ModuleNotFoundError:
+        from automation_dashboard import validate_policy_config
+    validate_policy_config(config)
+    if os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
         raise ValueError("Unexpected repository/config schema")
     api = GitHub(os.environ["GH_TOKEN"])
     failed = False
     for key, policy in config["issues"].items():
         issue = int(key)
         try:
+            if 'preparation_contract' in policy:
+                try:
+                    from tools.preparation_github import reconcile_preparation
+                except ModuleNotFoundError:
+                    from preparation_github import reconcile_preparation
+                print(f"Issue #{issue} preparation: {reconcile_preparation(api, issue, policy, datetime.now(timezone.utc).isoformat())}")
             print(f"Issue #{issue}: {reconcile(api, issue, policy, datetime.now(timezone.utc).isoformat())}")
         except (ValueError, KeyError, TypeError, urllib.error.URLError, zipfile.BadZipFile) as exc:
             failed = True
@@ -294,6 +336,8 @@ def main():
                 safe_stop(api, issue, policy)
             except (ValueError, KeyError, TypeError, urllib.error.URLError):
                 print(f"::error::Issue #{issue}: Dashboard write unavailable; no success certified")
+        if 'preparation_contract' in policy:
+            continue
         # Separate shared preparation transport: a preparation failure cannot
         # mutate Gate evidence or manufacture a Work result/dispatch receipt.
         try:

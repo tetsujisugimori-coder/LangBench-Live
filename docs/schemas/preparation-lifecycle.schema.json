@@ -1,0 +1,447 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local preparation lifecycle evidence v1; not a formal Gate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "confirmed_by",
+    "execution",
+    "input_digest",
+    "observed_at",
+    "owner_resume",
+    "phase",
+    "pr",
+    "review",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "phase": {
+      "enum": [
+        "PRE_IMPLEMENTATION",
+        "PRE_MERGE",
+        "POST_MERGE",
+        "FINISHED"
+      ]
+    },
+    "pr": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "confirmed_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "condition",
+        "enabled",
+        "event_verified",
+        "evidence_ref",
+        "id",
+        "issue",
+        "pr",
+        "prompt_digest",
+        "purpose",
+        "repository",
+        "role",
+        "settings_verified",
+        "status",
+        "trigger"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ATTEMPTING",
+            "DISABLED_CONFIRMED",
+            "FAILED",
+            "NOT_ATTEMPTED",
+            "REGISTERED",
+            "SETTINGS_CONFIRMED",
+            "UNKNOWN"
+          ]
+        },
+        "purpose": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repository": {
+          "const": "tetsujisugimori-coder/LangBench-Live"
+        },
+        "prompt_digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settings_verified": {
+          "type": "boolean"
+        },
+        "role": {
+          "enum": [
+            "review",
+            "owner_resume"
+          ]
+        },
+        "issue": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pr": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_verified": {
+          "type": "boolean"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "owner_resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "condition",
+        "enabled",
+        "event_verified",
+        "evidence_ref",
+        "id",
+        "issue",
+        "pr",
+        "prompt_digest",
+        "purpose",
+        "repository",
+        "role",
+        "settings_verified",
+        "status",
+        "trigger"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ATTEMPTING",
+            "DISABLED_CONFIRMED",
+            "FAILED",
+            "NOT_ATTEMPTED",
+            "REGISTERED",
+            "SETTINGS_CONFIRMED",
+            "UNKNOWN"
+          ]
+        },
+        "purpose": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "trigger": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repository": {
+          "const": "tetsujisugimori-coder/LangBench-Live"
+        },
+        "prompt_digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settings_verified": {
+          "type": "boolean"
+        },
+        "role": {
+          "enum": [
+            "review",
+            "owner_resume"
+          ]
+        },
+        "issue": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pr": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "condition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_verified": {
+          "type": "boolean"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_ref",
+        "artifact_ref",
+        "claim_at",
+        "event_ref",
+        "handoff_ref",
+        "receipt_at",
+        "stop_ref",
+        "sync_ref",
+        "work_run"
+      ],
+      "properties": {
+        "stop_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sync_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receipt_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "handoff_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "work_run": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "claim_at": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "action_ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
