@@ -291,6 +291,30 @@ class MergeObservation(unittest.TestCase):
                 saved = json.loads((folder / 'state.json').read_text(encoding='utf-8'))
                 self.assertEqual(saved['evidence_history']['action']['observed_at'], T3)
 
+    def test_mixed_stale_and_newer_negative_fields_update_before_stop(self):
+        value, facts = fixture()
+        accepted = resume.observe(value, facts)
+        mixed = copy.deepcopy(value)
+        mixed['event']['observed_at'] = '2026-10-08T00:00:30Z'
+        mixed['next_action'].update(status='FAILED', observed_at='2026-10-08T00:04:00Z')
+        stopped = resume.observe(mixed, facts, accepted)
+        self.assertEqual(stopped['status'], 'STOPPED')
+        self.assertEqual(stopped['evidence_history']['action']['status'], 'FAILED')
+        self.assertEqual(resume.observe(value, facts, stopped)['status'], 'STOPPED')
+
+        value, facts = fixture()
+        accepted = resume.observe(value, facts)
+        mixed = copy.deepcopy(value)
+        mixed['claim'].update(status='FAILED', observed_at=T2)
+        mixed['receipt']['observed_at'] = T2
+        mixed['next_action']['observed_at'] = T2
+        facts['issue_comments'][1]['body'] = resume.CLAIM_START + json.dumps(mixed['claim']) + resume.CLAIM_END
+        stopped = resume.observe(mixed, facts, accepted)
+        self.assertEqual(stopped['status'], 'STOPPED')
+        self.assertEqual(stopped['evidence_history']['claim']['status'], 'FAILED')
+        replay, replay_facts = fixture()
+        self.assertEqual(resume.observe(replay, replay_facts, stopped)['status'], 'STOPPED')
+
     def test_read_adapter_reuses_current_policy_and_sync(self):
         value, facts = fixture()
         class API:
