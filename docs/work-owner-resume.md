@@ -99,6 +99,10 @@ handoffはschema_version=1の独立した観測入力。正確なトップレベ
 dedup_key=`<repository>:issue<番号>:<full_target_sha>:owner_resume:work-owner-resume-i01`。
 時刻はtimezone付きISO8601、証拠参照はHTTPS。receiptはWork開始以後、実次操作はreceiptと
 正式同期run完了以後でなければ認めない。古い観測による新しい証拠の巻戻しは拒否する。
+保存stateの`evidence_history`は対象・担当・共有claimへ束縛された観測の最新時刻と全文を保持し、
+拒否した遅延入力で上書きしない。現在の試行は別に表示する。新しいFAILED/UNKNOWN等の否定も
+履歴に保持するため、古い肯定の再送で成功へ戻せない。同時刻の異なる証拠は競合として保持し、
+より新しい認証観測を要求する。これは証拠履歴であり実次操作やGateの認定ではない。
 Work観測の真実性は正式ownerが実UIで照合する責任を持つ。このCLIはURLの存在だけから
 Work実起動を独立認証した扱いにしない。捏造入力の機械検出や未公開Work APIを約束しない。
 
@@ -125,6 +129,7 @@ Work実起動を独立認証した扱いにしない。捏造入力の機械検�
 
 2026-10-08 I-01: read-only handoff CLI、共有claim重複停止、正式review/merge/main照合、
 既存正式sync artifact検証、Work受領/実次操作/待機再開の観測contractを追加。
+独立レビューR1対応: 拒否観測と証拠履歴を分離し、保存・再読込後の遅延再送と最新否定の保持を回帰確認。
 合成fixtureで対象違い・遅延・二重Work・UNKNOWN回復・同期各状態・artifact不一致・NO_OP・
 次操作欠損を試験。subprocess CLIは既存unittest discovery経由でLinux/Hosted Windowsに載る。
 実機能PRのイベント登録/実受信/実Work開始、merge後の実main live smoke、同期ZIP/保護保持、

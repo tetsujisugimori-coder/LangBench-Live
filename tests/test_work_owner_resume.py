@@ -135,9 +135,13 @@ class MergeObservation(unittest.TestCase):
         for status in ('UNKNOWN', 'FAILED', 'CANCELLED'):
             value, facts = fixture()
             value['claim']['status'] = status
+            facts['issue_comments'][1]['body'] = resume.CLAIM_START + json.dumps(value['claim']) + resume.CLAIM_END
             old = resume.observe(value, facts)
             self.assertEqual(old['status'], 'STOPPED')
             value['claim']['status'] = 'RUNNING'
+            value['claim']['observed_at'] = T2
+            value['receipt']['observed_at'] = T2
+            facts['issue_comments'][1]['body'] = resume.CLAIM_START + json.dumps(value['claim']) + resume.CLAIM_END
             self.assertEqual(resume.observe(value, facts, old)['status'], 'OBSERVED')
         value, facts = fixture()
         value['receipt'] = None  # execution ended without receipt, including timeout
@@ -202,6 +206,43 @@ class MergeObservation(unittest.TestCase):
                 repeated = resume.observe(late, facts, stopped)
                 self.assertEqual(repeated['status'], 'STOPPED')
                 self.assertEqual(repeated[output_field], accepted[output_field])
+
+    def test_saved_late_evidence_cannot_be_promoted_on_repeat(self):
+        for field in ('event', 'receipt', 'next_action'):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                value, facts = fixture()
+                value[field]['observed_at'] = T3
+                if field == 'receipt': value['next_action']['observed_at'] = T3
+                accepted = resume.observe(value, facts)
+                self.assertEqual(accepted['status'], 'OBSERVED')
+                value[field]['observed_at'] = '2026-10-08T00:02:30Z'
+                rejected = resume.observe(value, facts, accepted)
+                self.assertEqual(rejected['status'], 'STOPPED')
+                history_field = 'action' if field == 'next_action' else field
+                self.assertEqual(rejected['evidence_history'][history_field]['observed_at'], T3)
+                path = Path(directory) / 'state.json'
+                resume.save_observation(path, rejected)
+                restored = resume.preparation.loads(path.read_text(encoding='utf-8'))
+                self.assertEqual(resume.observe(value, facts, restored)['status'], 'STOPPED')
+
+    def test_newer_negative_and_equal_time_conflict_survive_reobservation(self):
+        value, facts = fixture()
+        accepted = resume.observe(value, facts)
+        negative = copy.deepcopy(value)
+        negative['next_action'].update(status='FAILED', observed_at='2026-10-08T00:04:00Z')
+        stopped = resume.observe(negative, facts, accepted)
+        self.assertEqual(stopped['status'], 'STOPPED')
+        self.assertEqual(stopped['evidence_history']['action']['status'], 'FAILED')
+        for _ in range(2):
+            stopped = resume.observe(value, facts, stopped)
+            self.assertEqual(stopped['status'], 'STOPPED')
+        changed = copy.deepcopy(value)
+        changed['next_action']['status'] = 'FAILED'  # Same-time conflicting observations need fresh proof.
+        conflict = resume.observe(changed, facts, accepted)
+        self.assertEqual(conflict['status'], 'STOPPED')
+        self.assertEqual(resume.observe(value, facts, conflict)['status'], 'STOPPED')
+        value['next_action']['observed_at'] = '2026-10-08T00:05:00Z'
+        self.assertEqual(resume.observe(value, facts, conflict)['status'], 'OBSERVED')
 
     def test_read_adapter_reuses_current_policy_and_sync(self):
         value, facts = fixture()
@@ -292,6 +333,14 @@ class MergeObservation(unittest.TestCase):
             repeated = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
             self.assertEqual(repeated.returncode, 1)
             self.assertEqual(json.loads((folder / 'state.json').read_text(encoding='utf-8'))['action']['observed_at'], T3)
+            value['next_action']['observed_at'] = '2026-10-08T00:02:30Z'
+            (folder / 'handoff.json').write_text(json.dumps(value), encoding='utf-8')
+            for _ in range(2):
+                late = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')
+                self.assertEqual(late.returncode, 1, late.stderr)
+                saved = json.loads((folder / 'state.json').read_text(encoding='utf-8'))
+                self.assertEqual(saved['status'], 'STOPPED')
+                self.assertEqual(saved['evidence_history']['action']['observed_at'], T3)
             facts['pr']['merged'] = False
             (folder / 'facts.json').write_text(json.dumps(facts), encoding='utf-8')
             failed = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, encoding='utf-8')

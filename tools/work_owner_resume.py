@@ -208,6 +208,14 @@ def observe(value, facts, previous=None):
         if (not isinstance(previous, dict) or previous.get('kind') != 'work_owner_resume_observation'
                 or previous.get('schema_version') != 1 or previous.get('dedup_key') != key(value)):
             raise ValueError('Previous observation scope/schema mismatch')
+    history = copy.deepcopy(previous.get('evidence_history', {}) if previous else {})
+    conflicts = copy.deepcopy(previous.get('evidence_conflicts', {}) if previous else {})
+    if not isinstance(history, dict) or not isinstance(conflicts, dict):
+        raise ValueError('Invalid saved evidence history')
+    for record in history.values():
+        evidence(record)
+    for observed_at in conflicts.values():
+        instant(observed_at)
     out = {'schema_version': 1, 'kind': 'work_owner_resume_observation', 'dedup_key': key(value),
            'stage': '実装済み', 'status': 'STOPPED', 'reason': '', 'next_owner': 'Work(root)',
            'next_action': 'Inspect current facts; no dispatch', 'event': copy.deepcopy(value['event']),
@@ -217,6 +225,7 @@ def observe(value, facts, previous=None):
            'waiting_record': copy.deepcopy(value['waiting_record']), 'owner': copy.deepcopy(value['owner']),
            'claimed_run_id': previous.get('claimed_run_id', previous['work']['run_id']) if previous else value['work']['run_id'],
            'claimed_started_at': previous.get('claimed_started_at', previous['work']['started_at']) if previous else value['work']['started_at'],
+           'evidence_history': history, 'evidence_conflicts': conflicts,
            'input_digest': preparation.digest(value), 'facts_digest': preparation.digest(facts)}
 
     def stop(reason):
@@ -264,19 +273,34 @@ def observe(value, facts, previous=None):
     if previous:
         if out['claimed_started_at'] != value['work']['started_at']:
             return stop('Work start identity changed')
-        for field in ('event', 'receipt', 'action'):
-            current = value['next_action'] if field == 'action' else value[field]
-            prior = previous.get(field)
-            if prior and current and instant(current['observed_at']) < instant(prior['observed_at']):
-                # Keep the last accepted evidence in the persisted observation.
-                # Otherwise the rejected late value becomes the next comparison
-                # baseline and an identical retry can incorrectly recover to
-                # OBSERVED.
-                out[field] = copy.deepcopy(prior)
-                return stop('Late observation must not roll back newer Work evidence')
+    observations = {field: value['next_action'] if field == 'action' else value[field]
+                    for field in ('event', 'work', 'claim', 'receipt', 'action', 'recheck')}
+    out['attempted_evidence'] = copy.deepcopy(observations)
+
+    def reject_evidence(reason):
+        # Retain the accepted current-view fields too (Work(root)'s minimal R1
+        # repair), while keeping the rejected attempt separately inspectable.
+        for field, record in history.items():
+            if field in out:
+                out[field] = copy.deepcopy(record)
+        return stop(reason)
+
+    for field, current in observations.items():
+        prior = history.get(field)
+        if current is None:
+            continue
+        observed_at = instant(current['observed_at'])
+        if field in conflicts and observed_at <= instant(conflicts[field]):
+            return reject_evidence('Conflicting evidence requires a newer authenticated observation')
+        if prior:
+            if observed_at < instant(prior['observed_at']):
+                return reject_evidence('Late observation must not roll back newer Work evidence')
+            if observed_at == instant(prior['observed_at']) and current != prior:
+                conflicts[field] = current['observed_at']
+                return reject_evidence('Different Work evidence at the same observation time')
     claim = value['claim']
-    if claim is None or claim['status'] != 'RUNNING':
-        return stop('Single-owner claim missing or non-running; no next operation')
+    if claim is None:
+        return stop('Single-owner claim missing; no next operation')
     if instant(claim['observed_at']) < instant(value['work']['started_at']):
         return stop('Shared claim predates this Work start')
     # Re-read all shared claims, not a local file lock. Comment POST has no CAS:
@@ -300,6 +324,20 @@ def observe(value, facts, previous=None):
         return stop('Shared claim could not be authenticated')
     if value['receipt'] is None:
         return stop('Work receipt of the exact prior waiting record is missing')
+    receipt_time = instant(value['receipt']['observed_at'])
+    action = value['next_action']
+    if (receipt_time < instant(claim['observed_at'])
+            or (action is not None and instant(action['observed_at']) < receipt_time)):
+        return stop('Receipt/next operation predates the owner claim or receipt')
+    # The history contains bound observations, including newer negative results.
+    # A rejected attempt stays in the current view but never lowers this history.
+    # Updating history is not an execution/success certification.
+    for field, current in observations.items():
+        if current is not None:
+            history[field] = copy.deepcopy(current)
+            conflicts.pop(field, None)
+    if claim['status'] != 'RUNNING':
+        return stop('Single-owner claim non-running; no next operation')
     try:
         sync = sync_evidence(facts, value['merge_sha'])
     except (KeyError, TypeError, ValueError):
@@ -322,11 +360,9 @@ def observe(value, facts, previous=None):
         return stop('Verified ZIP identity/digest observation missing')
     out['sync']['artifact'] = copy.deepcopy(artifact)
     out['sync']['report'] = copy.deepcopy(facts['sync_reports'][str(sync['run_id'])])
-    action = value['next_action']
     if action is None or action['status'] != 'EXECUTED':
         return stop('Actual next operation is missing or non-successful; no I-01 live success')
     # Action and receipt observations must belong to this execution and postdate merge/sync.
-    receipt_time = instant(value['receipt']['observed_at'])
     action_time = instant(action['observed_at'])
     run = next((r for r in facts['sync_runs'] if r['id'] == sync['run_id']), None)
     if (receipt_time < instant(claim['observed_at']) or action_time < receipt_time
