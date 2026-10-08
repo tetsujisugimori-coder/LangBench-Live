@@ -182,6 +182,37 @@
       },
       "preparation_contract": 2,
       "resume_protocol": 2
+    },
+    "102": {
+      "purpose": "work-owner-resume-i01-repair",
+      "owner": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_author": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_automation_id": "6ac79f38824c8191be0e9b4b08e1b5f0",
+      "dashboard_comment_id": null,
+      "initial_dispatch": null,
+      "requirements": {
+        "windows_validation": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "artifact_integrity": "NOT_REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED"
+      },
+      "dispatch_owners": {
+        "implementation_task": "Work(root)",
+        "fix_task": "Work(root)",
+        "work_review": "Work(6ac79f38824c8191be0e9b4b08e1b5f0)",
+        "local_main_sync": ".github/workflows/pull-local-main.yml"
+      },
+      "preparation_contract": 2,
+      "resume_protocol": 2
     }
   }
 }

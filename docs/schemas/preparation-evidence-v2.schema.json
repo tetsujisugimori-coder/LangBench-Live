@@ -3,9 +3,14 @@
   "title": "I-01 formal preparation contract v2 (author authentication is external)",
   "oneOf": [{"$ref": "#/$defs/input"},{"$ref": "#/$defs/ownerFacts"},{"$ref": "#/$defs/state"},{"$ref": "#/$defs/request"},{"$ref": "#/$defs/snapshot"}],
   "$defs": {
+    "repairScope": {
+      "if": {"properties": {"purpose": {"const": "work-owner-resume-i01-repair"}},"required": ["purpose"]},
+      "then": {"properties": {"issue": {"const": 102}},"required": ["issue"]}
+    },
     "input": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/repairScope"}],
       "required": [
         "schema_version",
         "repository",
@@ -30,7 +35,7 @@
         "schema_version": {"const": 2},
         "repository": {"const": "tetsujisugimori-coder/LangBench-Live"},
         "issue": {"type": "integer","minimum": 1},
-        "purpose": {"const": "work-owner-resume-i01"},
+        "purpose": {"enum": ["work-owner-resume-i01","work-owner-resume-i01-repair"]},
         "input_version": {"type": "integer","minimum": 1},
         "start_main_sha": {"type": "string","pattern": "^[a-f0-9]{40}$"},
         "specification": {"type": "string","minLength": 1,"maxLength": 10000},
@@ -300,6 +305,7 @@
     "ownerFacts": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/repairScope"}],
       "required": [
         "schema_version",
         "repository",
@@ -322,7 +328,7 @@
         "schema_version": {"const": 2},
         "repository": {"type": "string","minLength": 1},
         "issue": {"type": "integer","minimum": 1},
-        "purpose": {"const": "work-owner-resume-i01"},
+        "purpose": {"enum": ["work-owner-resume-i01","work-owner-resume-i01-repair"]},
         "owner": {"$ref": "#/$defs/formalOwner"},
         "input_version": {"type": "integer","minimum": 1},
         "input_digest": {"type": "string","pattern": "^[a-f0-9]{64}$"},
@@ -550,6 +556,7 @@
     "request": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/repairScope"}],
       "required": [
         "schema_version",
         "kind",
@@ -570,7 +577,7 @@
         "kind": {"const": "startup_preparation_input"},
         "repository": {"type": "string","minLength": 1},
         "issue": {"type": "integer","minimum": 1},
-        "purpose": {"const": "work-owner-resume-i01"},
+        "purpose": {"enum": ["work-owner-resume-i01","work-owner-resume-i01-repair"]},
         "owner": {"$ref": "#/$defs/formalOwner"},
         "input_version": {"type": "integer","minimum": 1},
         "input_digest": {"type": "string","pattern": "^[a-f0-9]{64}$"},
@@ -844,6 +851,7 @@
     "executionV2": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/repairScope"}],
       "required": [
         "schema_version",
         "repository",
@@ -867,7 +875,7 @@
         "schema_version": {"const": 2},
         "repository": {"type": "string","minLength": 1},
         "issue": {"type": "integer","minimum": 1},
-        "purpose": {"const": "work-owner-resume-i01"},
+        "purpose": {"enum": ["work-owner-resume-i01","work-owner-resume-i01-repair"]},
         "pr": {"type": "integer","minimum": 1},
         "reviewed_head_sha": {"type": "string","minLength": 1},
         "merge_sha": {"type": "string","minLength": 1},

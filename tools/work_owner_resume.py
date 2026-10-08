@@ -28,6 +28,7 @@ except ModuleNotFoundError:
     from update_automation_dashboard import GitHub, collect, references
 
 PURPOSE = 'work-owner-resume-i01'
+REPAIR_SCOPE = (102, 'work-owner-resume-i01-repair')
 ACTION = 'owner_resume'
 CLAIM_START = '<!-- langbench-owner-resume-claim:v1\n'
 CLAIM_END = '\nlangbench-owner-resume-claim:end -->'
@@ -86,14 +87,21 @@ def save_observation(path, value):
 
 
 def key(value):
-    return f'{REPOSITORY}:issue{value["issue"]}:{value["target_main_sha"]}:{ACTION}:{PURPOSE}'
+    return f'{REPOSITORY}:issue{value["issue"]}:{value["target_main_sha"]}:{ACTION}:{value["purpose"]}'
+
+
+def supported_scope(value):
+    """Preserve the original contract; opt in only Issue102's explicit v2 repair."""
+    return (value.get('purpose') == PURPOSE
+            or (value.get('schema_version') == 2
+                and (value.get('issue'), value.get('purpose')) == REPAIR_SCOPE))
 
 
 def validate(value):
     if not isinstance(value, dict) or set(value) != (FIELDS | {'authorization'} if value.get('schema_version') == 2 else FIELDS):
         raise ValueError('Unknown/missing handoff fields')
     if (type(value['schema_version']) is not int or value['schema_version'] not in (1, 2)
-            or value['repository'] != REPOSITORY or value['purpose'] != PURPOSE
+            or value['repository'] != REPOSITORY or not supported_scope(value)
             or not positive(value['issue']) or not positive(value['pr'])
             or any(not sha(value[k]) for k in ('reviewed_head_sha', 'merge_sha', 'target_main_sha'))
             or value['merge_sha'] != value['target_main_sha']):
@@ -374,13 +382,13 @@ def observe(value, facts, previous=None):
         return stop('GitHub retrieval failed; cached success is not current evidence')
     try:
         pull, policy, issue = facts['pr'], facts['policy'], facts['issue']
-        if (policy['purpose'] != PURPOSE or policy['owner'] != value['owner']
+        if (policy['purpose'] != value['purpose'] or policy['owner'] != value['owner']
                 or policy['dispatch_owners']['implementation_task'] != 'Work(root)'
                 or policy['dispatch_owners']['fix_task'] != 'Work(root)'
                 or policy['dispatch_owners']['local_main_sync'] != '.github/workflows/pull-local-main.yml'
                 or issue['number'] != value['issue'] or 'pull_request' in issue
                 or not author_matches(issue.get('user'), value['owner'])
-                or re.search(r'(?m)^purpose:\s*`?' + re.escape(PURPOSE) + r'`?\s*$', issue.get('body', '')) is None
+                or re.search(r'(?m)^purpose:\s*`?' + re.escape(value['purpose']) + r'`?\s*$', issue.get('body', '')) is None
                 or pull['number'] != value['pr'] or pull['base']['repo']['full_name'] != REPOSITORY
                 or pull['base']['ref'] != 'main' or pull['merged'] is not True
                 or not author_matches(pull['merged_by'], value['owner'])

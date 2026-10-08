@@ -152,7 +152,10 @@ class PolicyVersionBarrierTests(unittest.TestCase):
         self.assertEqual(result.returncode,1);self.assertIn('Unexpected repository/config schema',result.stderr.decode());self.assertNotIn('PASS',result.stdout.decode())
     def test_new_reader_legacy_policy_and_old_issue_entries_preserved(self):
         current=json.loads((ROOT/'.github/automation-dashboard.json').read_text(encoding='utf-8'))
-        legacy=copy.deepcopy(current);legacy['schema_version']=1;legacy['issues'].pop('100')
+        legacy=copy.deepcopy(current);legacy['schema_version']=1
+        # Reconstruct the legacy-only policy, excluding every v2 opt-in.
+        legacy['issues']={key:entry for key,entry in legacy['issues'].items()
+                          if entry.get('preparation_contract') != 2}
         self.assertIs(validate_policy_config(legacy),legacy);self.assertIs(validate_policy_config(current),current)
         for key in ('80','85','88','91','96'):self.assertEqual(legacy['issues'][key],current['issues'][key])
         invalid=copy.deepcopy(current);invalid['schema_version']=1

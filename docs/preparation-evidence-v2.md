@@ -9,7 +9,8 @@ I-01→I-07→I-03→I-06。Phase2、汎用lease、常設監視、新測定は�
 ## 契約と認証境界
 
 既存 `startup_preparation.py` の入力/保存/生成処理、`preparation_github.py` の正式共有record、
-既存collector/evaluatorへv2を明示接続する。既存 `work_owner_resume.py` はpurposeを拡張せず再利用する。
+既存collector/evaluatorへv2を明示接続する。既存 `work_owner_resume.py` を再利用し、
+Issue102の補修purposeだけをv2へ限定追加する（契約末尾参照）。
 [JSON schema](schemas/preparation-evidence-v2.schema.json) とPythonの意味検証が契約。
 policy top-levelもschema_version=2へ明示移行する。旧main updaterは2をtoken取得前に拒否するため、新条件を無視した旧PASSを生成できない。新readerはlegacy policy=1とpolicy=2を明示読解し、preparation_contract:2はpolicy=2でのみ許可する。Issue80/85/88/91/96のentry/条件/意味は保持する。
 
@@ -161,5 +162,8 @@ writer/CLI/collectorは同一renderと容量検証を使う。詳細Promptを削
 変換しない。確定ledger/input履歴/否定watermarkはsnapshotに残る。同一対象の改版後に
 writerが新inputへ実readbackを束縛した場合、元intentが同owner領域に残る二度目の読取は
 現在watermark/入力履歴/登録ID/対象を照合して解決済みとして扱う。binding検証は維持する。
-Issue100限定resume_protocol=2と自動/手動の識別・副作用境界は
+Issue100およびIssue102の明示補修scopeのresume_protocol=2と自動/手動の識別・副作用境界は
 [i01-resume-contract-v2.md](i01-resume-contract-v2.md)。v1コメントclaimを排他として使用しない。
+Issue102はpurpose=work-owner-resume-i01-repairを保持し、実review IDを持つ候補policyから
+同scopeのinput/owner facts/request/handoffへ接続する。旧100入力へPR103を代入しない。
+登録操作成功と保存条件の完全読戻しを分け、読戻し欠損はREGISTEREDのまま残す。

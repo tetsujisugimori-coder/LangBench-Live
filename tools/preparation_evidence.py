@@ -51,10 +51,14 @@ def legacy_input(value):
 
 
 def validate_input(value):
+    try:
+        from tools import work_owner_resume as resume
+    except ModuleNotFoundError:
+        import work_owner_resume as resume
     fields(value, INPUT_FIELDS, 'v2 input')
     p.validate_input(legacy_input(value))
     if (type(value['schema_version']) is not int or value['schema_version'] != 2
-            or value['purpose'] != 'work-owner-resume-i01' or not positive(value['issue'])
+            or not resume.supported_scope(value) or not positive(value['issue'])
             or value['phase'] not in PHASES):
         raise ValueError('Invalid v2 contract scope/phase')
     if value['phase'] == 'PRE_IMPLEMENTATION':
@@ -87,7 +91,7 @@ def validate_input(value):
 def policy_entry(value):
     validate_input(value)
     entry = {**p.policy_entry(legacy_input(value)), 'preparation_contract': 2}
-    if value['issue'] == 100:
+    if value['issue'] == 100 or (value['issue'], value['purpose']) == (102, 'work-owner-resume-i01-repair'):
         entry['resume_protocol'] = 2
     return entry
 

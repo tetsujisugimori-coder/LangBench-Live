@@ -156,10 +156,24 @@ contents-write権限の実証にならず、資格確認用の試験POSTは行�
 引渡す。秘密そのものは公開しない。人間の読取引受は既存の別承認経路を使用し、担当枠を
 解除・譲渡しない。これはローカル送信記録の復旧であり、跨環境leaseではない。
 
-Issue102専用のWork登録・policy・共有入力は依然未整備であり、独立再レビューと並行して
-確認するmerge前準備である。実automation ID/保存設定を正式経路で取得するまでpolicyへ
-架空値を追加しない。登録成功、実起動、待機受領、fixture成功はそれぞれ別の証拠として扱う。
-PR103は独立再レビューとこの準備の確認までdraftを維持する。
+2026-10-08の本担当準備では、Issue102/PR103専用の別review/owner_resumeを正式toolで登録した。
+review実IDは `6ac79f38824c8191be0e9b4b08e1b5f0`、owner_resume実IDは
+`6ac79f46e5b08191bcd84e9d6cbedef3`。repository/PR103/authorの限定条件で、reviewは
+opened/ready/closed/synchronize、owner_resumeはmerge-onlyを登録要求した。別peekで
+保存Prompt全文の一致と両enabled=trueを観測したが、peekは外側Triggerを返さない。
+要求条件と保存済み条件の読戻しを区別し、現在はREGISTEREDでありSETTINGS_CONFIRMEDではない。
+正式共有input/独立待機commentの公開、新Work実行環境のcontents-write資格、外部更新の
+競合制御は未確認。登録成功、実起動、待機受領、fixture成功を別証拠として扱う。
+PR103は最終HEAD独立再レビューとmerge前準備の確認までdraftを維持する。
+
+## Issue102の限定scope接続
+
+Issue102のpurposeは `work-owner-resume-i01-repair` のまま保持する。v2 input/owner facts/
+request/handoffのschemaとPython validatorはこのpurposeをIssue102だけで受け付け、
+policy生成は同scopeにresume_protocol=2を付ける。v1 handoffには追加しない。
+dedup/予約bindingは実inputのpurposeを含め、旧Issue100の担当枠・入力・待機を転用しない。
+候補policyは実review IDを持つ102 entryだけ追加し、既存entryを変更しない。
+候補main適用や登録を正式準備/Gate/I-01成功と扱わない。
 
 ## 共有入力の改版とwriter照合
 
@@ -186,10 +200,10 @@ UNKNOWN要求へ戻さず、writer snapshotにexternal ID/time/settings版/input
 3. 人間merge後、最新main/policyと唯一writer適用を確認。新PRの実delivery/automation/startを
    取得し、Work run ID取得不能はnullのまま保持。旧PR101のeventを新mergeへ転用しない。
    新PRのstandalone Refsは102だけなので、旧Issue100のinputへ新PR番号を直接代入しない。
-   本PRの限定policy変更は100の読取契約補修だけであり、102の正式レビュー/再開登録や
-   policyを捏造して追加しない。現在toolにはGitHub webhook用Work登録引数が公開されて
-   いない。正式UIで102専用の別review/resume IDと保存設定を取得し、正式policyの対象を
-   整えるまで102の実証を停止する。この運用登録不足は候補コードレビューの前提にはしない。
+   本PRのpolicy変更は100の読取契約補修と、実専用review IDを持つ102の限定追加。
+   現toolはGitHub webhook登録を公開しており両roleの登録操作は成功したが、外側保存条件は
+   peekで取得不能。正式UI/toolで保存条件を確認し、正式policyと共有inputの対象を
+   整えるまで102の実証を停止する。候補コードレビューとこの運用準備不足は別評価する。
    同共有recordを使う改版はそのIssue/対象の規約内で行い、旧入力履歴を保存する。
 4. 実待機comment/digest/許可を再取得。秘密capability作成→担当枠取得→実ref/commit読戻し。
    資格/競合/UNKNOWNならここで停止。receiptを先に発行しない。
