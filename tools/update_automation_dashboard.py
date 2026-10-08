@@ -58,6 +58,10 @@ class GitHub:
             raise ValueError("Only Dashboard comment writes are supported")
         if method != "GET" and not self.token:
             raise ValueError("GitHub comment writes require the configured token")
+        return self._send_request(path, method, data, raw)
+
+    def _send_request(self, path, method, data, raw=False):
+        """Transport only; callers must apply their explicit destination policy."""
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request("https://api.github.com" + path, data=body, method=method,
                                      headers={**({"Authorization": f"Bearer {self.token}"} if self.token else {}), "Accept": "application/vnd.github+json",

@@ -180,7 +180,8 @@
         "work_review": "Work(6ac71f9572a48191bbf36c742b9e1720)",
         "local_main_sync": ".github/workflows/pull-local-main.yml"
       },
-      "preparation_contract": 2
+      "preparation_contract": 2,
+      "resume_protocol": 2
     }
   }
 }

@@ -38,6 +38,47 @@ runpy.run_path('tools/startup_preparation.py',run_name='__main__')
 '''
 
 class FormalCLIAuthenticationTests(unittest.TestCase):
+    def test_revised_input_cli_generation_writer_twice_and_reload(self):
+        shim='''import json,runpy,sys
+from pathlib import Path
+from tests.test_startup_preparation import PreparationAPI
+from tools import update_automation_dashboard as u
+scenario=json.loads(Path(sys.argv.pop(1)).read_text(encoding='utf-8'))
+api=PreparationAPI(scenario['input']);api.config['schema_version']=2
+api.comment=scenario['comment']
+u.GitHub=lambda *args:api
+runpy.run_path('tools/startup_preparation.py',run_name='__main__')
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            d=Path(directory);v,r,f,api=writer_api('PR_BOUND');api.config['schema_version']=2
+            g.reconcile_preparation(api,100,p.policy_entry(v),T0)
+            state=g.snapshot(api.comment['body'])['state'];p.atomic_save(d/'state.json',state)
+            v['input_version']+=1;r.update(input_version=v['input_version'],input_digest=p.digest(v),observed_at=T1)
+            for role in ('review','owner_resume'):r[role]['observed_at']=T1
+            (d/'cli.py').write_text(shim,encoding='utf-8')
+            for name,item in [('input',v),('owner',r),('config',api.config)]:
+                (d/(name+'.json')).write_text(p.canonical(item),encoding='utf-8')
+            cmd=[sys.executable,'-B',str(d/'cli.py'),str(d/'scenario.json'),'--input',str(d/'input.json'),
+                 '--owner-facts',str(d/'owner.json'),'--state',str(d/'state.json'),'--output',str(d/'out'),
+                 '--config',str(d/'config.json'),'--github-read']
+            env={**os.environ,'PYTHONPATH':str(ROOT)};env.pop('GH_TOKEN',None);env.pop('GITHUB_TOKEN',None)
+            for at in (T1,T2):
+                request=p.generate(v,api.config,state=state,owner_facts=r)['github_record.md'].strip()
+                start=api.comment['body'].index(p.evidence_contract().REQUEST_START)
+                end=api.comment['body'].index(p.REQUEST_END)+len(p.REQUEST_END)
+                api.comment['body']=api.comment['body'][:start]+request+api.comment['body'][end:]
+                g.reconcile_preparation(api,100,p.policy_entry(v),at)
+                (d/'scenario.json').write_text(p.canonical(dict(input=v,comment=api.comment)),encoding='utf-8')
+                result=subprocess.run(cmd,cwd=ROOT,env=env,capture_output=True)
+                self.assertEqual(result.returncode,0,result.stderr.decode('utf-8'))
+                state=p.loads((d/'state.json').read_text(encoding='utf-8'))
+                self.assertTrue(state['operations'])
+                self.assertTrue(all(o['input_digest']==p.digest(v) and o['status']=='SETTINGS_CONFIRMED'
+                                    for o in state['operations'].values()))
+                # The real CLI's next generation preserves the owner/writer split.
+                generated=(d/'out/github_record.md').read_text(encoding='utf-8')
+                self.assertEqual(g.block(generated,p.evidence_contract().REQUEST_START,p.REQUEST_END)['operations'],{})
+
     def test_authenticated_negative_api_failure_save_and_two_stale_replays(self):
         for negative in ('disabled','FAILED','UNKNOWN'):
             with self.subTest(negative=negative), tempfile.TemporaryDirectory() as directory:

@@ -278,8 +278,8 @@
       "properties": {
         "available": {"type": "boolean"},
         "publisher": {"type": "string","minLength": 1},
-        "primary_route": {"anyOf": [{"type": "string","minLength": 1},{"type": "null"}]},
-        "recovery_route": {"anyOf": [{"type": "string","minLength": 1},{"type": "null"}]},
+        "primary_route": {"type": ["string","null"],"minLength": 1},
+        "recovery_route": {"type": ["string","null"],"minLength": 1},
         "evidence_ref": {"type": "string","minLength": 1}
       }
     },
@@ -296,51 +296,7 @@
         "resume_id": {"type": "string","pattern": "^[a-f0-9]{32}$"}
       }
     },
-    "execution": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema_version",
-        "repository",
-        "issue",
-        "purpose",
-        "pr",
-        "reviewed_head_sha",
-        "merge_sha",
-        "target_main_sha",
-        "owner",
-        "waiting_record",
-        "event",
-        "work",
-        "claim",
-        "receipt",
-        "next_action",
-        "recheck"
-      ],
-      "properties": {
-        "schema_version": {"const": 1},
-        "repository": {"type": "string","minLength": 1},
-        "issue": {"type": "integer","minimum": 1},
-        "purpose": {"const": "work-owner-resume-i01"},
-        "pr": {"type": "integer","minimum": 1},
-        "reviewed_head_sha": {"type": "string","minLength": 1},
-        "merge_sha": {"type": "string","minLength": 1},
-        "target_main_sha": {"type": "string","minLength": 1},
-        "owner": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["id","login","type"],
-          "properties": {"id": {"type": "integer","minimum": 1},"login": {"type": "string","minLength": 1},"type": {"type": "string","minLength": 1}}
-        },
-        "waiting_record": {"$ref": "#/$defs/executionWaitingRecord"},
-        "event": {"$ref": "#/$defs/executionEvent"},
-        "work": {"$ref": "#/$defs/executionWork"},
-        "claim": {"anyOf": [{"$ref": "#/$defs/executionClaim"},{"type": "null"}]},
-        "receipt": {"anyOf": [{"$ref": "#/$defs/executionReceipt"},{"type": "null"}]},
-        "next_action": {"anyOf": [{"$ref": "#/$defs/executionNextAction"},{"type": "null"}]},
-        "recheck": {"anyOf": [{"$ref": "#/$defs/executionRecheck"},{"type": "null"}]}
-      }
-    },
+    "execution": {"oneOf": [{"$ref": "#/$defs/executionV1"},{"$ref": "#/$defs/executionV2"}]},
     "ownerFacts": {
       "type": "object",
       "additionalProperties": false,
@@ -621,8 +577,8 @@
         "input": {"$ref": "#/$defs/input"},
         "input_history": {"type": "array","items": {"oneOf": [{"$ref": "#/$defs/input"},{"$ref": "#/$defs/v1Input"}]}},
         "owner_facts": {"anyOf": [{"$ref": "#/$defs/ownerFacts"},{"type": "null"}]},
-        "operations": {"type": "object","additionalProperties": {"$ref": "#/$defs/operation"}},
-        "legacy_operations": {"type": "object","additionalProperties": {"$ref": "#/$defs/legacyOperation"}}
+        "operations": {"type": "object","additionalProperties": {"$ref": "#/$defs/operationIntent"}},
+        "legacy_operations": {"type": "object","additionalProperties": {"$ref": "#/$defs/legacyOperationIntent"}}
       }
     },
     "snapshot": {
@@ -639,7 +595,313 @@
         "source_digest": {"type": "string","pattern": "^[a-f0-9]{64}$"}
       }
     },
-    "resumeObservation": {
+    "resumeObservation": {"oneOf": [{"$ref": "#/$defs/resumeObservationV1"},{"$ref": "#/$defs/resumeObservationV2"}]},
+    "formalOwner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["login","id","type"],
+      "properties": {"login": {"type": "string","pattern": "^[A-Za-z0-9-]{1,39}$"},"id": {"type": "integer","minimum": 1},"type": {"const": "User"}}
+    },
+    "legacyStage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status","evidence","observed_at","waiting_reason","check_target"],
+      "properties": {
+        "status": {"enum": ["UNCONFIRMED","CONFIRMED","WAITING","UNKNOWN","INVALIDATED"]},
+        "evidence": {"anyOf": [{"type": "object"},{"type": "null"}]},
+        "observed_at": {"anyOf": [{"type": "string","format": "date-time"},{"type": "null"}]},
+        "waiting_reason": {"anyOf": [{"type": "string","minLength": 1},{"type": "null"}]},
+        "check_target": {"anyOf": [{"anyOf": [{"type": "integer","minimum": 1},{"type": "string","minLength": 1}]},{"type": "null"}]}
+      }
+    },
+    "executionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["delivery_id","repository","pr","action","head_sha","merge_sha","evidence_url","observed_at"],
+      "properties": {
+        "delivery_id": {"type": "string","minLength": 1},
+        "repository": {"type": "string","minLength": 1},
+        "pr": {"type": "integer","minimum": 1},
+        "action": {"type": "string","minLength": 1},
+        "head_sha": {"type": "string","minLength": 1},
+        "merge_sha": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1}
+      }
+    },
+    "executionWork": {"oneOf": [{"$ref": "#/$defs/executionWorkV1"},{"$ref": "#/$defs/executionWorkV2"}]},
+    "executionClaim": {"oneOf": [{"$ref": "#/$defs/executionClaimV1"},{"$ref": "#/$defs/executionClaimV2"}]},
+    "executionReceipt": {"oneOf": [{"$ref": "#/$defs/executionReceiptV1"},{"$ref": "#/$defs/executionReceiptV2"}]},
+    "executionNextAction": {"oneOf": [{"$ref": "#/$defs/executionNextActionV1"},{"$ref": "#/$defs/executionNextActionV2"}]},
+    "executionRecheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id","enabled","dedup_key","run_id","stop_condition","evidence_url","observed_at"],
+      "properties": {
+        "id": {"type": "string","minLength": 1},
+        "enabled": {"const": true},
+        "dedup_key": {"type": "string","minLength": 1},
+        "run_id": {"type": "string","minLength": 1},
+        "stop_condition": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","format": "date-time"}
+      }
+    },
+    "executionWaitingRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["comment_id","body_sha256"],
+      "properties": {"comment_id": {"type": "integer","minimum": 1},"body_sha256": {"type": "string","minLength": 1}}
+    },
+    "encodedSnapshotState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["encoding","decoded_bytes","sha256","data"],
+      "properties": {
+        "encoding": {"const": "zlib-base64-v1"},
+        "decoded_bytes": {"type": "integer","minimum": 1,"maximum": 2000000},
+        "sha256": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+        "data": {"type": "string","maxLength": 240000,"pattern": "^[A-Za-z0-9+/]*={0,2}$"}
+      }
+    },
+    "capabilityIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme","public_id","source","assurance","route","conversation_id","cloud_task_id","authorization_comment_id"],
+      "properties": {
+        "scheme": {"const": "capability_v1"},
+        "public_id": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+        "source": {"const": "local_csprng"},
+        "assurance": {"const": "bearer_possession_not_service_run"},
+        "route": {"enum": ["automatic","manual"]},
+        "conversation_id": {"type": ["string","null"],"minLength": 1},
+        "cloud_task_id": {"type": ["string","null"],"minLength": 1},
+        "authorization_comment_id": {"type": ["integer","null"],"minimum": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"route": {"const": "manual"}}},
+          "then": {"properties": {"authorization_comment_id": {"type": "integer","minimum": 1}}},
+          "else": {"properties": {"authorization_comment_id": {"type": "null"}}}
+        }
+      ]
+    },
+    "executionWorkV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id","automation_id","started_at","evidence_url","observed_at"],
+      "properties": {
+        "run_id": {"type": "string","minLength": 1},
+        "automation_id": {"type": "string","minLength": 1},
+        "started_at": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1}
+      }
+    },
+    "executionWorkV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id","automation_id","started_at","evidence_url","observed_at","identity"],
+      "properties": {
+        "run_id": {"type": "null"},
+        "automation_id": {"type": "string","minLength": 1},
+        "started_at": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1},
+        "identity": {"$ref": "#/$defs/capabilityIdentity"}
+      }
+    },
+    "executionClaimV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dedup_key","run_id","owner","status","evidence_url","observed_at"],
+      "properties": {
+        "dedup_key": {"type": "string","minLength": 1},
+        "run_id": {"type": "string","minLength": 1},
+        "owner": {"type": "string","minLength": 1},
+        "status": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1}
+      }
+    },
+    "executionClaimV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dedup_key","owner","status","evidence_url","observed_at","execution_id","ref","commit_sha"],
+      "properties": {
+        "dedup_key": {"type": "string","minLength": 1},
+        "owner": {"type": "string","minLength": 1},
+        "status": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1},
+        "execution_id": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+        "ref": {"type": "string","pattern": "^refs/tags/langbench-i01-resume-[a-f0-9]{64}$"},
+        "commit_sha": {"type": "string","pattern": "^[a-f0-9]{40}$"}
+      }
+    },
+    "executionReceiptV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id","waiting_comment_id","waiting_body_sha256","evidence_url","observed_at"],
+      "properties": {
+        "run_id": {"type": "string","minLength": 1},
+        "waiting_comment_id": {"type": "integer","minimum": 1},
+        "waiting_body_sha256": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1}
+      }
+    },
+    "executionReceiptV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["waiting_comment_id","waiting_body_sha256","evidence_url","observed_at","execution_id"],
+      "properties": {
+        "waiting_comment_id": {"type": "integer","minimum": 1},
+        "waiting_body_sha256": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1},
+        "execution_id": {"type": "string","pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "executionNextActionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id","dedup_key","kind","status","authorization_ref","evidence_url","observed_at"],
+      "properties": {
+        "run_id": {"type": "string","minLength": 1},
+        "dedup_key": {"type": "string","minLength": 1},
+        "kind": {"type": "string","minLength": 1},
+        "status": {"type": "string","minLength": 1},
+        "authorization_ref": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1}
+      }
+    },
+    "executionNextActionV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dedup_key","kind","status","authorization_ref","evidence_url","observed_at","execution_id","effect"],
+      "properties": {
+        "dedup_key": {"type": "string","minLength": 1},
+        "kind": {"type": "string","minLength": 1},
+        "status": {"type": "string","minLength": 1},
+        "authorization_ref": {"type": "string","minLength": 1},
+        "evidence_url": {"type": "string","minLength": 1},
+        "observed_at": {"type": "string","minLength": 1},
+        "execution_id": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+        "effect": {"enum": ["read_only","external_write"]}
+      }
+    },
+    "executionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "repository",
+        "issue",
+        "purpose",
+        "pr",
+        "reviewed_head_sha",
+        "merge_sha",
+        "target_main_sha",
+        "owner",
+        "waiting_record",
+        "event",
+        "work",
+        "claim",
+        "receipt",
+        "next_action",
+        "recheck"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "repository": {"type": "string","minLength": 1},
+        "issue": {"type": "integer","minimum": 1},
+        "purpose": {"const": "work-owner-resume-i01"},
+        "pr": {"type": "integer","minimum": 1},
+        "reviewed_head_sha": {"type": "string","minLength": 1},
+        "merge_sha": {"type": "string","minLength": 1},
+        "target_main_sha": {"type": "string","minLength": 1},
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id","login","type"],
+          "properties": {
+            "id": {"type": "integer","minimum": 1},
+            "login": {"type": "string","minLength": 1},
+            "type": {"type": "string","minLength": 1}
+          }
+        },
+        "waiting_record": {"$ref": "#/$defs/executionWaitingRecord"},
+        "event": {"$ref": "#/$defs/executionEvent"},
+        "work": {"$ref": "#/$defs/executionWorkV1"},
+        "claim": {"anyOf": [{"$ref": "#/$defs/executionClaimV1"},{"type": "null"}]},
+        "receipt": {"anyOf": [{"$ref": "#/$defs/executionReceiptV1"},{"type": "null"}]},
+        "next_action": {"anyOf": [{"$ref": "#/$defs/executionNextActionV1"},{"type": "null"}]},
+        "recheck": {"anyOf": [{"$ref": "#/$defs/executionRecheck"},{"type": "null"}]}
+      }
+    },
+    "executionV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "repository",
+        "issue",
+        "purpose",
+        "pr",
+        "reviewed_head_sha",
+        "merge_sha",
+        "target_main_sha",
+        "owner",
+        "waiting_record",
+        "event",
+        "work",
+        "claim",
+        "receipt",
+        "next_action",
+        "recheck",
+        "authorization"
+      ],
+      "properties": {
+        "schema_version": {"const": 2},
+        "repository": {"type": "string","minLength": 1},
+        "issue": {"type": "integer","minimum": 1},
+        "purpose": {"const": "work-owner-resume-i01"},
+        "pr": {"type": "integer","minimum": 1},
+        "reviewed_head_sha": {"type": "string","minLength": 1},
+        "merge_sha": {"type": "string","minLength": 1},
+        "target_main_sha": {"type": "string","minLength": 1},
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id","login","type"],
+          "properties": {
+            "id": {"type": "integer","minimum": 1},
+            "login": {"type": "string","minLength": 1},
+            "type": {"type": "string","minLength": 1}
+          }
+        },
+        "waiting_record": {"$ref": "#/$defs/executionWaitingRecord"},
+        "event": {"$ref": "#/$defs/executionEvent"},
+        "work": {"$ref": "#/$defs/executionWorkV2"},
+        "claim": {"anyOf": [{"$ref": "#/$defs/executionClaimV2"},{"type": "null"}]},
+        "receipt": {"anyOf": [{"$ref": "#/$defs/executionReceiptV2"},{"type": "null"}]},
+        "next_action": {"anyOf": [{"$ref": "#/$defs/executionNextActionV2"},{"type": "null"}]},
+        "recheck": {"type": "null"},
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind","authorization_ref","effect"],
+          "properties": {
+            "kind": {"enum": ["live_smoke","safe_stop"]},
+            "authorization_ref": {"type": "string","minLength": 1},
+            "effect": {"const": "read_only"}
+          }
+        }
+      }
+    },
+    "resumeObservationV1": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -652,7 +914,7 @@
         "next_owner": {"type": "string"},
         "next_action": {"type": "string"},
         "event": {"$ref": "#/$defs/executionEvent"},
-        "work": {"$ref": "#/$defs/executionWork"},
+        "work": {"$ref": "#/$defs/executionWorkV1"},
         "receipt": {"anyOf": [{"$ref": "#/$defs/executionReceipt"},{"type": "null"}]},
         "action": {"anyOf": [{"$ref": "#/$defs/executionNextAction"},{"type": "null"}]},
         "sync": {
@@ -797,120 +1059,178 @@
         "attempted_evidence"
       ]
     },
-    "formalOwner": {
+    "resumeObservationV2": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["login","id","type"],
-      "properties": {"login": {"type": "string","pattern": "^[A-Za-z0-9-]{1,39}$"},"id": {"type": "integer","minimum": 1},"type": {"const": "User"}}
-    },
-    "legacyStage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status","evidence","observed_at","waiting_reason","check_target"],
       "properties": {
-        "status": {"enum": ["UNCONFIRMED","CONFIRMED","WAITING","UNKNOWN","INVALIDATED"]},
-        "evidence": {"anyOf": [{"type": "object"},{"type": "null"}]},
-        "observed_at": {"anyOf": [{"type": "string","format": "date-time"},{"type": "null"}]},
-        "waiting_reason": {"anyOf": [{"type": "string","minLength": 1},{"type": "null"}]},
-        "check_target": {"anyOf": [{"anyOf": [{"type": "integer","minimum": 1},{"type": "string","minLength": 1}]},{"type": "null"}]}
-      }
+        "schema_version": {"const": 2},
+        "kind": {"const": "work_owner_resume_observation"},
+        "dedup_key": {"type": "string"},
+        "stage": {"type": "string"},
+        "status": {"type": "string"},
+        "reason": {"type": "string"},
+        "next_owner": {"type": "string"},
+        "next_action": {"type": "string"},
+        "event": {"$ref": "#/$defs/executionEvent"},
+        "work": {"$ref": "#/$defs/executionWorkV2"},
+        "receipt": {"anyOf": [{"$ref": "#/$defs/executionReceipt"},{"type": "null"}]},
+        "action": {"anyOf": [{"$ref": "#/$defs/executionNextAction"},{"type": "null"}]},
+        "sync": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "status": {"type": "string"},
+                "reason": {"type": "string"},
+                "target_sha": {"type": "string"},
+                "run_id": {"type": "integer"},
+                "run_attempt": {"type": "integer"},
+                "artifact": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "artifact_id": {"type": "integer","minimum": 1},
+                    "name": {"type": "string"},
+                    "digest": {"type": "string","pattern": "^sha256:[a-f0-9]{64}$"},
+                    "zip_verified": {"const": true},
+                    "evidence_url": {"type": "string"}
+                  },
+                  "required": ["artifact_id","name","digest","zip_verified","evidence_url"]
+                },
+                "report": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "schema_version": {"type": "integer"},
+                    "repository": {"type": "string"},
+                    "pr": {"type": "integer"},
+                    "pr_head_sha": {"type": "string"},
+                    "merge_sha": {"type": "string"},
+                    "target_sha": {"type": "string"},
+                    "before_sha": {"type": "string"},
+                    "after_sha": {"type": "string"},
+                    "run_id": {"type": "string"},
+                    "run_attempt": {"type": "integer"},
+                    "status": {"type": "string"},
+                    "protected_preserved": {"type": "boolean"},
+                    "protected_files": {"type": "integer"}
+                  },
+                  "required": [
+                    "schema_version",
+                    "repository",
+                    "pr",
+                    "pr_head_sha",
+                    "merge_sha",
+                    "target_sha",
+                    "before_sha",
+                    "after_sha",
+                    "run_id",
+                    "run_attempt",
+                    "status",
+                    "protected_preserved",
+                    "protected_files"
+                  ]
+                }
+              },
+              "required": ["status","reason"]
+            }
+          ]
+        },
+        "recheck": {"anyOf": [{"$ref": "#/$defs/executionRecheck"},{"type": "null"}]},
+        "matched": {"type": "boolean"},
+        "gate_certified": {"type": "boolean"},
+        "deadline_guaranteed": {"type": "boolean"},
+        "waiting_record": {"$ref": "#/$defs/executionWaitingRecord"},
+        "owner": {"$ref": "#/$defs/formalOwner"},
+        "claimed_run_id": {"type": "null"},
+        "claimed_started_at": {"type": "string"},
+        "evidence_history": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "event": {"$ref": "#/$defs/executionEvent"},
+            "work": {"$ref": "#/$defs/executionWork"},
+            "claim": {"anyOf": [{"$ref": "#/$defs/executionClaim"},{"type": "null"}]},
+            "receipt": {"anyOf": [{"$ref": "#/$defs/executionReceipt"},{"type": "null"}]},
+            "action": {"anyOf": [{"$ref": "#/$defs/executionNextAction"},{"type": "null"}]},
+            "recheck": {"anyOf": [{"$ref": "#/$defs/executionRecheck"},{"type": "null"}]}
+          },
+          "required": []
+        },
+        "evidence_conflicts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "event": {"type": "string"},
+            "work": {"type": "string"},
+            "claim": {"type": "string"},
+            "receipt": {"type": "string"},
+            "action": {"type": "string"},
+            "recheck": {"type": "string"}
+          },
+          "required": []
+        },
+        "input_digest": {"type": "string"},
+        "facts_digest": {"type": "string"},
+        "attempted_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "event": {"anyOf": [{"type": "null"},{"$ref": "#/$defs/executionEvent"}]},
+            "work": {"anyOf": [{"type": "null"},{"$ref": "#/$defs/executionWork"}]},
+            "claim": {"anyOf": [{"type": "null"},{"anyOf": [{"$ref": "#/$defs/executionClaim"},{"type": "null"}]}]},
+            "receipt": {"anyOf": [{"type": "null"},{"anyOf": [{"$ref": "#/$defs/executionReceipt"},{"type": "null"}]}]},
+            "action": {"anyOf": [{"type": "null"},{"anyOf": [{"$ref": "#/$defs/executionNextAction"},{"type": "null"}]}]},
+            "recheck": {"anyOf": [{"type": "null"},{"anyOf": [{"$ref": "#/$defs/executionRecheck"},{"type": "null"}]}]}
+          },
+          "required": ["event","work","claim","receipt","action","recheck"]
+        },
+        "claimed_execution_id": {"type": "string","pattern": "^[a-f0-9]{64}$"},
+        "identity_assurance": {"const": "capability possession; not authenticated Work run"},
+        "resume_route": {"enum": ["automatic","manual"]}
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "dedup_key",
+        "stage",
+        "status",
+        "reason",
+        "next_owner",
+        "next_action",
+        "event",
+        "work",
+        "receipt",
+        "action",
+        "sync",
+        "recheck",
+        "matched",
+        "gate_certified",
+        "deadline_guaranteed",
+        "waiting_record",
+        "owner",
+        "claimed_run_id",
+        "claimed_started_at",
+        "evidence_history",
+        "evidence_conflicts",
+        "input_digest",
+        "facts_digest",
+        "attempted_evidence",
+        "claimed_execution_id",
+        "identity_assurance",
+        "resume_route"
+      ]
     },
-    "executionEvent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["delivery_id","repository","pr","action","head_sha","merge_sha","evidence_url","observed_at"],
-      "properties": {
-        "delivery_id": {"type": "string","minLength": 1},
-        "repository": {"type": "string","minLength": 1},
-        "pr": {"type": "integer","minimum": 1},
-        "action": {"type": "string","minLength": 1},
-        "head_sha": {"type": "string","minLength": 1},
-        "merge_sha": {"type": "string","minLength": 1},
-        "evidence_url": {"type": "string","minLength": 1},
-        "observed_at": {"type": "string","minLength": 1}
-      }
+    "operationIntent": {
+      "allOf": [{"$ref": "#/$defs/operation"},{"properties": {"status": {"enum": ["NOT_ATTEMPTED","ATTEMPTING","UNKNOWN"]}}}]
     },
-    "executionWork": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["run_id","automation_id","started_at","evidence_url","observed_at"],
-      "properties": {
-        "run_id": {"type": "string","minLength": 1},
-        "automation_id": {"type": "string","minLength": 1},
-        "started_at": {"type": "string","minLength": 1},
-        "evidence_url": {"type": "string","minLength": 1},
-        "observed_at": {"type": "string","minLength": 1}
-      }
-    },
-    "executionClaim": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["dedup_key","run_id","owner","status","evidence_url","observed_at"],
-      "properties": {
-        "dedup_key": {"type": "string","minLength": 1},
-        "run_id": {"type": "string","minLength": 1},
-        "owner": {"type": "string","minLength": 1},
-        "status": {"type": "string","minLength": 1},
-        "evidence_url": {"type": "string","minLength": 1},
-        "observed_at": {"type": "string","minLength": 1}
-      }
-    },
-    "executionReceipt": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["run_id","waiting_comment_id","waiting_body_sha256","evidence_url","observed_at"],
-      "properties": {
-        "run_id": {"type": "string","minLength": 1},
-        "waiting_comment_id": {"type": "integer","minimum": 1},
-        "waiting_body_sha256": {"type": "string","minLength": 1},
-        "evidence_url": {"type": "string","minLength": 1},
-        "observed_at": {"type": "string","minLength": 1}
-      }
-    },
-    "executionNextAction": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["run_id","dedup_key","kind","status","authorization_ref","evidence_url","observed_at"],
-      "properties": {
-        "run_id": {"type": "string","minLength": 1},
-        "dedup_key": {"type": "string","minLength": 1},
-        "kind": {"type": "string","minLength": 1},
-        "status": {"type": "string","minLength": 1},
-        "authorization_ref": {"type": "string","minLength": 1},
-        "evidence_url": {"type": "string","minLength": 1},
-        "observed_at": {"type": "string","minLength": 1}
-      }
-    },
-    "executionRecheck": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id","enabled","dedup_key","run_id","stop_condition","evidence_url","observed_at"],
-      "properties": {
-        "id": {"type": "string","minLength": 1},
-        "enabled": {"const": true},
-        "dedup_key": {"type": "string","minLength": 1},
-        "run_id": {"type": "string","minLength": 1},
-        "stop_condition": {"type": "string","minLength": 1},
-        "evidence_url": {"type": "string","minLength": 1},
-        "observed_at": {"type": "string","format": "date-time"}
-      }
-    },
-    "executionWaitingRecord": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["comment_id","body_sha256"],
-      "properties": {"comment_id": {"type": "integer","minimum": 1},"body_sha256": {"type": "string","minLength": 1}}
-    },
-    "encodedSnapshotState": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["encoding","decoded_bytes","sha256","data"],
-      "properties": {
-        "encoding": {"const": "zlib-base64-v1"},
-        "decoded_bytes": {"type": "integer","minimum": 1,"maximum": 2000000},
-        "sha256": {"type": "string","pattern": "^[a-f0-9]{64}$"},
-        "data": {"type": "string","maxLength": 240000,"pattern": "^[A-Za-z0-9+/]*={0,2}$"}
-      }
+    "legacyOperationIntent": {
+      "allOf": [
+        {"$ref": "#/$defs/legacyOperation"},
+        {"properties": {"status": {"const": "UNKNOWN"},"external_id": {"type": "null"}}}
+      ]
     }
   }
 }

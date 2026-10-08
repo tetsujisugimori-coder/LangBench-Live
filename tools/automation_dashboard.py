@@ -34,6 +34,9 @@ def validate_policy_config(config):
         if 'preparation_contract' in entry and (config['schema_version'] != 2
                 or type(entry['preparation_contract']) is not int or entry['preparation_contract'] != 2):
             raise ValueError('Mandatory preparation requires policy/reader v2')
+        if 'resume_protocol' in entry and (entry.get('preparation_contract') != 2
+                or type(entry['resume_protocol']) is not int or entry['resume_protocol'] != 2):
+            raise ValueError('Unsupported required I-01 resume protocol')
     return config
 
 

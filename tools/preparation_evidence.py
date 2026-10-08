@@ -86,7 +86,10 @@ def validate_input(value):
 
 def policy_entry(value):
     validate_input(value)
-    return {**p.policy_entry(legacy_input(value)), 'preparation_contract': 2}
+    entry = {**p.policy_entry(legacy_input(value)), 'preparation_contract': 2}
+    if value['issue'] == 100:
+        entry['resume_protocol'] = 2
+    return entry
 
 
 def prompt(value, role):
@@ -310,8 +313,10 @@ def validate_state(state):
                     'event', 'work', 'receipt', 'action', 'sync', 'recheck', 'matched', 'gate_certified',
                     'deadline_guaranteed', 'waiting_record', 'owner', 'claimed_run_id', 'claimed_started_at',
                     'evidence_history', 'evidence_conflicts', 'input_digest', 'facts_digest', 'attempted_evidence'}
+        if observation.get('schema_version') == 2:
+            expected |= {'claimed_execution_id', 'identity_assurance', 'resume_route'}
         fields(observation, expected, 'retained owner execution observation')
-        if observation['schema_version'] != 1 or observation['kind'] != 'work_owner_resume_observation' or observation['owner'] != value['owner']:
+        if observation['schema_version'] not in (1, 2) or observation['kind'] != 'work_owner_resume_observation' or observation['owner'] != value['owner']:
             raise ValueError('Retained execution observation binding differs')
         if any(not isinstance(observation[k], dict) for k in ('evidence_history', 'evidence_conflicts', 'attempted_evidence')):
             raise ValueError('Invalid retained execution history')
@@ -554,8 +559,13 @@ def generate(value, config, state=None, owner_facts=None):
     request = dict(schema_version=2, kind='startup_preparation_input', repository=value['repository'],
                    issue=value['issue'], purpose=value['purpose'], owner=value['owner'], input_version=value['input_version'],
                    input_digest=p.digest(value), input=value, input_history=state['input_history'], owner_facts=owner_facts,
-                   operations={k: {**v, 'status': 'UNKNOWN', 'external_id': None, 'settings_version': None, 'observed_at': None} for k, v in state['operations'].items()},
-                   legacy_operations={k: {**v, 'status': 'UNKNOWN', 'external_id': None} for k, v in state['legacy']['operations'].items()})
+                   # Owner requests carry genuine pending intents only. Resolved
+                   # observations remain in the writer snapshot, with their
+                   # original binding/history; they are not new send requests.
+                   operations={k: copy.deepcopy(v) for k, v in state['operations'].items()
+                               if v['status'] in {'NOT_ATTEMPTED', 'ATTEMPTING', 'UNKNOWN'}},
+                   legacy_operations={k: copy.deepcopy(v) for k, v in state['legacy']['operations'].items()
+                                      if v['status'] == 'UNKNOWN'})
     return {'issue_body.md': '## 段階別準備 v2\n' + p.canonical(value) + '\n',
             'review_registration.md': (value['registration_prompts']['review'] or {}).get('text') or 'Approved saved review Prompt not yet acquired; preserve existing registration.\n',
             'owner_resume_registration.md': (value['registration_prompts']['owner_resume'] or {}).get('text') or ('PR unconfirmed; owner-resume registration is not required yet.\n' if value['pr'] is None else 'Approved saved owner-resume Prompt not yet acquired; preserve existing registration and obtain full readback.\n'),

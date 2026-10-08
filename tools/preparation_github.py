@@ -407,7 +407,7 @@ def authenticated_request_v2(comment, issue, policy):
     candidate['legacy']['input_history'] = [contract.legacy_input(v) if v['schema_version'] == 2 else v for v in record['input_history']]
     candidate['legacy']['operations'] = copy.deepcopy(record['legacy_operations'])
     contract.validate_state(candidate)
-    if any(o['status'] not in {'NOT_ATTEMPTED', 'ATTEMPTING', 'UNKNOWN'} or o['external_id'] is not None
+    if any(o['status'] not in {'NOT_ATTEMPTED', 'ATTEMPTING', 'UNKNOWN'}
            for o in record['operations'].values()) or any(o['status'] != 'UNKNOWN' or o['external_id'] is not None
            for o in record['legacy_operations'].values()):
         raise PreparationConflict('Owner intents cannot claim operation success without readback')
@@ -430,6 +430,27 @@ def snapshot_v2(body):
     if saved['input_version'] != state['input']['input_version'] or saved['input_digest'] != state['input_digest']:
         raise PreparationConflict('Mixed snapshot input binding')
     return saved
+
+
+def reconciled_intent(state, existing, operation, field):
+    """Recognize only a same-target intent resolved by retained writer readback."""
+    role = {'review_bind': 'review', 'owner_resume': 'owner_resume'}.get(existing.get('role'))
+    watermark = state['owner_watermarks'].get(role) if role else None
+    old = next((v for v in state['input_history'] if preparation.digest(v) == operation['input_digest']), None)
+    return (field == 'operations' and old is not None
+        and existing['input_digest'] == state['input_digest']
+        and existing['status'] in {'REGISTERED', 'SETTINGS_CONFIRMED', 'DISABLED_CONFIRMED'}
+        and watermark is not None and watermark['input_digest'] == state['input_digest']
+        and watermark['conflict_at'] is None
+        and watermark['record']['id'] == existing['external_id']
+        and watermark['record']['status'] == existing['status']
+        and watermark['record']['observed_at'] == existing['observed_at']
+        and (operation['observed_at'] is None or contract_instant(operation['observed_at']) <= contract_instant(existing['observed_at']))
+        and all(old[k] == state['input'][k] for k in ('pr','head_sha','work_automation_id','owner_resume_id')))
+
+
+def contract_instant(value):
+    return preparation.evidence_contract().instant(value)
 
 
 def state_for_request(record, prior):
@@ -456,7 +477,12 @@ def state_for_request(record, prior):
         for key, operation in requested.items():
             existing = target.get(key)
             if existing and existing['input_digest'] != operation['input_digest']:
-                raise PreparationConflict('Operation binding changed without authenticated reconciliation')
+                # A pending owner intent can remain in the owner region after
+                # the writer reconciles it to a NEW input. Do not resurrect it
+                # on the second read. Require the full authenticated readback
+                # retained by the writer, not merely a cached success status.
+                if not reconciled_intent(out, existing, operation, field):
+                    raise PreparationConflict('Operation binding changed without authenticated reconciliation')
             if existing is None: target[key] = copy.deepcopy(operation)
     return contract.validate_state(out)
 
@@ -508,10 +534,12 @@ def authenticated_cli_record(api, value, local_owner, local_state):
         existing = state['owner_watermarks'].get(role)
         if existing is None or max(contract.instant(watermark['record']['observed_at']), contract.instant(watermark['conflict_at'] or watermark['record']['observed_at'])) >= contract.instant(existing['record']['observed_at']):
             state['owner_watermarks'][role] = copy.deepcopy(watermark)
-    for target, source in ((state['operations'], local_state['operations']), (state['legacy']['operations'], local_state['legacy']['operations'])):
+    for field, target, source in (('operations',state['operations'],local_state['operations']),
+                                ('legacy_operations',state['legacy']['operations'],local_state['legacy']['operations'])):
         for key, operation in source.items():
             if operation['status'] in {'UNKNOWN', 'ATTEMPTING'}:
                 if key in target and target[key]['input_digest'] != operation['input_digest']:
+                    if reconciled_intent(state,target[key],operation,field): continue
                     raise PreparationConflict('Local unresolved operation binding mismatch')
                 target[key] = copy.deepcopy(operation)
     contract.validate_state(state)

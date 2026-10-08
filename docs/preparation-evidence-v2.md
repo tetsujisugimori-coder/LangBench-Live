@@ -154,3 +154,12 @@ writer/CLI/collectorは同一renderと容量検証を使う。詳細Promptを削
 旧raw v2のPrompt期待値がevents導入前の厳密3field(version/text/digest)の場合も、過去state/historyは明示読取できる。ただし現owner要求はevents欠損で認証不足として拒否し、進捗/正式Gateを完了にしない。旧入力を履歴へ残しinput_versionを増やして承認済みeventsを補い、同commentの新owner観測へdigestを再bindingする。新4field/旧3field以外の未知fieldは拒否する。未対応raw-v2 readerの実関数を凍結した回帰で新encoded wireの拒否を確認する。
 
 正式automation peekの両実IDから2026-10-08に取得した実Prompt全文を保持して5phase容量を評価した。合成lifecycle/handoff shapeを合わせた最大は50973 UTF-16 units/71461 UTF8 bytes（FINISHED）、snapshot展開68153 bytes。これは実Prompt容量の確認であり、GitHub正式owner入力の更新、実phase履歴、merge後実handoff、Gate/I01成功の実証ではない。外側TriggerのUI読戻しは本担当申告で、peekだけでは代替しない。無制限の履歴/証拠本文を収める保証ではなく、上限超過は不足へ停止する。
+
+## Issue102: 要求と確定観測の再投入
+
+生成record.operationsは実未解決intentだけを保持し、writerで確定した観測をUNKNOWNへ
+変換しない。確定ledger/input履歴/否定watermarkはsnapshotに残る。同一対象の改版後に
+writerが新inputへ実readbackを束縛した場合、元intentが同owner領域に残る二度目の読取は
+現在watermark/入力履歴/登録ID/対象を照合して解決済みとして扱う。binding検証は維持する。
+Issue100限定resume_protocol=2と自動/手動の識別・副作用境界は
+[i01-resume-contract-v2.md](i01-resume-contract-v2.md)。v1コメントclaimを排他として使用しない。
