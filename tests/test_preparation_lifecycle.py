@@ -76,10 +76,10 @@ class LifecycleTests(unittest.TestCase):
     def test_cli_legacy_and_sidecar(self):
         v,r=fixture(); root=Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
-            d=Path(directory); (d/'input.json').write_text(p.canonical(v)); (d/'phase.json').write_text(p.canonical(r))
+            d=Path(directory); (d/'input.json').write_text(p.canonical(v),encoding='utf-8'); (d/'phase.json').write_text(p.canonical(r),encoding='utf-8')
             cmd=[sys.executable,'-B',str(root/'tools/startup_preparation.py'),'--input',str(d/'input.json'),
                  '--state',str(d/'state.json'),'--output',str(d/'out'),'--config',str(root/'.github/automation-dashboard.json')]
             subprocess.run(cmd,check=True,capture_output=True,cwd=root)
             result=subprocess.run(cmd+['--lifecycle',str(d/'phase.json')],check=True,capture_output=True,cwd=root)
             self.assertIn(b'NOT_CERTIFIED',result.stdout); self.assertTrue((d/'out/owner_resume_registration.md').exists())
-            self.assertEqual(p.loads((d/'state.json').read_text())['schema_version'],1)
+            self.assertEqual(p.loads((d/'state.json').read_text(encoding='utf-8'))['schema_version'],1)
