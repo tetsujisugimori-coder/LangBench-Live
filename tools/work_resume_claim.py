@@ -221,6 +221,9 @@ def acquire(api, value, secret, journal, persist):
         if saved['commit_sha'] != journal['commit_sha']:
             raise ValueError('Reservation commit changed; human reconciliation required; no resend')
         return saved
+    # Definite local preconditions must fail as NOT_SENT, not ATTEMPTING.
+    # Existing ambiguous journals above remain GET-only regardless of token.
+    api.check_write_ready()
     # List exact name via matching-refs: an empty complete response proves absence.
     matches = api.get('/git/matching-refs/' + refname.removeprefix('refs/'))
     if not isinstance(matches,list): raise ValueError('Reservation listing unavailable')
@@ -259,9 +262,14 @@ class ReservationGitHub(GitHub):
         self.value=copy.deepcopy(value)
         self.created_commit=None
 
+    def check_write_ready(self):
+        if not isinstance(self.token,str) or not self.token.strip():
+            raise ValueError('I-01 reservation requires configured contents-write token; no other mutation supported')
+
     def request(self, path, method='GET', data=None, raw=False):
         if method=='GET':return super().request(path,method,data,raw)
-        if method!='POST' or raw or not self.token:
+        self.check_write_ready() # Also enforce at the transport boundary.
+        if method!='POST' or raw:
             raise ValueError('I-01 reservation requires configured contents-write token; no other mutation supported')
         if path==self.root+'/git/commits':
             base=self.get('/git/commits/'+self.value['merge_sha'])
@@ -295,6 +303,21 @@ def main():
         print(p.canonical({'scheme':'capability_v1','public_id':hashlib.sha256(bytes.fromhex(secret)).hexdigest(),
                            'source':'local_csprng','assurance':ASSURANCE}))
         return 0
+    try:
+        # One local critical section includes every state/diagnostic read/write,
+        # preflight, send and exception path. Lock losers never touch evidence.
+        with p.state_lock(args.state):
+            return run_locked(args)
+    except (OSError,ValueError) as error:
+        print(p.canonical(dict(status='STOPPED',stage='reservation state lock',
+            reason=str(error) if isinstance(error,ValueError) else type(error).__name__,
+            next_owner='Work(root)',state_retained=True,
+            next_action='Inspect holder and durable journal; no automatic unlock, reset or resend')))
+        return 1
+
+
+def run_locked(args):
+    """Called only while holding the same local state_lock, including failures."""
     state=None
     try:
         value=w.validate(p.loads(args.handoff.read_text(encoding='utf-8')))

@@ -33,6 +33,8 @@ def capability_fixture():
 class RefAPI:
     root='https://api.github.com/repos/tetsujisugimori-coder/LangBench-Live'
     def __init__(self):self.refs={};self.commits={};self.posts=[];self.gets=[];self.fail=None;self.competitor=None
+    def check_write_ready(self):
+        pass # Synthetic configured transport; production preflight tested below.
     def get(self,path):
         self.gets.append(path)
         if path.startswith('/git/matching-refs/'):
@@ -170,7 +172,7 @@ class CapabilityTests(unittest.TestCase):
             self.assertEqual(negative['evidence_history']['action']['status'],'UNKNOWN')
 
 class ReservationCLITests(unittest.TestCase):
-    def run_cli(self, root, api, facts, *, read_error=None, save=None):
+    def run_cli(self, root, api, facts, *, read_error=None, save=None, production=False):
         from unittest.mock import patch
         import contextlib
         import io
@@ -178,10 +180,14 @@ class ReservationCLITests(unittest.TestCase):
               '--state',str(root/'state.json')]
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch('sys.argv',argv))
-            stack.enter_context(patch.object(c,'ReservationGitHub',return_value=api))
+            if not production:stack.enter_context(patch.object(c,'ReservationGitHub',return_value=api))
             stack.enter_context(patch.object(w,'ObservationGitHub'))
             reads=stack.enter_context(patch.object(w,'read_facts',side_effect=read_error,return_value=facts))
-            if save is not None:stack.enter_context(patch.object(w,'save_observation',side_effect=save))
+            original_save=w.save_observation
+            def guarded_save(path,record):
+                self.assertTrue((root/'state.json.lock').exists(),'state/diagnostic save escaped lock')
+                return (save or original_save)(path,record)
+            stack.enter_context(patch.object(w,'save_observation',side_effect=guarded_save))
             output=stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             result=c.main()
         return result,p.loads(output.getvalue()),reads.call_count
@@ -191,6 +197,113 @@ class ReservationCLITests(unittest.TestCase):
         (root/'handoff.json').write_text(p.canonical(value),encoding='utf-8')
         (root/'secret').write_text(SECRET,encoding='utf-8')
         return value,facts
+
+    def test_parallel_main_cannot_overwrite_unknown_send_with_stale_empty_state(self):
+        from unittest.mock import patch
+        import threading
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);value,facts=self.setup_files(root);api=RefAPI();api.fail='before'
+            a_read=threading.Event();b_boundary=threading.Event();a_done=threading.Event()
+            roles=threading.local();results={};errors=[];original=w.save_observation
+            def read(*args,**kwargs):
+                if roles.name=='B':raise OSError('preflight unavailable')
+                a_read.set()
+                if not b_boundary.wait(10):raise AssertionError('B never reached boundary')
+                return facts
+            def save(path,record):
+                if roles.name=='B' and path==root/'state.json' and record.get('journal')=={}:
+                    b_boundary.set()
+                    if not a_done.wait(10):raise AssertionError('A never completed')
+                original(path,record)
+            def run(name):
+                roles.name=name
+                try:results[name]=c.main()
+                except BaseException as error:errors.append(error)
+                finally:
+                    if name=='A':a_done.set()
+                    else:b_boundary.set() # lock loser never reaches save/read
+            argv=['claim','--handoff',str(root/'handoff.json'),'--capability-file',str(root/'secret'),
+                  '--state',str(root/'state.json')]
+            with patch('sys.argv',argv),patch.object(c,'ReservationGitHub',return_value=api), \
+                    patch.object(w,'ObservationGitHub'),patch.object(w,'read_facts',side_effect=read), \
+                    patch.object(w,'save_observation',side_effect=save),contextlib.redirect_stdout(io.StringIO()):
+                a=threading.Thread(target=run,args=('A',));b=threading.Thread(target=run,args=('B',))
+                a.start()
+                try:
+                    self.assertTrue(a_read.wait(10));b.start();a.join(15);b.join(15)
+                finally:
+                    b_boundary.set();a_done.set();a.join(15)
+                    if b.ident is not None:b.join(15)
+                self.assertFalse(a.is_alive());self.assertFalse(b.is_alive())
+            self.assertEqual(errors,[]);self.assertEqual(results,{'A':1,'B':1})
+            retained=c.load_state(root/'state.json',value)
+            api.fail=None
+            recovery=self.run_cli(root,api,facts)[0]
+            self.assertEqual(retained['journal'].get('phase'),'ref',
+                             f'unknown history erased; recovery exit={recovery}, POST={len(api.posts)}')
+            self.assertEqual(recovery,1);self.assertEqual(len(api.posts),2)
+            self.assertEqual(c.load_state(root/'state.json',value)['journal'],retained['journal'])
+
+    def test_missing_token_is_not_sent_and_recovers_using_real_transport(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);value,facts=self.setup_files(root);api=RefAPI()
+            def send(path,method,data):
+                durable=c.load_state(root/'state.json',value)['journal']
+                self.assertEqual(durable['status'],'ATTEMPTING')
+                self.assertEqual(durable['phase'],'commit' if path.endswith('/git/commits') else 'ref')
+                self.assertTrue((root/'state.json.lock').exists())
+                return api.request(path,method,data)
+            with patch.object(c.ReservationGitHub,'get',side_effect=api.get), \
+                    patch.object(c.ReservationGitHub,'_send_request',side_effect=send), \
+                    patch.dict(c.os.environ,{},clear=True):
+                first,output,_=self.run_cli(root,api,facts,production=True)
+                before=c.load_state(root/'state.json',value);first_posts=len(api.posts)
+                c.os.environ['GH_TOKEN']='synthetic'
+                second,output,reads=self.run_cli(root,api,facts,production=True)
+            self.assertEqual((first,first_posts),(1,0))
+            self.assertEqual(before['journal'],{},f'recovery exit={second}, POST={len(api.posts)}')
+            self.assertEqual(before['diagnostics'][-1]['send_state'],'NOT_SENT')
+            self.assertEqual((second,reads,len(api.posts)),(0,2,2))
+            self.assertEqual(c.load_state(root/'state.json',value)['diagnostics'],before['diagnostics'])
+
+    def test_existing_unknown_send_is_not_reset_when_token_is_missing(self):
+        from unittest.mock import patch
+        for phase in ('commit','ref'):
+            with self.subTest(phase=phase),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);value,facts=self.setup_files(root);api=RefAPI();api.fail='before'
+                def send(path,method,data):
+                    result=api.request(path,method,data)
+                    if phase=='commit':raise OSError('commit response unknown')
+                    return result
+                with patch.object(c.ReservationGitHub,'get',side_effect=api.get), \
+                        patch.object(c.ReservationGitHub,'_send_request',side_effect=send), \
+                        patch.dict(c.os.environ,{'GH_TOKEN':'synthetic'},clear=True):
+                    self.assertEqual(self.run_cli(root,api,facts,production=True)[0],1)
+                    prior=c.load_state(root/'state.json',value);posts=len(api.posts)
+                    self.assertEqual(prior['journal']['phase'],phase)
+                    c.os.environ.pop('GH_TOKEN')
+                    self.assertEqual(self.run_cli(root,api,facts,production=True)[0],1)
+                    c.os.environ['GH_TOKEN']='synthetic'
+                    self.assertEqual(self.run_cli(root,api,facts,production=True)[0],1)
+                after=c.load_state(root/'state.json',value)
+                self.assertEqual(after['journal'],prior['journal']);self.assertEqual(len(api.posts),posts)
+                self.assertEqual(posts,1 if phase=='commit' else 2)
+                self.assertEqual(after['diagnostics'][:len(prior['diagnostics'])],prior['diagnostics'])
+
+    def test_lock_failure_never_changes_state_diagnostics_or_posts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);value,facts=self.setup_files(root);api=RefAPI()
+            self.assertEqual(self.run_cli(root,api,facts,read_error=OSError('temporary'))[0],1)
+            state=root/'state.json';sidecar=root/'state.json.diagnostics.json';lock=root/'state.json.lock'
+            sidecar.write_text('[{"reason":"retained"}]',encoding='utf-8');lock.write_text('interrupted holder',encoding='utf-8')
+            before=state.read_bytes();diagnostics=sidecar.read_bytes()
+            result,output,reads=self.run_cli(root,api,facts)
+            self.assertEqual(result,1);self.assertEqual(reads,0)
+            self.assertEqual(state.read_bytes(),before);self.assertEqual(sidecar.read_bytes(),diagnostics)
+            self.assertEqual(api.posts,[]);self.assertEqual(lock.read_text(encoding='utf-8'),'interrupted holder')
 
     def test_preflight_and_target_failure_recover_without_losing_diagnostics(self):
         for kind in ('preflight','scope'):

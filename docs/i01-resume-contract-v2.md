@@ -112,6 +112,19 @@ CLI結果はMANUAL_OBSERVEDで、自動経路のOWNER_OBSERVED/I-01一周へ昇�
 
 ## 予約CLIの停止と通信復旧
 
+予約CLIは既存 `startup_preparation.state_lock` のO_EXCLロック
+`<state>.lock` を使う。同じstateの最初の読込・初期保存・現在facts確認・取得・送信前journal・
+結果保存・例外時の診断追記（破損stateの別診断ファイルを含む）を一つのロック内で行う。
+ロック取得失敗はstdoutへ停止理由を出すだけで、state・診断履歴・既存ロックを変更しない。
+後発が古い空journalを保存して先行の不明送信履歴を消すことを防ぐ。これは同じローカル
+ファイルを使う参加処理の保護であり、跨環境の担当排他はGitHub create-refによる別の保証。
+ローカルロックを跨環境CAS/leaseへ昇格させない。
+
+中断でロックが残る場合、自動削除・期限切れ・再送は行わない。人間がholderの終了、
+stateの送信journalと診断履歴、実ref/commitを確認した後だけ手動解除する。stateと秘密を
+保持したまま同じ引数で再開し、不明送信はGET照合だけにする。ロックを消すことは
+GitHub担当枠の解除でも、未送信への変更でもない。
+
 `--state` は `schema_version=1, kind=i01_reservation_state` の保存envelope。
 `journal`（外部送信履歴）と追記型 `diagnostics`（工程・停止理由・次操作）を分離する。
 最初のfacts取得前に明示的な `journal={}` をatomic保存し、以後診断だけで送信済みへ
@@ -128,7 +141,12 @@ CLI結果はMANUAL_OBSERVEDで、自動経路のOWNER_OBSERVED/I-01一周へ昇�
 
 完全な旧ATTEMPTING/UNKNOWN/ACQUIREDはbinding/ref/commit SHAを検証して移行し、
 既存diagnosticも保持する。送信履歴が欠落した旧停止記録は自動移行できない。
-各POST前のjournal保存失敗時、そのPOSTを送らない。commit作成後・ref送信前の保存失敗は
+tokenの未設定・空値など確実にローカル判定できる書込前条件は、送信中journalを
+保存する前に確認する。輸送層でも同じtoken検査を維持する。tokenがあるだけでは
+contents-write権限の実証にならず、資格確認用の試験POSTは行わない。未設定で止まった
+新規未送信stateは診断を残し、token設定後に現在factsを二度再取得して予約へ進める。
+既存phase=commit/refの不明記録を「以前token不足だったはず」と推測して空へ戻さない。
+各実POSTの前にはdurable journal保存を必須とし、保存失敗時は対応するPOSTを送らない。commit作成後・ref送信前の保存失敗は
 最後のdurable phase=commitを保持して停止する。診断保存も失敗した場合はstdoutへ
 `diagnostic_save_failed` を出し、元stateと秘密を保持して引渡す。
 
