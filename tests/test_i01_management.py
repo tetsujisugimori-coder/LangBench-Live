@@ -32,7 +32,7 @@ def fixture():
     generated=p.generate(value,dict(schema_version=2,repository=m.REPOSITORY,issues={'102':policy}),owner_facts=owner)['github_record.md']
     record=g.block(generated,p.evidence_contract().REQUEST_START,p.REQUEST_END)
     base=comment(100,generated,policy['owner'])
-    extension=copy.deepcopy(json.loads((ROOT/'.github/automation-dashboard.json').read_text())['issues']['102'])
+    extension=copy.deepcopy(json.loads((ROOT/'.github/automation-dashboard.json').read_text(encoding='utf-8'))['issues']['102'])
     policy.update({k:extension[k] for k in ('i01_manager','manual_review')})
     policy['i01_manager'].update(base_comment_id=100,base_record_digest=m.record_digest(record))
     return policy,base,record
@@ -189,8 +189,8 @@ class ManagerTests(unittest.TestCase):
         value['work']['identity']['authorization_comment_id']=None
         with tempfile.TemporaryDirectory() as temporary:
             directory=Path(temporary);config=directory/'config.json';inputfile=directory/'input.json';handoff=directory/'handoff.json';output=directory/'request.md'
-            config.write_text(p.canonical(dict(schema_version=2,repository=m.REPOSITORY,issues={'102':policy})))
-            inputfile.write_text(p.canonical(record));handoff.write_text(p.canonical(value))
+            config.write_text(p.canonical(dict(schema_version=2,repository=m.REPOSITORY,issues={'102':policy})),encoding='utf-8')
+            inputfile.write_text(p.canonical(record),encoding='utf-8');handoff.write_text(p.canonical(value),encoding='utf-8')
             command=[sys.executable,'-B',str(ROOT/'tools/i01_management.py'),'--config',str(config),'--preparation-record',str(inputfile),'--reserve-handoff',str(handoff),'--output',str(output)]
             first=subprocess.run(command,capture_output=True,text=True)
             self.assertEqual(first.returncode,0,first.stderr)
