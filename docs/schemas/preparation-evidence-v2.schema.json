@@ -693,6 +693,56 @@
         }
       ]
     },
+    "managedIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scheme",
+        "public_id",
+        "source",
+        "assurance",
+        "route",
+        "conversation_id",
+        "cloud_task_id",
+        "authorization_comment_id"
+      ],
+      "properties": {
+        "scheme": {
+          "const": "github_actor_v1"
+        },
+        "public_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source": {
+          "const": "github_issue_comment"
+        },
+        "assurance": {
+          "const": "github_actor_not_service_run"
+        },
+        "route": {
+          "const": "managed"
+        },
+        "conversation_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "cloud_task_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "authorization_comment_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
     "executionWorkV1": {
       "type": "object",
       "additionalProperties": false,
@@ -715,7 +765,7 @@
         "started_at": {"type": "string","minLength": 1},
         "evidence_url": {"type": "string","minLength": 1},
         "observed_at": {"type": "string","minLength": 1},
-        "identity": {"$ref": "#/$defs/capabilityIdentity"}
+        "identity": {"oneOf": [{"$ref": "#/$defs/capabilityIdentity"},{"$ref": "#/$defs/managedIdentity"}]}
       }
     },
     "executionClaimV1": {
@@ -851,7 +901,7 @@
     "executionV2": {
       "type": "object",
       "additionalProperties": false,
-      "allOf": [{"$ref": "#/$defs/repairScope"}],
+      "allOf": [{"$ref": "#/$defs/repairScope"},{"if":{"properties":{"work":{"properties":{"identity":{"properties":{"route":{"const":"managed"}},"required":["route"]}},"required":["identity"]}},"required":["work"]},"then":{"properties":{"issue":{"const":102},"purpose":{"const":"work-owner-resume-i01-repair"}}}}],
       "required": [
         "schema_version",
         "repository",
@@ -1068,6 +1118,7 @@
       ]
     },
     "resumeObservationV2": {
+      "allOf": [{"if": {"properties": {"resume_route": {"const": "managed"}}}, "then": {"properties": {"identity_assurance": {"const": "GitHub actor; not authenticated Work run"}, "dedup_key": {"pattern": "^tetsujisugimori-coder/LangBench-Live:issue102:[a-f0-9]{40}:owner_resume:work-owner-resume-i01-repair$"}, "work": {"properties": {"identity": {"$ref": "#/$defs/managedIdentity"}}}}}, "else": {"properties": {"identity_assurance": {"const": "capability possession; not authenticated Work run"}}}}],
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -1196,8 +1247,8 @@
           "required": ["event","work","claim","receipt","action","recheck"]
         },
         "claimed_execution_id": {"type": "string","pattern": "^[a-f0-9]{64}$"},
-        "identity_assurance": {"const": "capability possession; not authenticated Work run"},
-        "resume_route": {"enum": ["automatic","manual"]}
+        "identity_assurance": {"enum": ["capability possession; not authenticated Work run","GitHub actor; not authenticated Work run"]},
+        "resume_route": {"enum": ["automatic","manual","managed"]}
       },
       "required": [
         "schema_version",

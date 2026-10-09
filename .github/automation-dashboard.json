@@ -212,7 +212,25 @@
         "local_main_sync": ".github/workflows/pull-local-main.yml"
       },
       "preparation_contract": 2,
-      "resume_protocol": 2
+      "resume_protocol": 2,
+      "i01_manager": {
+        "schema_version": 1,
+        "pr": 103,
+        "base_comment_id": 6067589610,
+        "base_record_digest": "d2a20f49550609dc9c565d5858acb988b2d8f41d2663a9bdb537763f90a252c8",
+        "authorization_ref": "https://github.com/tetsujisugimori-coder/LangBench-Live/issues/102#issuecomment-6089550149"
+      },
+      "manual_review": {
+        "schema_version": 1,
+        "pr": 103,
+        "actor": "/root/pr103_independent_review",
+        "delegation_ref": "https://github.com/tetsujisugimori-coder/LangBench-Live/pull/103#pullrequestreview-5475171001",
+        "author": {
+          "login": "tetsujisugimori-coder",
+          "id": 265440097,
+          "type": "User"
+        }
+      }
     }
   }
 }

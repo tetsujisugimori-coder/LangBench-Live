@@ -227,6 +227,11 @@ def read_facts(api, value, include_reservation=True):
     prior['pr'] = value['pr']
     _, facts = collect(api, value['issue'], policy, prior, include_preparation=False)
     facts.update(main_sha=main, policy=policy, issue=api.get(f'/issues/{value["issue"]}'))
+    if facts.get('dashboard_comment_id') is not None:
+        dashboards=[item for item in api.pages(f'/issues/{value["issue"]}/comments') if item.get('id')==facts['dashboard_comment_id']]
+        if len(dashboards)!=1:raise ValueError('Current Dashboard identity unavailable')
+        # Rendered Dashboard is read separately only for the actual smoke.
+        facts['smoke_dashboard']=dashboards[0]
     facts['sync_artifacts'] = copy.deepcopy(getattr(api, 'artifacts', getattr(api, 'sync_artifacts', {})))
     if api.get('/branches/main')['commit']['sha'] != main:
         raise ValueError('main advanced during collection')
@@ -243,7 +248,14 @@ def read_facts(api, value, include_reservation=True):
                 or waiting['body_sha256'] != value['waiting_record']['body_sha256']):
             raise ValueError('Current authenticated preparation/resume/waiting binding differs')
         facts['resume_authorization'] = dict(kind=waiting['allowed_action'], authorization_ref=waiting['authorization_ref'], effect='read_only')
-    if value['schema_version'] == 2 and include_reservation and value['work']['identity']['route'] == 'automatic':
+    if value['schema_version'] == 2 and value['work']['identity']['route'] == 'managed':
+        try:
+            from tools.i01_management import authenticate_managed_handoff
+        except ModuleNotFoundError:
+            from i01_management import authenticate_managed_handoff
+        authenticate_managed_handoff(value, facts['issue_comments'], policy)
+        facts['managed_actor_verified'] = True
+    if value['schema_version'] == 2 and include_reservation and value['work']['identity']['route'] in {'automatic', 'managed'}:
         capability = capability_contract()
         facts['resume_reservation'] = capability.read_reservation(api, value)
     return facts
@@ -281,6 +293,7 @@ def read_only_smoke(value, facts, previous=None):
     except ModuleNotFoundError:
         from automation_dashboard import parse_state, BOT
     matches=[c for c in facts['issue_comments'] if c.get('id')==facts.get('dashboard_comment_id')]
+    if facts.get('smoke_dashboard') is not None:matches=[facts['smoke_dashboard']]
     if len(matches)!=1 or not author_matches(matches[0].get('user'),BOT):
         raise ValueError('Sole-writer Dashboard unavailable')
     dashboard=parse_state(matches[0]['body'],value['issue'],facts['policy'])
@@ -322,11 +335,11 @@ def observe(value, facts, previous=None):
            'claimed_run_id': previous.get('claimed_run_id', previous['work']['run_id']) if previous else value['work']['run_id'],
            'claimed_started_at': previous.get('claimed_started_at', previous['work']['started_at']) if previous else value['work']['started_at'],
            'evidence_history': history, 'evidence_conflicts': conflicts,
-           'input_digest': preparation.digest(value), 'facts_digest': preparation.digest(facts)}
+           'input_digest': preparation.digest(value), 'facts_digest': preparation.digest({k:v for k,v in facts.items() if k!='smoke_dashboard'})}
 
     if value['schema_version'] == 2:
         out.update(claimed_execution_id=previous.get('claimed_execution_id') if previous else execution_id(value),
-                   identity_assurance='capability possession; not authenticated Work run',
+                   identity_assurance=('GitHub actor; not authenticated Work run' if value['work']['identity']['route']=='managed' else 'capability possession; not authenticated Work run'),
                    resume_route=value['work']['identity']['route'])
 
     def stop(reason):
@@ -413,9 +426,11 @@ def observe(value, facts, previous=None):
             return stop('Prior owner waiting record is missing, changed, or untrusted')
     except (KeyError, TypeError, ValueError):
         return stop('Required fresh GitHub fields are missing or invalid')
+    if value['schema_version'] == 2 and value['work']['identity']['route'] == 'managed' and facts.get('managed_actor_verified') is not True:
+        return stop('Managed GitHub actor request has not been freshly authenticated')
     out.update(matched=True, stage='実装済み')
     try:
-        review, _ = work_review(facts['pr_comments'], value['issue'], value['pr'], value['reviewed_head_sha'], policy)
+        review, _ = work_review(facts['pr_comments'], value['issue'], value['pr'], value['reviewed_head_sha'], policy, facts.get('reviews'))
         if review['status'] != 'PASS' or value['work']['automation_id'] == policy['work_automation_id']:
             return stop('Independent reviewed HEAD is unconfirmed or reviewer is acting as resume owner')
     except (KeyError, TypeError, ValueError):

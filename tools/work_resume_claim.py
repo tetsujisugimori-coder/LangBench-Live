@@ -46,9 +46,12 @@ def validate_identity(value):
     identity = work['identity']
     if not isinstance(identity, dict) or set(identity) != {'scheme', 'public_id', 'source', 'assurance', 'route', 'conversation_id', 'cloud_task_id', 'authorization_comment_id'}:
         raise ValueError('Invalid execution capability fields')
-    if (identity['scheme'] != 'capability_v1' or identity['source'] != 'local_csprng'
-            or identity['assurance'] != ASSURANCE or identity['route'] not in {'automatic', 'manual'}
-            or not isinstance(identity['public_id'], str) or not p.re.fullmatch('[a-f0-9]{64}', identity['public_id'])):
+    managed = identity['route'] == 'managed'
+    if managed:
+        if (value['issue'], value['purpose']) != w.REPAIR_SCOPE or identity['scheme'] != 'github_actor_v1' or identity['source'] != 'github_issue_comment' or identity['assurance'] != 'github_actor_not_service_run':
+            raise ValueError('Invalid managed actor route/scope')
+    if (not managed and (identity['scheme'] != 'capability_v1' or identity['source'] != 'local_csprng'
+            or identity['assurance'] != ASSURANCE or identity['route'] not in {'automatic', 'manual'})) or not isinstance(identity['public_id'], str) or not p.re.fullmatch('[a-f0-9]{64}', identity['public_id']):
         raise ValueError('Capability identity scheme/source/assurance invalid')
     # Context IDs are diagnostics supplied by owner, not credential assertions.
     for name in ('conversation_id', 'cloud_task_id'):
@@ -57,7 +60,7 @@ def validate_identity(value):
     if identity['public_id'] in {work['automation_id'], value['event']['delivery_id'], identity['conversation_id'], identity['cloud_task_id']}:
         raise ValueError('Different identity kind reused as execution capability')
     comment = identity['authorization_comment_id']
-    if identity['route'] == 'manual':
+    if identity['route'] in {'manual', 'managed'}:
         if type(comment) is not int or comment <= 0: raise ValueError('Manual route needs human authorization comment')
     elif comment is not None: raise ValueError('Automatic route cannot claim manual authorization')
     w.evidence(work)

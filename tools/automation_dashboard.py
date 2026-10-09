@@ -37,6 +37,13 @@ def validate_policy_config(config):
         if 'resume_protocol' in entry and (entry.get('preparation_contract') != 2
                 or type(entry['resume_protocol']) is not int or entry['resume_protocol'] != 2):
             raise ValueError('Unsupported required I-01 resume protocol')
+    for key, entry in config['issues'].items():
+        if 'i01_manager' in entry or 'manual_review' in entry:
+            try:
+                from tools.i01_management import validate_extensions
+            except ModuleNotFoundError:
+                from i01_management import validate_extensions
+            validate_extensions(int(key), entry)
     return config
 
 
@@ -211,6 +218,10 @@ def validated_work_record(comment, issue, pr, policy):
         return None
     if type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or not sha(value.get("head_sha")):
         raise WorkRecordError("Invalid Work schema or head identity")
+    return validate_work_payload(value)
+
+
+def validate_work_payload(value):
     if (not isinstance(value.get("blockers"), list) or not isinstance(value.get("follow_up"), list)
             or "active_blocker" not in value or type(value.get("follow_up_recorded")) is not bool
             or not isinstance(value.get("verdict"), str) or value["verdict"] not in {"PASS", "BLOCKED", "PENDING"}):
@@ -231,8 +242,17 @@ def validated_work_record(comment, issue, pr, policy):
     return value
 
 
-def work_review(comments, issue, pr, head, policy):
+def work_review(comments, issue, pr, head, policy, reviews=None):
     accepted = []
+    if policy.get('manual_review'):
+        try:
+            from tools.i01_management import manual_review_records
+        except ModuleNotFoundError:
+            from i01_management import manual_review_records
+        try:
+            accepted.extend(manual_review_records(reviews or [], issue, pr, policy))
+        except WorkRecordError as exc:
+            return result("ERROR", str(exc), head_sha=head), None
     for comment in comments:
         try:
             value = validated_work_record(comment, issue, pr, policy)
@@ -253,7 +273,9 @@ def work_review(comments, issue, pr, head, policy):
             or value.get("verdict") not in {"PASS", "BLOCKED", "PENDING"}):
         return result("ERROR", "Work evidence is missing explicit blocker/follow-up fields", head_sha=head), None
     status = "BLOCKED" if value["blockers"] else value["verdict"]
-    return result(status, "Authenticated Work review for current head", head_sha=head, comment_id=ident), value
+    provenance = value.get('review_provenance', {})
+    return result(status, "Authenticated Work review for current head", head_sha=head,
+                  comment_id=ident, **provenance), value
 
 
 def workflow_identity(run, path, workflow_id, repository=REPOSITORY):
@@ -556,7 +578,7 @@ def evaluate(issue, policy, previous, facts):
                     for r in state["dispatches"])):
         state["blockers"].append("POST_MERGE_FIX_REQUIRES_PR_HANDOFF")
     state["pr"], state["head_sha"] = pull["number"], head
-    work, report = work_review(facts["pr_comments"], issue, pull["number"], head, policy)
+    work, report = work_review(facts["pr_comments"], issue, pull["number"], head, policy, facts.get("reviews"))
     state["work_review"] = work
     state["follow_up"] = (report or {}).get("follow_up", [])
     state["follow_up_recorded"] = (report or {}).get("follow_up_recorded") is True

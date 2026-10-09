@@ -227,3 +227,142 @@ UNKNOWN要求へ戻さず、writer snapshotにexternal ID/time/settings版/input
 残る阻害条件は実Workの自動起動/受領、新環境のcontents-write資格、管理者によるref不変運用、
 同共有入力外部更新の競合制御と既存実行のfencing。これらの未実証/保証不能をコードPASSで
 覆わない。I-02 lease/監視、Phase2、新測定、I-07以降、空PRは開始しない。
+
+## Issue102 management route (PR103)
+
+Only Issue102 / PR103 / `work-owner-resume-i01-repair` opts into
+`i01_manager` and `manual_review` policy extensions. Other Issues and the
+original automatic/private capability and manual read-only routes retain their
+contracts. Main deployment plus the human-approved scope authorizes this
+limited manager; the earlier fixed waiting record is not a blanket write permit.
+
+The existing GitHub connection publishes a whole `langbench-i01-request:v1`
+comment to Issue102. `tools/i01_management.py` builds it locally and reads its
+response using public GETs. A saved request is immutable: reuse the same body and
+request ID after uncertain submission, find the canonical first comment, and do
+not generate a new nonce or edit/delete requests. Never put a PAT, GH_TOKEN,
+private capability, signing key, or bearer secret in the request or an Issue.
+The public nonce is an identifier, not a secret or proof of possession.
+
+The trusted-main `manage-i01` job in `automation-dashboard.yml` uses only its
+job-scoped `GITHUB_TOKEN`. Its `contents:write` permission is isolated from the
+ordinary observer. Both jobs run inside the existing repository concurrency
+group; the observer runs after the manager even if management stops. PR head,
+artifact code, shell supplied in comments, arbitrary refs and arbitrary Git
+payloads are never executed. Manager writes are only the bound one-shot
+commit/ref POST and append-only Issue102 journals/amendments. No dispatch,
+measurement, cancellation, ref modification/deletion, merge or close is added.
+GitHub/App account authentication is the trust root. A shared account cannot
+cryptographically distinguish two Work executions or the independent reviewer
+from the implementation owner. `run_id=null`, route `managed`, and assurance
+`github_actor_not_service_run` preserve that limitation instead of claiming a
+service run or private capability possession.
+
+### Reservation and crash recovery
+
+A reservation request binds the current input version/digest, actual merge,
+reviewed full HEAD, waiting bytes, declared event/start, resume registration,
+public execution ID and read-only authorization. The manager authenticates
+GitHub comment ID/issue/author/type and immutable timestamps, reads current main
+policy and public facts twice, and uses the same owner-resume preflight as the
+original CLI. Before Git commit POST it publishes and GET-confirms a bot-owned
+`langbench-i01-journal:v1` commit-stage record. Before ref POST it persists the
+known commit SHA in a ref-stage record. No ephemeral Actions filesystem is used
+as cross-run journal authority. A successful ref is GET-checked against the
+entire binding and parent before an acquired journal is published.
+
+A commit journal without a known commit result never sends again. A ref journal
+only GET-reconciles the permanent ref; absent, changed or conflicting results
+stop. Another request's retained journal for the same operation also fences a
+new attempt even while the ref is absent. Identical duplicate request bodies
+use the first GitHub comment ID; differing payloads with the same request ID
+stop. Duplicate or edited journals stop. No expiry, takeover or automatic reset
+exists. Repo administrators are the trust root: journal/request/amendment and
+reservation-ref deletion or rewriting is prohibited operationally; the code
+does not claim to prevent an administrator from erasing GitHub history.
+
+### Shared input updates
+
+The pinned owner base comment6067589610 remains the sole normal preparation
+input marker. Its whole request JSON is pinned by `base_record_digest`; the
+fixed waiting comment6067573923 remains unchanged. The manager appends
+`langbench-i01-amendment:v1` records binding a canonical authenticated update
+request and the entire previous record digest. A single nonbranching chain
+produces one logical current input, with consecutive input versions and complete
+input/intent history. The original author is never impersonated or replaced.
+A separate unique bot-owned `langbench-i01-managed-snapshot:v1` comment holds the
+writer's preparation snapshot; the base is not PATCHed in this route.
+
+Updates specify `expected_input_version` and `expected_input_digest`; same-base
+competing requests stop before publication. Immutable scope, PR, owner,
+registrations, requirements, actors and starting main are not editable through
+this route. Only input version, phase, observed HEAD, approved prompt
+expectations and explicit bound owner observations can advance, and phases do
+not regress. The proposed HEAD must equal the actual PR HEAD. Execution-bearing
+owner updates require the exact authenticated managed request and permanent
+reservation and cannot switch or erase an existing execution. Observations do
+not grant PASS themselves: the sole writer revalidates current GitHub facts,
+real ZIP/sync, negative histories and executed read-only operation.
+
+Concurrency serializes the cooperating manager and writer, not every GitHub
+administrator. The inbox is scanned on each existing event because pending runs
+may coalesce. Version/digest chains, immutable records and pre/post readback
+detect outside edits; they are not a GitHub comment CAS or cross-service lease.
+Uncertainty stops and retains evidence. Bot output is processed in the same run;
+it is not assumed to start another Actions run. Existing connection events and
+effective token/ruleset permissions require real post-merge confirmation.
+
+### Independent manual review
+
+The approved new independent actor is `/root/pr103_independent_review`, with the
+original delegation record review5475171001. Its own new PR **review** may contain
+a whole `langbench-manual-work-review:v1` JSON envelope, as specified by
+`docs/schemas/i01-management-v1.schema.json`. The payload binds repo/Issue/PR,
+full HEAD, actor, delegation, verdict, blockers, follow-up and conditions. The
+collector authenticates actual GitHub author ID/type, review state, review ID,
+submission time and `commit_id`, and the same evaluator is used by Dashboard
+and owner resume. General prose, implementation-owner handoff comments and an
+old-head result do not become a current PASS. COMMENTED is kept COMMENTED;
+manual_handoff is not the old review automation or an authenticated Work run.
+Dismissal, malformed trusted evidence or changes-requested/PASS contradiction
+fail closed. Existing automation comments continue to use their original schema.
+
+A final new HEAD requires the independent actor's own new record and new hosted
+CI. The review ID is external evidence, not a new constant committed into the
+same HEAD; this avoids a review-ID/HEAD cycle. The original dispatch receipt and
+other Merge/Completion prerequisites remain required and are not bypassed by
+this extension. If the direct manual implementation has no supported initial
+receipt, Dashboard still reports that separate blocker rather than fabricating
+one. Likewise, hidden automation trigger values remain unconfirmed.
+
+### Work procedure and checks
+
+1. Read the main policy and the sole base plus amendments. Save the logical
+   request JSON as `preparation-record.json` and an unclaimed v2 event/start
+   handoff as `handoff.json`. Actual observed data is required, not these names
+   or fixtures as proof.
+2. Build an inert reservation submission (no network mutation):
+   `python -B tools/i01_management.py --preparation-record preparation-record.json --reserve-handoff handoff.json --output request.md`.
+   Publish the saved whole envelope once through the supported GitHub connection.
+3. Read the canonical receipt without write credentials:
+   `python -B tools/i01_management.py --read-response <actual-comment-id> --output response.json`.
+   Only ACQUIRED contains a verified handoff/claim. PENDING/UNKNOWN is not a
+   resend permit. Save the returned handoff separately for the existing
+   `work_owner_resume.py --github-read --read-only-smoke` procedure. The managed
+   route needs no `--capability-file` and claims no secret possession.
+4. Prepare the next version's owner observations, complete history and unchanged
+   intent ledger; build an update with `--preparation-record <current-record>
+   --update-record <next-record> --output update.md`. Publish it through the same
+   connection, read its APPLIED response and verify the sole writer twice.
+5. Stop the dedicated existing automation through the supported official
+   update/peek or UI management path after receiving final results; no new
+   automation-stop API or common-workflow disable is introduced here.
+
+Pre-merge acceptance is code/schema/contract checks, hosted Ubuntu/Windows CI
+and the final independent same-HEAD record. Real merge/event/start, connection
+`issue_comment` delivery, effective token write permission, permanent reservation,
+actual smoke receipt, managed update/two writer reads and dedicated automation
+stop remain post-merge evidence. Fixtures never certify I-01 COMPLETE. No secret
+setting is requested of the user. If repository policy blocks the manager, check
+GitHub Settings → Actions → General and Settings → Rules → Rulesets for the
+reserved tag namespace; report the exact denied operation before changing policy.

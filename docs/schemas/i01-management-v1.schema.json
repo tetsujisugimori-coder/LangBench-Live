@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Issue102 authenticated manager request and manual review",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/manualReview"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "repository",
+        "issue",
+        "purpose",
+        "request_id",
+        "action",
+        "expected_input_version",
+        "expected_input_digest",
+        "handoff",
+        "record"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "kind": {
+          "const": "i01_management_request"
+        },
+        "repository": {
+          "const": "tetsujisugimori-coder/LangBench-Live"
+        },
+        "issue": {
+          "const": 102
+        },
+        "purpose": {
+          "const": "work-owner-resume-i01-repair"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "action": {
+          "enum": [
+            "reserve",
+            "update"
+          ]
+        },
+        "expected_input_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_input_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "handoff": {},
+        "record": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "reserve"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "handoff": {
+                "$ref": "#/$defs/managedProposal"
+              },
+              "record": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "handoff": {
+                "type": "null"
+              },
+              "record": {
+                "$ref": "preparation-evidence-v2.schema.json#/$defs/request"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "managedProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "$ref": "preparation-evidence-v2.schema.json#/$defs/repairScope"
+        },
+        {
+          "if": {
+            "properties": {
+              "work": {
+                "properties": {
+                  "identity": {
+                    "properties": {
+                      "route": {
+                        "const": "managed"
+                      }
+                    },
+                    "required": [
+                      "route"
+                    ]
+                  }
+                },
+                "required": [
+                  "identity"
+                ]
+              }
+            },
+            "required": [
+              "work"
+            ]
+          },
+          "then": {
+            "properties": {
+              "issue": {
+                "const": 102
+              },
+              "purpose": {
+                "const": "work-owner-resume-i01-repair"
+              }
+            }
+          }
+        }
+      ],
+      "required": [
+        "schema_version",
+        "repository",
+        "issue",
+        "purpose",
+        "pr",
+        "reviewed_head_sha",
+        "merge_sha",
+        "target_main_sha",
+        "owner",
+        "waiting_record",
+        "event",
+        "work",
+        "claim",
+        "receipt",
+        "next_action",
+        "recheck",
+        "authorization"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issue": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "purpose": {
+          "enum": [
+            "work-owner-resume-i01",
+            "work-owner-resume-i01-repair"
+          ]
+        },
+        "pr": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reviewed_head_sha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "merge_sha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_main_sha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "login",
+            "type"
+          ],
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "login": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "waiting_record": {
+          "$ref": "preparation-evidence-v2.schema.json#/$defs/executionWaitingRecord"
+        },
+        "event": {
+          "$ref": "preparation-evidence-v2.schema.json#/$defs/executionEvent"
+        },
+        "work": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_id",
+            "automation_id",
+            "started_at",
+            "evidence_url",
+            "observed_at",
+            "identity"
+          ],
+          "properties": {
+            "run_id": {
+              "type": "null"
+            },
+            "automation_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "started_at": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence_url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "observed_at": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "scheme",
+                "public_id",
+                "source",
+                "assurance",
+                "route",
+                "conversation_id",
+                "cloud_task_id",
+                "authorization_comment_id"
+              ],
+              "properties": {
+                "scheme": {
+                  "const": "github_actor_v1"
+                },
+                "public_id": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source": {
+                  "const": "github_issue_comment"
+                },
+                "assurance": {
+                  "const": "github_actor_not_service_run"
+                },
+                "route": {
+                  "const": "managed"
+                },
+                "conversation_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "cloud_task_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "authorization_comment_id": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        },
+        "claim": {
+          "type": "null"
+        },
+        "receipt": {
+          "type": "null"
+        },
+        "next_action": {
+          "type": "null"
+        },
+        "recheck": {
+          "type": "null"
+        },
+        "authorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "authorization_ref",
+            "effect"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "live_smoke",
+                "safe_stop"
+              ]
+            },
+            "authorization_ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "effect": {
+              "const": "read_only"
+            }
+          }
+        }
+      }
+    },
+    "manualReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "repository",
+        "issue",
+        "pr",
+        "head_sha",
+        "actor",
+        "delegation_ref",
+        "verdict",
+        "blockers",
+        "active_blocker",
+        "follow_up",
+        "follow_up_recorded",
+        "conditions"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "kind": {
+          "const": "manual_work_review"
+        },
+        "repository": {
+          "const": "tetsujisugimori-coder/LangBench-Live"
+        },
+        "issue": {
+          "const": 102
+        },
+        "pr": {
+          "const": 103
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "actor": {
+          "const": "/root/pr103_independent_review"
+        },
+        "delegation_ref": {
+          "const": "https://github.com/tetsujisugimori-coder/LangBench-Live/pull/103#pullrequestreview-5475171001"
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "BLOCKED",
+            "PENDING"
+          ]
+        },
+        "blockers": {
+          "type": "array"
+        },
+        "active_blocker": {},
+        "follow_up": {
+          "type": "array"
+        },
+        "follow_up_recorded": {
+          "type": "boolean"
+        },
+        "conditions": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

@@ -434,7 +434,7 @@ def resume(state, facts, observed_at):
         legacy_facts['operations'] = copy.deepcopy(facts['legacy_operations'])
     for key in ('issue', 'main_sha', 'dashboard', 'policy_pr'):
         if key in facts: legacy_facts[key] = copy.deepcopy(facts[key])
-    if facts.get('main_policy') == policy_entry(value):
+    if p.core_policy(facts.get('main_policy')) == policy_entry(value):
         legacy_facts['main_policy'] = p.policy_entry(legacy_input(value))
     if record is not None:
         publication = {**record['publication'], 'observed_at': record['observed_at']}

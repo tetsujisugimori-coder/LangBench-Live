@@ -155,7 +155,7 @@ def read_facts(api, value):
                 facts['dashboard'] = {'repository': parsed['repository'], 'issue': parsed['issue'],
                     'purpose': parsed['purpose'], 'comment_id': dashboard['id']}
     if value['schema_version'] == 2:
-        facts['issue_comments'] = [c for c in comments if request_version(c.get('body', '')) is None]
+        facts['issue_comments'] = [c for c in comments if request_version(c.get('body', '')) is None and not c.get('body','').startswith('<!-- langbench-i01-managed-snapshot:v1 -->')]
     # No dispatch state is transformed into preparation or Gate PASS.
     return facts
 
@@ -382,12 +382,16 @@ def request_version(body):
 
 
 def authenticated_request_v2(comment, issue, policy):
+    if not author_matches(comment.get('user'), policy['owner']):
+        raise PreparationConflict('Preparation record author is not formal owner')
+    contract = preparation.evidence_contract()
+    return validate_request_v2(block(comment['body'], contract.REQUEST_START, preparation.REQUEST_END), issue, policy)
+
+
+def validate_request_v2(record, issue, policy):
     contract = preparation.evidence_contract()
     if type(policy.get('preparation_contract')) is not int or policy['preparation_contract'] != 2:
         raise PreparationConflict('Reader/policy does not support v2 input')
-    if not author_matches(comment.get('user'), policy['owner']):
-        raise PreparationConflict('Preparation record author is not formal owner')
-    record = block(comment['body'], contract.REQUEST_START, preparation.REQUEST_END)
     fields = {'schema_version', 'kind', 'repository', 'issue', 'purpose', 'owner', 'input_version',
               'input_digest', 'input', 'input_history', 'owner_facts', 'operations', 'legacy_operations'}
     contract.fields(record, fields, 'v2 request')
@@ -397,7 +401,7 @@ def authenticated_request_v2(comment, issue, policy):
             or type(record['issue']) is not int or value['issue'] != issue
             or any(record[k] != value[k] or type(record[k]) is not type(value[k])
                    for k in ('repository', 'purpose', 'owner', 'input_version'))
-            or record['input_digest'] != preparation.digest(value) or contract.policy_entry(value) != policy):
+            or record['input_digest'] != preparation.digest(value) or contract.policy_entry(value) != preparation.core_policy(policy)):
         raise PreparationConflict('v2 author/policy/scope/input binding failed')
     if any(expected is not None and 'events' not in expected for expected in value['registration_prompts'].values()):
         raise PreparationConflict('Legacy v2 approved events absent; explicit input version migration required')
@@ -495,6 +499,12 @@ def select_preparation(comments, issue, policy):
     comment = candidates[0]
     record = authenticate_comment(comment, issue, policy)
     if record['schema_version'] != 2: raise PreparationConflict('Explicit v2 migration required')
+    if policy.get('i01_manager'):
+        try:
+            from tools.i01_management import effective_preparation
+        except ModuleNotFoundError:
+            from i01_management import effective_preparation
+        return effective_preparation(comments, comment, record, issue, policy)
     return comment, record, snapshot(comment['body'])
 
 
@@ -515,7 +525,7 @@ def authenticated_cli_record(api, value, local_owner, local_state):
         from automation_dashboard import validate_policy_config
     validate_policy_config(config)
     policy = config['issues'].get(str(value['issue']))
-    if policy != preparation.policy_entry(value): raise PreparationConflict('Current main policy binding mismatch')
+    if preparation.core_policy(policy) != preparation.policy_entry(value): raise PreparationConflict('Current main policy binding mismatch')
     issue = api.get(f'/issues/{value["issue"]}')
     if (issue.get('number') != value['issue'] or 'pull_request' in issue
             or not author_matches(issue.get('user'), value['owner'])
@@ -629,7 +639,7 @@ def current_preparation_facts(api, value, record, state=None):
         except ModuleNotFoundError:
             import work_owner_resume as resume
         facts['resume_facts'] = resume.read_facts(api, execution)
-        facts['resume_facts']['issue_comments'] = [c for c in facts['resume_facts']['issue_comments'] if request_version(c.get('body', '')) is None]
+        facts['resume_facts']['issue_comments'] = [c for c in facts['resume_facts']['issue_comments'] if request_version(c.get('body', '')) is None and not c.get('body','').startswith('<!-- langbench-i01-managed-snapshot:v1 -->')]
     return facts
 
 
@@ -641,6 +651,12 @@ def preserve_negative_failure(state, record, now):
 
 
 def reconcile_preparation_v2(api, issue, policy, now):
+    if policy.get('i01_manager'):
+        try:
+            from tools.i01_management import reconcile_managed_preparation
+        except ModuleNotFoundError:
+            from i01_management import reconcile_managed_preparation
+        return reconcile_managed_preparation(api, issue, policy, now)
     contract = preparation.evidence_contract()
     comments = api.pages(f'/issues/{issue}/comments')
     comment, record, prior = select_preparation(comments, issue, policy)
