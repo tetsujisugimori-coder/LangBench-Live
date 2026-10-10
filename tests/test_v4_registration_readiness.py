@@ -162,5 +162,40 @@ class RegistrationReadinessTests(unittest.TestCase):
             self.assertTrue((d/'out/github_record.md').exists())
 
 
+    def test_old_report_survives_failed_run_but_exit_is_not_success(self):
+        """A stale local file is never proof that the current run succeeded."""
+        v = input_fixture()
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            input_path = d / 'input.json'
+            input_path.write_text(p.canonical(v), encoding='utf-8')
+            config_path = d / 'config.json'
+            config_path.write_text(p.canonical({
+                'schema_version': 1, 'repository': v['repository'], 'issues': {}}),
+                encoding='utf-8')
+            cmd = [sys.executable, '-B', str(ROOT / 'tools/startup_preparation.py'),
+                   '--input', str(input_path), '--config', str(config_path),
+                   '--state', str(d / 'state.json'), '--output', str(d / 'out'),
+                   '--registration-readiness']
+            first = subprocess.run(cmd, cwd=ROOT, capture_output=True,
+                                   text=True, encoding='utf-8')
+            self.assertEqual(first.returncode, 0, first.stderr)
+            result_path = d / 'out' / 'registration_readiness.json'
+            retained = result_path.read_bytes()
+            self.assertTrue(retained)
+
+            # Invalid input fails before normal output generation, leaving the
+            # preceding report intact. The consumer must obey the new exit status.
+            invalid = copy.deepcopy(v)
+            invalid['repository'] = 'not-the-authorized-repository'
+            input_path.write_text(p.canonical(invalid), encoding='utf-8')
+            failed = subprocess.run(cmd, cwd=ROOT, capture_output=True,
+                                    text=True, encoding='utf-8')
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertEqual(result_path.read_bytes(), retained)
+
+
+
+
 if __name__ == '__main__':
     unittest.main()
