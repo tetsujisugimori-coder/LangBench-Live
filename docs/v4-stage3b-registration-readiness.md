@@ -45,3 +45,20 @@ the official Work interface exposes those operations and their readback.
 This Stage 3B change intentionally preserves the Issue102-specific manager,
 v1/v2 schema, policy, sole writer, existing denial history, and all
 Windows sync protections. It does not modify PR #105's completed results.
+
+## Reading reports after an unsuccessful CLI invocation
+
+A generated `registration_readiness.json` is a **local advisory for the
+specific invocation**, not a success signal on its own. If the next CLI run
+stops or exits nonzero, a previously generated report can remain at the
+same output path. Its presence, nonempty contents, or an earlier
+`owner_settings_matched=true` do **not** override the failed run.
+
+A consumer must check the current process exit status first, and inspect
+the current preparation status and input digest when present, before using
+any output. On a nonzero exit, discard that run's report as evidence even
+if the file exists. A failure before state persistence may also leave an
+old cache: absence of a newly written `STOPPED` field is not success.
+Recheck authenticated current facts rather than reusing a previous positive
+observation. Do not use these local files as Work event-delivery, task-start,
+formal Merge Gate or Completion Gate evidence.
