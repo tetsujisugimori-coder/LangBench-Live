@@ -112,6 +112,16 @@ class RegistrationReadinessTests(unittest.TestCase):
             self.assertTrue(summary['roles'][role]['owner_settings_matched'])
             self.assertIn('do not continue using this role', summary['roles'][role]['next_action'])
 
+    def test_api_outage_never_turns_cached_positive_into_current_readiness(self):
+        v, record, facts = v2_fixture('PR_BOUND')
+        previous = p.resume(p.new_state(v), facts, T0)
+        self.assertTrue(p.registration_readiness(v, record, previous)['roles']['review']['owner_settings_matched'])
+        interrupted = p.resume(previous, {'input_digest': p.digest(v), 'fetch_error': True}, T1)
+        self.assertEqual(interrupted['status'], 'WAITING')
+        report = p.registration_readiness(v, record, interrupted)
+        self.assertFalse(report['roles']['review']['accepted_observation'])
+        self.assertFalse(report['roles']['review']['owner_settings_matched'])
+
     def test_unreconciled_raw_owner_data_is_not_ready(self):
         v, record, _ = v2_fixture('PR_BOUND')
         report = p.registration_readiness(v, record)
