@@ -500,6 +500,8 @@ def registration_readiness(value, owner_facts=None, state=None):
                         and watermark['record'] == observed
                         and watermark['conflict_at'] is None
                         and state['status'] != 'STOPPED'
+                        and not any(reason.startswith('Public GitHub facts unavailable')
+                                    for reason in state['phase_evidence']['missing'])
                         and not any(reason.startswith(role + ': older')
                                     or reason.startswith(role + ': conflicting')
                                     or reason.startswith(role + ': same-time')
