@@ -561,6 +561,9 @@ python tools/validate_function_call_analysis.py <new-output-directory> --expecte
 
 `--summary-only` は履歴のpath・experiment_id・archive_id・archived_atと、各言語・ケースの件数、中央値、最小・最大、前半・後半の中央値を表示し、個別サンプル一覧だけを省きます。通常表示と統計計算、入力検証、保存精度の注意文は維持します。`--all-languages`と併用できます。`--json`単独の内容・schemaは変わりませんが、`--summary-only`との併用はテキスト専用であることを説明する引数エラー（終了コード2）になります。
 
+`--sample-limit N` はテキスト表示だけを各ケースの**先頭N件**に制限し、`1-3 of 50` のように表示範囲と元の総件数を明記します。各履歴の完全性検証と全サンプルに対する中央値・最小最大・前後半統計は省略しません。既定表示と`--json`の出力仕様は変更せず、上限が総件数以上なら従来表示と同じです。正整数以外、および`--json`・`--summary-only`との併用は引数エラー（終了コード2）です。
+
+
 `show_archive_samples.py` は既存の `load_archive` によって各履歴の `archive.json` と4ファイルのSHA-256、結果Validator、保存された実験定義との一致を確認してから表示します。履歴は書き換えません。既定はCの `direct` / `function_call`、`--all-languages` でJavaScriptとPythonも表示します。`--json` は入力順の50個の `samples_ms` と、各ケースのサンプル由来の中央値、最小・最大、前半25件・後半25件の中央値を出します。テキストも1〜50の順番を付けて全サンプルを出します。中央値は既存の `median_from_samples` を共用します。欠落・改変・定義不一致は数値を出さず検証エラー（終了コード2）です。
 
 ```powershell
