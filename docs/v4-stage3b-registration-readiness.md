@@ -17,6 +17,22 @@ when represented, owner-reported settings/readback status, event observation,
 and the next owner check. It **never** sets `formal_gate_authorized`,
 `registration_performed` or `work_service_run_verified` to true.
 
+For v2, the `owner_settings_matched` advisory requires both a full readback
+matching the approved Prompt/Trigger and acceptance by the existing
+`resume()` state history (`owner_watermarks`, input digest, timestamps,
+settings revision, conflict flags and negative observations). A standalone raw
+owner-facts object is un-reconciled and cannot certify current readiness.
+A rejected older success never supersedes the latest negative observation.
+The local report distinguishes the latest supplied observation from the
+effective retained status; its next action remains reconciliation when they
+conflict.
+
+At `FINISHED`, both dedicated roles require `DISABLED_CONFIRMED`, saved
+`enabled=false` and the existing stop readback rules. Enabled registrations
+are **not** considered ready at closure. A verified disabled registration
+is described as stopped, never as something to continue using. This advisory
+does not certify the separate full-cycle Completion Gate or Work run.
+
 A supplied owner-facts file must already pass the existing v1/v2 validator.
 If v2 `--github-read` is in use, use the shared authenticated owner-facts
 readback already obtained by the CLI. The local report is not written to
