@@ -450,6 +450,82 @@ def summary(state):
     ]) + '\n'
 
 
+
+def registration_readiness(value, owner_facts=None):
+    """One optional, non-authoritative I-07/I-09 role summary from existing inputs.
+
+    Does not register Work automations, approve prompts, certify a service event,
+    grant a Gate PASS, or mutate formal shared records. Old input formats and
+    their safety conditions remain unchanged.
+    """
+    validate_input(value)
+    if owner_facts is not None:
+        try:
+            from tools.preparation_github import validate_owner_facts
+        except ModuleNotFoundError:
+            from preparation_github import validate_owner_facts
+        validate_owner_facts(owner_facts, value)
+
+    report = {'kind': 'local_registration_readiness_advisory',
+              'repository': value['repository'], 'issue': value['issue'],
+              'purpose': value['purpose'], 'start_main_sha': value['start_main_sha'],
+              'input_contract': value['schema_version'], 'input_version': value['input_version'],
+              'input_digest': digest(value), 'formal_gate_authorized': False,
+              'registration_performed': False, 'work_service_run_verified': False,
+              'roles': {}}
+    if value['schema_version'] == 2:
+        contract = evidence_contract()
+        report['pr'] = value['pr']
+        report['head_sha'] = value['head_sha']
+        report['phase'] = value['phase']
+        for role in ('review', 'owner_resume'):
+            expected = value['registration_prompts'][role]
+            observed = owner_facts[role] if owner_facts is not None else None
+            registration_id = value['work_automation_id'] if role == 'review' else value['owner_resume_id']
+            confirmed = contract.ready(observed, value, role) if observed is not None else False
+            report['roles'][role] = {
+                'registered_id': registration_id,
+                'approved_prompt_digest': expected['digest'] if expected is not None else None,
+                'approved_prompt_version': expected['version'] if expected is not None else None,
+                'approved_events': copy.deepcopy(expected.get('events')) if expected is not None else None,
+                'owner_reported_status': observed['status'] if observed is not None else 'NOT_OBSERVED',
+                'owner_settings_matched': confirmed,
+                'owner_reported_event': observed['event'] is not None if observed is not None else False,
+                'service_run_verified': False,
+                'next_action': ('Read and verify the approved Prompt, full saved Trigger and enabled status'
+                                if expected is not None and not confirmed else
+                                'Acquire approved role Prompt without inventing a registration'
+                                if expected is None else
+                                'Continue using current observed role; live event/start remains separate')
+            }
+    else:
+        review = owner_facts['review'] if owner_facts is not None else None
+        report['pr'] = None
+        report['head_sha'] = None
+        report['phase'] = 'V1_GENERIC'
+        report['roles']['review'] = {
+            'registered_id': value['work_automation_id'],
+            'approved_prompt_digest': None, 'approved_prompt_version': None,
+            'approved_events': None,
+            'owner_reported_status': ('OWNER_ATTESTED_PARTIAL' if review and review['available']
+                                      else 'UNAVAILABLE' if review else 'NOT_OBSERVED'),
+            'owner_settings_matched': False,
+            'owner_reported_event': bool(review and review['event_verified']),
+            'service_run_verified': False,
+            'next_action': 'Check saved Work Prompt/Trigger in the official UI; v1 has no full binding contract'
+        }
+        report['roles']['owner_resume'] = {
+            'registered_id': None, 'approved_prompt_digest': None,
+            'approved_prompt_version': None, 'approved_events': None,
+            'owner_reported_status': 'NOT_REPRESENTED_IN_V1',
+            'owner_settings_matched': False, 'owner_reported_event': False,
+            'service_run_verified': False,
+            'next_action': 'Treat PR binding and owner-resume registration as separate future observations'
+        }
+    return report
+
+
+
 def generate(value, config, state=None, owner_facts=None):
     if isinstance(value, dict) and value.get('schema_version') == 2:
         return evidence_contract().generate(value, config, state, owner_facts)
@@ -485,6 +561,7 @@ def main():
     parser.add_argument('--github-read', action='store_true', help='Read public GitHub facts; never writes')
     parser.add_argument('--sync-artifact-zip', type=Path, help='Actual official sync ZIP; only with public GitHub read')
     parser.add_argument('--owner-facts', type=Path, help='Formal owner observations; never fetched from a private Work API')
+    parser.add_argument('--registration-readiness', action='store_true', help='Generate a local I-07/I-09 role status summary; no registration or Gate changes')
     parser.add_argument('--migrate-v2', action='store_true', help='Explicit v1 state to v2 migration; preserves unresolved operations')
     parser.add_argument('--lifecycle', type=Path, help='V3.9 local phase evidence sidecar; never a formal Gate')
     parser.add_argument('--mark-unknown', choices=('issue', 'review', 'policy_pr', 'implementation_task', 'fix_task', 'owner_resume', 'review_bind'))
@@ -561,6 +638,13 @@ def main():
             # No current facts were supplied; preserve history, not cached confirmation.
             state = resume(state, facts, datetime.now(timezone.utc).isoformat())
         products = generate(value, config, state, owner_facts)
+        if args.registration_readiness:
+            # Use exact authenticated owner facts only if the existing v2
+            # --github-read route already collected the bound shared record.
+            assessment_facts = (record['owner_facts'] if args.github_read and value['schema_version'] == 2
+                                else owner_facts)
+            products['registration_readiness.json'] = canonical(
+                registration_readiness(value, assessment_facts)) + '\n'
         if args.lifecycle:
             if value['schema_version'] != 1:
                 raise ValueError('Local lifecycle v1 cannot be mixed with formal v2')
