@@ -687,7 +687,7 @@ def observed_pr_facts(issue, policy, facts):
             or not sha(head)
             or (base.get("repo") or {}).get("full_name") != REPOSITORY
             or base.get("ref") != "main"
-            or re.search(rf"(?m)^Refs #{issue}\\s*$", pull.get("body") or "") is None):
+            or re.search(rf"(?m)^Refs #{issue}\s*$", pull.get("body") or "") is None):
         return {"status": "SCOPE_UNVERIFIED", "reason": "PR/Issue/main/HEAD binding mismatch",
                 "read_only": "INSPECT_SCOPE", "effectful": "EXISTING_GATES_ONLY"}
     merged = pull.get("merged") is True
