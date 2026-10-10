@@ -353,3 +353,11 @@ matching, review execution and result ingestion remain unverified until
 observed. PR events do not certify CI completion, deadline arrival or
 no-event stagnation. Deadline guarantee is unavailable without a registered
 separate path; no new timer, dot setting, writer or sync workflow is added.
+
+Issue102はIssue100のpreparation_contract=2にresume_protocol=2を限定追加する。
+collectorは認証済みowner inputの現在待機/許可/登録IDとGitHub ref/commitをGET照合する。
+writerは要求の未解決operationsと自分の確定観測ledgerを分けて保存する。
+read-only capability観測も正式Work runのサービス認証ではない。manual結果、旧v1 claim、
+不明/競合/外部effectはI-01自動成功へ昇格しない。旧Issue entries/条件を維持する。
+新修正PRのコードレビュー/Hosted CIとmain適用後の正式writer認定を区別する。
+詳細と停止手順: [i01-resume-contract-v2.md](i01-resume-contract-v2.md)。

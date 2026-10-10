@@ -110,6 +110,11 @@ def validate_input(value):
     return value
 
 
+def core_policy(policy):
+    if not isinstance(policy, dict): return policy
+    return {k: v for k, v in policy.items() if k not in {'i01_manager', 'manual_review'}}
+
+
 def policy_entry(value):
     if isinstance(value, dict) and value.get('schema_version') == 2:
         return evidence_contract().policy_entry(value)
@@ -136,7 +141,7 @@ def policy_diff(value, config):
         raise ValueError('Issue ID unavailable; policy registration must wait')
     proposed = policy_entry(value)
     existing = config['issues'].get(str(value['issue']))
-    if existing is not None and existing != proposed:
+    if existing is not None and core_policy(existing) != proposed:
         raise ValueError('Conflicting policy registration')
     return {'schema_version': 2 if value['schema_version'] == 2 else config['schema_version'], 'repository': REPOSITORY,
             'issues': {} if existing is not None else {str(value['issue']): proposed}}
@@ -520,9 +525,12 @@ def main():
                     record, state, authenticated_comment = authenticated_cli_record(api, value, owner_facts, state)
                     facts = apply_owner_facts({'input_digest': digest(value)}, record['owner_facts'], value)
                     facts = current_preparation_facts(api, value, record, state)
-                    latest = api.get(f'/issues/comments/{authenticated_comment["id"]}')
-                    authenticate_comment(latest, value['issue'], policy_entry(value), authenticated_comment['id'])
-                    if latest['body'] != authenticated_comment['body'] or latest['updated_at'] != authenticated_comment['updated_at']:
+                    # Re-authenticate the entire logical record, including managed
+                    # amendments and the exact current main policy, not only the
+                    # unchanged owner base comment.
+                    checked_record, _, latest = authenticated_cli_record(api, value, owner_facts, state)
+                    if (checked_record != record or latest['body'] != authenticated_comment['body']
+                            or latest['updated_at'] != authenticated_comment['updated_at']):
                         raise ValueError('Shared input changed during CLI collection')
                 else:
                     facts = apply_owner_facts(read_facts(api, value), owner_facts, value)

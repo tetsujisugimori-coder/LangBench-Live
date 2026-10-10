@@ -234,6 +234,59 @@ class EvidenceContractTests(unittest.TestCase):
 
 
 class WriterV2Tests(unittest.TestCase):
+    def test_real_pending_intent_survives_revision_and_authenticated_resolution(self):
+        for pending in ('UNKNOWN','ATTEMPTING'):
+            v,r,f,api=writer_api('PR_BOUND')
+            state=p.mark_unknown(p.new_state(v),'owner_resume')
+            key=e.op_key(v,'owner_resume');state['operations'][key]['status']=pending
+            v['input_version']+=1;r.update(input_version=v['input_version'],input_digest=p.digest(v),observed_at=T1)
+            for role in e.ROLES:r[role]['observed_at']=T1
+            generated=p.generate(v,api.config,state=state,owner_facts=r)['github_record.md'].strip()
+            request=g.block(generated,e.REQUEST_START,p.REQUEST_END)
+            self.assertEqual(request['operations'][key]['status'],pending)
+            api.comment['body']=generated
+            f.update(input_digest=p.digest(v),owner_record=r)
+            with patch.object(g,'current_preparation_facts',return_value=f):
+                g.reconcile_preparation(api,100,p.policy_entry(v),T1)
+                g.reconcile_preparation(api,100,p.policy_entry(v),T2)
+            saved=g.snapshot(api.comment['body'])['state']
+            self.assertEqual(saved['operations'][key]['status'],'SETTINGS_CONFIRMED')
+            g.authenticated_cli_record(api,v,r,p.rebase(state,v))
+            # A changed head is not the same old intent, even with copied status.
+            bad=copy.deepcopy(request);bad['operations'][key]['head_sha']='c'*40
+            with self.assertRaises(ValueError):
+                candidate=copy.deepcopy(saved);candidate['operations']=bad['operations'];e.validate_state(candidate)
+
+    def test_input_revision_generate_twice_writer_and_disk_roundtrip(self):
+        v,r,f,api=writer_api('PR_BOUND')
+        with patch.object(g, 'current_preparation_facts', return_value=f):
+            g.reconcile_preparation(api,100,p.policy_entry(v),T0)
+        state=p.loads(p.canonical(g.snapshot(api.comment['body'])['state']))
+        old=copy.deepcopy(v)
+        v['input_version']+=1
+        r.update(input_version=v['input_version'],input_digest=p.digest(v),observed_at=T1)
+        for role in e.ROLES:r[role]['observed_at']=T1
+        f.update(input_digest=p.digest(v),owner_record=r)
+        for at in (T1,T2):
+            generated=p.generate(v,api.config,state=state,owner_facts=r)['github_record.md'].strip()
+            start=api.comment['body'].index(e.REQUEST_START)
+            end=api.comment['body'].index(p.REQUEST_END)+len(p.REQUEST_END)
+            api.comment['body']=api.comment['body'][:start]+generated+api.comment['body'][end:]
+            with patch.object(g,'current_preparation_facts',return_value=f):
+                g.reconcile_preparation(api,100,p.policy_entry(v),at)
+            with tempfile.TemporaryDirectory() as directory:
+                path=Path(directory)/'state.json'
+                p.atomic_save(path,g.snapshot(api.comment['body'])['state'])
+                state=p.loads(path.read_text(encoding='utf-8'))
+            self.assertEqual(state['input_history'],[old])
+            self.assertTrue(state['operations'])
+            self.assertTrue(all(o['status']=='SETTINGS_CONFIRMED' and o['input_digest']==p.digest(v)
+                                for o in state['operations'].values()))
+            record=g.authenticate_comment(api.comment,100,p.policy_entry(v))
+            # Real CLI transport runs this same authenticated reconstruction.
+            g.authenticated_cli_record(api,v,r,state)
+            g.state_for_request(record,g.snapshot(api.comment['body']))
+
     def test_same_owner_record_update_noop_and_prose_preserved(self):
         v,r,f,api=writer_api()
         self.assertEqual(g.reconcile_preparation(api,100,p.policy_entry(v),T0),'UPDATED')
@@ -260,7 +313,7 @@ class WriterV2Tests(unittest.TestCase):
         self.assertTrue(all(o['status']=='SETTINGS_CONFIRMED' for o in state['operations'].values()))
         generated=p.generate(v,api.config,state=state,owner_facts=r)['github_record.md'].strip()
         request=g.block(generated,e.REQUEST_START,p.REQUEST_END)
-        self.assertTrue(all(o['status']=='UNKNOWN' and o['external_id'] is None for o in request['operations'].values()))
+        self.assertEqual(request['operations'],{}) # resolved observations stay in snapshot
         start=api.comment['body'].index(e.REQUEST_START);end=api.comment['body'].index(p.REQUEST_END)+len(p.REQUEST_END)
         api.comment['body']=api.comment['body'][:start]+generated+api.comment['body'][end:]
         g.authenticate_comment(api.comment,100,p.policy_entry(v))
@@ -275,6 +328,12 @@ class WriterV2Tests(unittest.TestCase):
         g.reconcile_preparation(api,100,p.policy_entry(v),T1)
         unknown=g.snapshot(api.comment['body'])['state']
         self.assertEqual(unknown['operations'][e.op_key(v,'owner_resume')]['status'],'UNKNOWN')
+        # UNKNOWN can name an existing real registration. Preserve that target
+        # as a reconciliation intent, without promoting it to success.
+        regenerated=p.generate(v,api.config,state=unknown,owner_facts=r)['github_record.md']
+        pending=g.block(regenerated,e.REQUEST_START,p.REQUEST_END)
+        self.assertEqual(pending['operations'][e.op_key(v,'owner_resume')]['external_id'],v['owner_resume_id'])
+        g.authenticate_comment({**api.comment,'body':regenerated},100,p.policy_entry(v))
         with self.assertRaises(ValueError):p.mark_unknown(unknown,'owner_resume')
 
     def test_same_comment_negative_refresh_saved_even_when_progress_noop(self):
@@ -431,6 +490,19 @@ class PostMergeCollectorTests(unittest.TestCase):
         for field in ('claim','next_action'):execution[field]['dedup_key']=w.key(execution)
         execution['receipt'].update(waiting_comment_id=777,waiting_body_sha256=r['waiting_record']['body_sha256'])
         execution['next_action']['authorization_ref']=r['waiting_record']['authorization_ref']
+        from tools import work_resume_claim as capability
+        from tests.test_work_resume_claim import PUBLIC
+        execution['schema_version']=2
+        execution['authorization']=dict(kind='live_smoke',authorization_ref=r['waiting_record']['authorization_ref'],effect='read_only')
+        rf['resume_authorization']=copy.deepcopy(execution['authorization'])
+        execution['work']['run_id']=None
+        execution['work']['identity']=dict(scheme='capability_v1',public_id=PUBLIC,source='local_csprng',
+            assurance=capability.ASSURANCE,route='automatic',conversation_id=None,cloud_task_id=None,authorization_comment_id=None)
+        for field in ('claim','receipt','next_action'):
+            execution[field].pop('run_id');execution[field]['execution_id']=PUBLIC
+        execution['claim'].update(ref=capability.reservation_ref(execution),commit_sha='f'*40)
+        execution['next_action']['effect']='read_only'
+        rf['resume_reservation']=dict(ref=capability.reservation_ref(execution),commit_sha='f'*40,record=capability.binding(execution))
         r['execution']=execution
         r['completion_observation']=dict(dashboard_comment_id=123,merge_sha=execution['merge_sha'],observed_at=T0,missing=['Synthetic current formal conditions'],evidence_ref='synthetic://remaining-conditions')
         rf['policy']=p.policy_entry(v);rf['issue'].update(number=100)
@@ -455,6 +527,10 @@ class PostMergeCollectorTests(unittest.TestCase):
                 self.reads+=1
                 if self.reads>150:raise AssertionError('Recursive preparation collection')
                 if suffix=='/branches/main':return {'commit':{'sha':rf['main_sha']}}
+                if suffix.startswith('/git/ref/tags/'):
+                    return dict(ref=rf['resume_reservation']['ref'],object=dict(type='commit',sha='f'*40))
+                if suffix=='/git/commits/'+ 'f'*40:
+                    return dict(sha='f'*40,message=p.canonical(rf['resume_reservation']['record']),parents=[{'sha':execution['merge_sha']}])
                 if suffix=='/git/ref/heads/main':return {'object':{'sha':rf['main_sha']}}
                 if suffix.startswith('/contents/'):return {'encoding':'base64','content':base64.b64encode(p.canonical({'schema_version':2,'repository':v['repository'],'issues':{'100':rf['policy']}}).encode()).decode()}
                 if suffix=='/issues/100':return copy.deepcopy(rf['issue'])
@@ -493,6 +569,10 @@ class PostMergeCollectorTests(unittest.TestCase):
         v,r,rf,api=self.execution_api()
         r['waiting_record']['allowed_action']='safe_stop'
         r['execution']['next_action']['kind']='safe_stop'
+        r['execution']['authorization']['kind']='safe_stop'
+        rf['resume_authorization']['kind']='safe_stop'
+        from tools import work_resume_claim as capability
+        rf['resume_reservation']['record']=capability.binding(r['execution'])
         self.assertEqual(w.observe(r['execution'],rf)['status'],'OBSERVED')
         request=next(c for c in rf['issue_comments'] if c['id']==100)
         request['body']=p.generate(v,{'schema_version':2,'repository':v['repository'],'issues':{'100':rf['policy']}},owner_facts=r)['github_record.md']

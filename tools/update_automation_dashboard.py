@@ -58,6 +58,10 @@ class GitHub:
             raise ValueError("Only Dashboard comment writes are supported")
         if method != "GET" and not self.token:
             raise ValueError("GitHub comment writes require the configured token")
+        return self._send_request(path, method, data, raw)
+
+    def _send_request(self, path, method, data, raw=False):
+        """Transport only; callers must apply their explicit destination policy."""
         body = json.dumps(data).encode() if data is not None else None
         req = urllib.request.Request("https://api.github.com" + path, data=body, method=method,
                                      headers={**({"Authorization": f"Bearer {self.token}"} if self.token else {}), "Accept": "application/vnd.github+json",
@@ -210,8 +214,14 @@ def collect(api, issue, policy, previous, include_preparation=True):
             facts["sync_reports"][str(run["id"])] = api.sync_report(run)
     # Only trusted reports may select extra public API IDs; values are validated
     # before interpolation. They still cannot grant PASS without fresh API facts.
-    for comment in facts["pr_comments"]:
-        record = validated_work_record(comment, issue, number, policy)
+    records = [validated_work_record(comment, issue, number, policy) for comment in facts['pr_comments']]
+    if policy.get('manual_review'):
+        try:
+            from tools.i01_management import manual_review_records
+        except ModuleNotFoundError:
+            from i01_management import manual_review_records
+        records.extend(value for _, value in manual_review_records(facts['reviews'], issue, number, policy))
+    for record in records:
         if record is None or record["head_sha"] != head:
             continue
         for condition in record["conditions"].values():

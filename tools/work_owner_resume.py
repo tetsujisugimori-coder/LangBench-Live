@@ -10,7 +10,7 @@ import zipfile
 import argparse
 import base64
 import copy
-from datetime import datetime
+from datetime import datetime, timezone
 import hashlib
 import os
 from pathlib import Path
@@ -28,12 +28,21 @@ except ModuleNotFoundError:
     from update_automation_dashboard import GitHub, collect, references
 
 PURPOSE = 'work-owner-resume-i01'
+REPAIR_SCOPE = (102, 'work-owner-resume-i01-repair')
 ACTION = 'owner_resume'
 CLAIM_START = '<!-- langbench-owner-resume-claim:v1\n'
 CLAIM_END = '\nlangbench-owner-resume-claim:end -->'
 FIELDS = {'schema_version', 'repository', 'issue', 'purpose', 'pr', 'reviewed_head_sha',
           'merge_sha', 'target_main_sha', 'owner', 'waiting_record', 'event', 'work',
           'claim', 'receipt', 'next_action', 'recheck'}
+
+
+def capability_contract():
+    try:
+        from tools import work_resume_claim
+    except ModuleNotFoundError:
+        import work_resume_claim
+    return work_resume_claim
 
 
 def positive(value):
@@ -78,14 +87,21 @@ def save_observation(path, value):
 
 
 def key(value):
-    return f'{REPOSITORY}:issue{value["issue"]}:{value["target_main_sha"]}:{ACTION}:{PURPOSE}'
+    return f'{REPOSITORY}:issue{value["issue"]}:{value["target_main_sha"]}:{ACTION}:{value["purpose"]}'
+
+
+def supported_scope(value):
+    """Preserve the original contract; opt in only Issue102's explicit v2 repair."""
+    return (value.get('purpose') == PURPOSE
+            or (value.get('schema_version') == 2
+                and (value.get('issue'), value.get('purpose')) == REPAIR_SCOPE))
 
 
 def validate(value):
-    if not isinstance(value, dict) or set(value) != FIELDS:
+    if not isinstance(value, dict) or set(value) != (FIELDS | {'authorization'} if value.get('schema_version') == 2 else FIELDS):
         raise ValueError('Unknown/missing handoff fields')
-    if (type(value['schema_version']) is not int or value['schema_version'] != 1
-            or value['repository'] != REPOSITORY or value['purpose'] != PURPOSE
+    if (type(value['schema_version']) is not int or value['schema_version'] not in (1, 2)
+            or value['repository'] != REPOSITORY or not supported_scope(value)
             or not positive(value['issue']) or not positive(value['pr'])
             or any(not sha(value[k]) for k in ('reviewed_head_sha', 'merge_sha', 'target_main_sha'))
             or value['merge_sha'] != value['target_main_sha']):
@@ -106,7 +122,10 @@ def validate(value):
         raise ValueError('Event/handoff binding mismatch')
     evidence(event)
     work = value['work']
-    if (not isinstance(work, dict) or set(work) != {'run_id', 'automation_id', 'started_at', 'evidence_url', 'observed_at'}
+    if value['schema_version'] == 2:
+        capability = capability_contract()
+        capability.validate_identity(value)
+    elif (not isinstance(work, dict) or set(work) != {'run_id', 'automation_id', 'started_at', 'evidence_url', 'observed_at'}
             or not nonempty(work['run_id']) or not isinstance(work['automation_id'], str)
             or not re.fullmatch('[0-9a-f]{32}', work['automation_id'])):
         raise ValueError('Missing real Work start identity')
@@ -114,6 +133,9 @@ def validate(value):
     preparation.timestamp(work['started_at'])
     if instant(work['observed_at']) < instant(work['started_at']):
         raise ValueError('Work observation predates start')
+    if value['schema_version'] == 2:
+        capability.validate_records(value)
+        return value
     for field in ('claim', 'receipt', 'next_action', 'recheck'):
         record = value[field]
         if record is not None:
@@ -184,7 +206,7 @@ class ObservationGitHub(GitHub):
         return report
 
 
-def read_facts(api, value):
+def read_facts(api, value, include_reservation=True):
     """Reuse the official collection and digest-checked sync-report adapter.
 
     Double collection detects observed changes; it is not a transactional claim.
@@ -205,10 +227,87 @@ def read_facts(api, value):
     prior['pr'] = value['pr']
     _, facts = collect(api, value['issue'], policy, prior, include_preparation=False)
     facts.update(main_sha=main, policy=policy, issue=api.get(f'/issues/{value["issue"]}'))
+    if facts.get('dashboard_comment_id') is not None:
+        dashboards=[item for item in api.pages(f'/issues/{value["issue"]}/comments') if item.get('id')==facts['dashboard_comment_id']]
+        if len(dashboards)!=1:raise ValueError('Current Dashboard identity unavailable')
+        # Rendered Dashboard is read separately only for the actual smoke.
+        facts['smoke_dashboard']=dashboards[0]
     facts['sync_artifacts'] = copy.deepcopy(getattr(api, 'artifacts', getattr(api, 'sync_artifacts', {})))
     if api.get('/branches/main')['commit']['sha'] != main:
         raise ValueError('main advanced during collection')
+    if value['schema_version'] == 2:
+        try:
+            from tools.preparation_github import select_preparation
+        except ModuleNotFoundError:
+            from preparation_github import select_preparation
+        _, record, _ = select_preparation(facts['issue_comments'], value['issue'], policy)
+        waiting = (record['owner_facts'] or {}).get('waiting_record')
+        if (record['input']['owner_resume_id'] != value['work']['automation_id']
+                or record['input']['head_sha'] != value['reviewed_head_sha'] or waiting is None
+                or waiting['comment_id'] != value['waiting_record']['comment_id']
+                or waiting['body_sha256'] != value['waiting_record']['body_sha256']):
+            raise ValueError('Current authenticated preparation/resume/waiting binding differs')
+        facts['resume_authorization'] = dict(kind=waiting['allowed_action'], authorization_ref=waiting['authorization_ref'], effect='read_only')
+    if value['schema_version'] == 2 and value['work']['identity']['route'] == 'managed':
+        try:
+            from tools.i01_management import authenticate_managed_handoff
+        except ModuleNotFoundError:
+            from i01_management import authenticate_managed_handoff
+        authenticate_managed_handoff(value, facts['issue_comments'], policy)
+        facts['managed_actor_verified'] = True
+    if value['schema_version'] == 2 and include_reservation and value['work']['identity']['route'] in {'automatic', 'managed'}:
+        capability = capability_contract()
+        facts['resume_reservation'] = capability.read_reservation(api, value)
     return facts
+
+
+def execution_id(value):
+    # Names remain distinct: capability ID is never inserted into run_id.
+    return value['work']['identity']['public_id'] if value['schema_version'] == 2 else value['work']['run_id']
+
+
+def read_only_smoke(value, facts, previous=None):
+    """Receive actual waiting bytes and read the existing bound Dashboard.
+
+    No external write. The caller must have verified local capability possession
+    for the automatic route. This is repeatable even after an interrupted read.
+    """
+    validate(value)
+    if value['schema_version'] != 2 or value['authorization']['kind'] != 'live_smoke':
+        raise ValueError('Read-only smoke requires explicit v2 live_smoke authorization')
+    updated=copy.deepcopy(value)
+    now=datetime.now(timezone.utc).isoformat()
+    updated['receipt']=dict(execution_id=execution_id(value),
+        waiting_comment_id=value['waiting_record']['comment_id'],
+        waiting_body_sha256=value['waiting_record']['body_sha256'],
+        evidence_url=f'https://github.com/{REPOSITORY}/issues/{value["issue"]}#issuecomment-{value["waiting_record"]["comment_id"]}',
+        observed_at=now)
+    updated['next_action']=None
+    checked=observe(updated,facts,previous)
+    # observe has already authenticated scope, authorization, claim, waiting,
+    # history and ZIP before reaching precisely this missing-action boundary.
+    if checked['reason'] != 'Actual next operation is missing or non-successful; no I-01 live success':
+        raise ValueError('Read-only smoke preflight stopped: '+checked['reason'])
+    try:
+        from tools.automation_dashboard import parse_state, BOT
+    except ModuleNotFoundError:
+        from automation_dashboard import parse_state, BOT
+    matches=[c for c in facts['issue_comments'] if c.get('id')==facts.get('dashboard_comment_id')]
+    if facts.get('smoke_dashboard') is not None:matches=[facts['smoke_dashboard']]
+    if len(matches)!=1 or not author_matches(matches[0].get('user'),BOT):
+        raise ValueError('Sole-writer Dashboard unavailable')
+    dashboard=parse_state(matches[0]['body'],value['issue'],facts['policy'])
+    if (not dashboard or dashboard['issue']!=value['issue'] or dashboard['pr']!=value['pr']
+            or dashboard['head_sha']!=value['reviewed_head_sha'] or dashboard['merge_sha']!=value['merge_sha']
+            or dashboard['current_state']!='LOCAL_SYNCED' or dashboard['local_sync']['status']!='PASS'
+            or dashboard['local_sync']['target_sha']!=value['merge_sha']):
+        raise ValueError('Current Dashboard/exact-sync read-only smoke mismatch')
+    updated['next_action']=dict(execution_id=execution_id(value),dedup_key=key(value),
+        kind='live_smoke',status='EXECUTED',effect='read_only',
+        authorization_ref=value['authorization']['authorization_ref'],
+        evidence_url=f'https://github.com/{REPOSITORY}/issues/{value["issue"]}#issuecomment-{matches[0]["id"]}',
+        observed_at=datetime.now(timezone.utc).isoformat())
+    return validate(updated)
 
 
 def observe(value, facts, previous=None):
@@ -216,7 +315,7 @@ def observe(value, facts, previous=None):
     validate(value)
     if previous is not None:
         if (not isinstance(previous, dict) or previous.get('kind') != 'work_owner_resume_observation'
-                or previous.get('schema_version') != 1 or previous.get('dedup_key') != key(value)):
+                or previous.get('schema_version') != value['schema_version'] or previous.get('dedup_key') != key(value)):
             raise ValueError('Previous observation scope/schema mismatch')
     history = copy.deepcopy(previous.get('evidence_history', {}) if previous else {})
     conflicts = copy.deepcopy(previous.get('evidence_conflicts', {}) if previous else {})
@@ -226,7 +325,7 @@ def observe(value, facts, previous=None):
         evidence(record)
     for observed_at in conflicts.values():
         instant(observed_at)
-    out = {'schema_version': 1, 'kind': 'work_owner_resume_observation', 'dedup_key': key(value),
+    out = {'schema_version': value['schema_version'], 'kind': 'work_owner_resume_observation', 'dedup_key': key(value),
            'stage': '実装済み', 'status': 'STOPPED', 'reason': '', 'next_owner': 'Work(root)',
            'next_action': 'Inspect current facts; no dispatch', 'event': copy.deepcopy(value['event']),
            'work': copy.deepcopy(value['work']), 'receipt': copy.deepcopy(value['receipt']),
@@ -236,7 +335,12 @@ def observe(value, facts, previous=None):
            'claimed_run_id': previous.get('claimed_run_id', previous['work']['run_id']) if previous else value['work']['run_id'],
            'claimed_started_at': previous.get('claimed_started_at', previous['work']['started_at']) if previous else value['work']['started_at'],
            'evidence_history': history, 'evidence_conflicts': conflicts,
-           'input_digest': preparation.digest(value), 'facts_digest': preparation.digest(facts)}
+           'input_digest': preparation.digest(value), 'facts_digest': preparation.digest({k:v for k,v in facts.items() if k!='smoke_dashboard'})}
+
+    if value['schema_version'] == 2:
+        out.update(claimed_execution_id=previous.get('claimed_execution_id') if previous else execution_id(value),
+                   identity_assurance=('GitHub actor; not authenticated Work run' if value['work']['identity']['route']=='managed' else 'capability possession; not authenticated Work run'),
+                   resume_route=value['work']['identity']['route'])
 
     def stop(reason):
         out['reason'] = reason
@@ -280,7 +384,8 @@ def observe(value, facts, previous=None):
     bound_event = history.get('event', {})
     if (previous and previous.get('owner') == value['owner']
             and previous.get('waiting_record') == value['waiting_record']
-            and out['claimed_run_id'] == value['work']['run_id']
+            and (out.get('claimed_execution_id') == execution_id(value) if value['schema_version'] == 2
+                 else out['claimed_run_id'] == value['work']['run_id'])
             and out['claimed_started_at'] == value['work']['started_at']
             and all(bound_event.get(k) == value['event'][k]
                     for k in ('repository', 'pr', 'head_sha', 'merge_sha'))):
@@ -290,13 +395,13 @@ def observe(value, facts, previous=None):
         return stop('GitHub retrieval failed; cached success is not current evidence')
     try:
         pull, policy, issue = facts['pr'], facts['policy'], facts['issue']
-        if (policy['purpose'] != PURPOSE or policy['owner'] != value['owner']
+        if (policy['purpose'] != value['purpose'] or policy['owner'] != value['owner']
                 or policy['dispatch_owners']['implementation_task'] != 'Work(root)'
                 or policy['dispatch_owners']['fix_task'] != 'Work(root)'
                 or policy['dispatch_owners']['local_main_sync'] != '.github/workflows/pull-local-main.yml'
                 or issue['number'] != value['issue'] or 'pull_request' in issue
                 or not author_matches(issue.get('user'), value['owner'])
-                or re.search(r'(?m)^purpose:\s*`?' + re.escape(PURPOSE) + r'`?\s*$', issue.get('body', '')) is None
+                or re.search(r'(?m)^purpose:\s*`?' + re.escape(value['purpose']) + r'`?\s*$', issue.get('body', '')) is None
                 or pull['number'] != value['pr'] or pull['base']['repo']['full_name'] != REPOSITORY
                 or pull['base']['ref'] != 'main' or pull['merged'] is not True
                 or not author_matches(pull['merged_by'], value['owner'])
@@ -304,6 +409,12 @@ def observe(value, facts, previous=None):
                 or pull['merge_commit_sha'] != value['merge_sha'] or facts['main_sha'] != value['target_main_sha']
                 or not references(pull.get('body'), value['issue'])):
             return stop('Current repository/Issue/purpose/owner/PR/merge/main binding mismatch')
+        if value['schema_version'] == 2 and facts.get('resume_authorization') != value['authorization']:
+            return stop('Fresh owner authorization does not bind this reserved operation')
+        if value['schema_version'] == 2 and policy.get('resume_protocol') != 2:
+            return stop('Trusted main policy has not enabled the explicit capability protocol')
+        if value['schema_version'] == 1 and policy.get('resume_protocol') == 2:
+            return stop('Legacy comment claim cannot authorize this protocol; migrate without relabeling run identity')
         merged_at = instant(pull['merged_at'])
         if instant(value['work']['started_at']) < merged_at:
             return stop('Work started before the human merge')
@@ -315,14 +426,16 @@ def observe(value, facts, previous=None):
             return stop('Prior owner waiting record is missing, changed, or untrusted')
     except (KeyError, TypeError, ValueError):
         return stop('Required fresh GitHub fields are missing or invalid')
+    if value['schema_version'] == 2 and value['work']['identity']['route'] == 'managed' and facts.get('managed_actor_verified') is not True:
+        return stop('Managed GitHub actor request has not been freshly authenticated')
     out.update(matched=True, stage='実装済み')
     try:
-        review, _ = work_review(facts['pr_comments'], value['issue'], value['pr'], value['reviewed_head_sha'], policy)
+        review, _ = work_review(facts['pr_comments'], value['issue'], value['pr'], value['reviewed_head_sha'], policy, facts.get('reviews'))
         if review['status'] != 'PASS' or value['work']['automation_id'] == policy['work_automation_id']:
             return stop('Independent reviewed HEAD is unconfirmed or reviewer is acting as resume owner')
     except (KeyError, TypeError, ValueError):
         return stop('Independent review facts are missing or invalid')
-    if out['claimed_run_id'] != value['work']['run_id']:
+    if (out.get('claimed_execution_id') if value['schema_version'] == 2 else out['claimed_run_id']) != execution_id(value):
         return stop('Different Work run already observed for this dedup key; reconcile shared ownership')
     if previous:
         if out['claimed_started_at'] != value['work']['started_at']:
@@ -337,30 +450,45 @@ def observe(value, facts, previous=None):
 
     errors, candidates = inspect_history()
     claim = value['claim']
-    if claim is None:
+    manual = value['schema_version'] == 2 and value['work']['identity']['route'] == 'manual'
+    if manual:
+        capability = capability_contract()
+        problem = capability.check_manual(value, facts['issue_comments'])
+        if problem: return stop(problem)
+    elif claim is None:
         return stop('Single-owner claim missing; no next operation')
-    if instant(claim['observed_at']) < instant(value['work']['started_at']):
+    claim_time = value['work']['started_at'] if manual else claim['observed_at']
+    if instant(claim_time) < instant(value['work']['started_at']):
         return stop('Shared claim predates this Work start')
-    # Re-read all shared claims, not a local file lock. Comment POST has no CAS:
-    # concurrent claims are detected and both stop, rather than select a winner.
-    claims = []
-    try:
-        for comment in facts['issue_comments']:
-            body = comment.get('body', '')
-            if CLAIM_START not in body and CLAIM_END not in body:
-                continue
-            if (body.count(CLAIM_START) != 1 or body.count(CLAIM_END) != 1
-                    or not author_matches(comment.get('user'), value['owner'])):
-                return stop('Ambiguous or untrusted shared owner claim')
-            raw = body.split(CLAIM_START, 1)[1].split(CLAIM_END, 1)[0]
-            record = preparation.loads(raw)
-            if record.get('dedup_key') == key(value):
-                claims.append(record)
-        if len(claims) != 1 or claims[0] != claim:
-            return stop('Missing/conflicting shared claim; no cross-environment exclusion established')
-    except (KeyError, TypeError, ValueError):
-        return stop('Shared claim could not be authenticated')
+    if manual:
+        pass # Human authorization permits read-only observations, not takeover.
+    elif value['schema_version'] == 2:
+        capability = capability_contract()
+        problem = capability.check_reservation(value, facts.get('resume_reservation'))
+        if problem: return stop(problem)
+    else:
+        # Re-read all shared claims, not a local file lock. Comment POST has no CAS:
+        # concurrent claims are detected and both stop, rather than select a winner.
+        claims = []
+        try:
+            for comment in facts['issue_comments']:
+                body = comment.get('body', '')
+                if CLAIM_START not in body and CLAIM_END not in body:
+                    continue
+                if (body.count(CLAIM_START) != 1 or body.count(CLAIM_END) != 1
+                        or not author_matches(comment.get('user'), value['owner'])):
+                    return stop('Ambiguous or untrusted shared owner claim')
+                raw = body.split(CLAIM_START, 1)[1].split(CLAIM_END, 1)[0]
+                record = preparation.loads(raw)
+                if record.get('dedup_key') == key(value):
+                    claims.append(record)
+            if len(claims) != 1 or claims[0] != claim:
+                return stop('Missing/conflicting shared claim; no cross-environment exclusion established')
+        except (KeyError, TypeError, ValueError):
+            return stop('Shared claim could not be authenticated')
     # Positive observations require fresh GitHub scope and shared ownership.
+    # This adapter never executes external writes. Legacy comment claims are
+    # observational only and cannot authorize any mutation.
     # Negative candidates have already been retained regardless of siblings.
     history.update(candidates)
     for field in candidates:
@@ -371,13 +499,13 @@ def observe(value, facts, previous=None):
         return stop('Work receipt of the exact prior waiting record is missing')
     receipt_time = instant(value['receipt']['observed_at'])
     action = value['next_action']
-    if (receipt_time < instant(claim['observed_at'])
+    if (receipt_time < instant(claim_time)
             or (action is not None and instant(action['observed_at']) < receipt_time)):
         return stop('Receipt/next operation predates the owner claim or receipt')
     # The history contains bound observations, including newer negative results.
     # A rejected attempt stays in the current view but never lowers this history.
     # Updating history is not an execution/success certification.
-    if claim['status'] != 'RUNNING':
+    if not manual and claim['status'] != 'RUNNING':
         return stop('Single-owner claim non-running; no next operation')
     try:
         sync = sync_evidence(facts, value['merge_sha'])
@@ -406,10 +534,14 @@ def observe(value, facts, previous=None):
     # Action and receipt observations must belong to this execution and postdate merge/sync.
     action_time = instant(action['observed_at'])
     run = next((r for r in facts['sync_runs'] if r['id'] == sync['run_id']), None)
-    if (receipt_time < instant(claim['observed_at']) or action_time < receipt_time
+    if (receipt_time < instant(claim_time) or action_time < receipt_time
             or run is None or not run.get('updated_at')
             or action_time < instant(run['updated_at'])):
         return stop('Receipt/next operation predates Work start or formal sync completion')
+    if value['schema_version'] == 2 and value['work']['identity']['route'] == 'manual':
+        out.update(status='MANUAL_OBSERVED', reason='Human-authorized read-only handling; automatic cycle unverified',
+                   next_action='Retain manual handoff; reconcile reserved owner before any external write')
+        return out
     out.update(stage='実動確認済み', status='OBSERVED',
                reason='Bound Work start, receipt, exact official sync, and executed next operation observed',
                next_action='Work(root) verifies remaining Completion conditions; this observation grants no Gate PASS')
@@ -423,13 +555,32 @@ def main():
     parser.add_argument('--handoff', required=True, type=Path)
     parser.add_argument('--state', required=True, type=Path)
     parser.add_argument('--sync-artifact-zip', type=Path, help='Actual official ZIP download; current API identity/digest still required')
+    parser.add_argument('--capability-file', type=Path, help='Private local possession proof for v2 automatic route; never published')
+    parser.add_argument('--read-only-smoke', action='store_true', help='Receive waiting bytes and read existing exact-sync Dashboard; no external write')
+    parser.add_argument('--updated-handoff', type=Path, help='Save actual receipt/read-only operation for owner-input update')
     sources = parser.add_mutually_exclusive_group(required=True)
     sources.add_argument('--github-read', action='store_true')
     sources.add_argument('--fixture-facts', type=Path, help='Synthetic testing only; cannot certify live results')
     args = parser.parse_args()
     if args.sync_artifact_zip is not None and not args.github_read:
         parser.error('--sync-artifact-zip requires --github-read; it is not fixture evidence')
-    value = validate(preparation.loads(args.handoff.read_text(encoding='utf-8')))
+    if args.read_only_smoke and (not args.github_read or args.updated_handoff is None):
+        parser.error('--read-only-smoke requires --github-read and --updated-handoff')
+    try:
+        value = validate(preparation.loads(args.handoff.read_text(encoding='utf-8')))
+        if value['schema_version'] == 2 and value['work']['identity']['route'] == 'automatic':
+            if args.capability_file is None:
+                raise ValueError('Automatic capability route requires private possession proof')
+            capability_contract().verify_possession(value,args.capability_file.read_text(encoding='utf-8').strip())
+    except (OSError,KeyError,TypeError,ValueError) as error:
+        stopped=dict(status='STOPPED',stage='handoff validation / capability possession',
+            reason=str(error) if isinstance(error,ValueError) else type(error).__name__,
+            next_owner='Work(root)',next_action='Obtain missing current identity/binding or human read-only authorization',
+            retained=['handoff file','prior state unchanged','private capability file if present'])
+        # A validation failure must not erase a valid older evidence history.
+        save_observation(args.state.with_suffix('.stop.json'),stopped)
+        print(preparation.canonical(stopped))
+        return 1
     with preparation.state_lock(args.state):
         old = preparation.loads(args.state.read_text(encoding='utf-8')) if args.state.exists() else None
         try:
@@ -440,6 +591,9 @@ def main():
                     raise ValueError('External facts changed during observation')
             else:
                 facts = preparation.loads(args.fixture_facts.read_text(encoding='utf-8'))
+            if args.read_only_smoke:
+                value=read_only_smoke(value,facts,old)
+                save_observation(args.updated_handoff,value)
             out = observe(value, facts, old)
         except (OSError, KeyError, TypeError, ValueError, zipfile.BadZipFile) as error:
             # Preserve history and invalidate cached success; never retry a mutation.
@@ -450,12 +604,14 @@ def main():
             out['stage'] = '実装済み'
             if out['status'] == 'OBSERVED':
                 out['status'] = 'FIXTURE_ONLY'
+            elif out['status'] == 'MANUAL_OBSERVED':
+                out['status'] = 'MANUAL_FIXTURE_ONLY'
         if old == out:
             print('NO_OP (same observation; no dispatch or success promotion)')
         else:
             save_observation(args.state, out)
             print(preparation.canonical(out))
-        return 0 if out['status'] in {'OBSERVED', 'FIXTURE_ONLY', 'WAITING'} else 1
+        return 0 if out['status'] in {'OBSERVED', 'FIXTURE_ONLY', 'MANUAL_OBSERVED', 'MANUAL_FIXTURE_ONLY', 'WAITING'} else 1
 
 
 if __name__ == '__main__':

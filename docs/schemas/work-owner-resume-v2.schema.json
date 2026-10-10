@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "I-01 explicit capability handoff v2",
+  "$ref": "preparation-evidence-v2.schema.json#/$defs/executionV2"
+}

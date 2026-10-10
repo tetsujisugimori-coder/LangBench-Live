@@ -35,3 +35,8 @@ snapshotはcacheで、Gateは現在owner/input/public factsから再計算する
 候補コードを正式writer/self-hostedへ読み込ませない。公開CI成功もmain正式稼働や実動成功ではない。
 
 実登録状況の根拠: [Issue100本担当要約6052718244](https://github.com/tetsujisugimori-coder/LangBench-Live/issues/100#issuecomment-6052718244)、[独立開始6053175781](https://github.com/tetsujisugimori-coder/LangBench-Live/issues/100#issuecomment-6053175781)、[独立BLOCKED結果6053210723](https://github.com/tetsujisugimori-coder/LangBench-Live/issues/100#issuecomment-6053210723)。UI読戻しはowner attestationでありCloudがサービス内部を直接認証したものではない。Prompt全文/承認済みevents/最終HEADは本担当が同共有inputへ束縛する。
+
+Issue102の修正後は [i01-resume-contract-v2.md](i01-resume-contract-v2.md) に従う。
+Work run IDは取得不能のnullを保持し、担当capabilityの秘密所持/一回限りGitHub ref予約を
+別実体として使用する。自動と手動読取は別結果。外部共有input更新/登録停止の競合や取消を
+予約で証明した扱いにしない。PR101の手動継続や新fixture成功でIssue96/100を完了にしない。

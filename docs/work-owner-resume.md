@@ -165,3 +165,11 @@ python -B tools/work_owner_resume.py \
 --fixture-factsとの併用は拒否。別run/attempt・過去ZIP・改変・未取得・API失敗は成功にしない。
 同期のdispatch/rerunは行わない。提供ZIPとこのCLIのreadbackログは本担当が保持する。
 旧CLIのsafe_stop/OBSERVEDは実対応観測で、v2 I-01成功やCompletionのlive_smoke成功へ昇格させない。
+
+## PR101実運用後の修正: 明示capability経路 v2
+
+上記v1は履歴互換の観測契約であり、コメントclaimの一件読取は排他証明ではない。
+Issue100の新しい限定policy `resume_protocol: 2` はv1を次操作へ使用することを拒否する。
+現行手順・保証・停止引渡しは [i01-resume-contract-v2.md](i01-resume-contract-v2.md) を正本とする。
+Work run ID取得不能は `work.run_id: null` と表示したまま、capabilityによる担当予約と
+ownerによる実Workイベント観測を区別する。旧Issue96/100の実一周未実証を解除しない。
