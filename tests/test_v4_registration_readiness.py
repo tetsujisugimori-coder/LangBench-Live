@@ -12,7 +12,7 @@ import unittest
 
 from tools import startup_preparation as p
 from tests.test_startup_preparation import input_fixture, owner_facts
-from tests.test_preparation_evidence import fixture as v2_fixture
+from tests.test_preparation_evidence import fixture as v2_fixture, T0, T1, T2
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,8 +39,9 @@ class RegistrationReadinessTests(unittest.TestCase):
         self.assertFalse(report['roles']['review']['service_run_verified'])
 
     def test_v2_both_roles_derive_from_one_approved_input(self):
-        v, record, _ = v2_fixture('PR_BOUND')
-        report = p.registration_readiness(v, record)
+        v, record, facts = v2_fixture('PR_BOUND')
+        state = p.resume(p.new_state(v), facts, T0)
+        report = p.registration_readiness(v, record, state)
         self.assertEqual(report['issue'], 100)
         self.assertEqual(report['pr'], 89)
         self.assertEqual(report['head_sha'], v['head_sha'])
@@ -48,18 +49,75 @@ class RegistrationReadinessTests(unittest.TestCase):
         self.assertEqual(set(report['roles']), {'review', 'owner_resume'})
         for role in ('review', 'owner_resume'):
             self.assertTrue(report['roles'][role]['owner_settings_matched'])
+            self.assertTrue(report['roles'][role]['accepted_observation'])
             self.assertEqual(report['roles'][role]['approved_events'], v['registration_prompts'][role]['events'])
             self.assertEqual(report['roles'][role]['approved_prompt_digest'], v['registration_prompts'][role]['digest'])
             self.assertFalse(report['roles'][role]['service_run_verified'])
 
     def test_partial_readback_never_confirms_settings(self):
-        v, record, _ = v2_fixture('PR_BOUND')
+        v, record, facts = v2_fixture('PR_BOUND')
         partial = copy.deepcopy(record)
         partial['owner_resume'].update(status='REGISTERED', settings=None, settings_version=None)
-        report = p.registration_readiness(v, partial)
+        facts['owner_record'] = partial
+        state = p.resume(p.new_state(v), facts, T0)
+        report = p.registration_readiness(v, partial, state)
         self.assertEqual(report['roles']['owner_resume']['owner_reported_status'], 'REGISTERED')
         self.assertFalse(report['roles']['owner_resume']['owner_settings_matched'])
         self.assertTrue(report['roles']['review']['owner_settings_matched'])
+
+
+    def test_prior_success_rejected_after_newer_disabled_readback(self):
+        v, positive, facts = v2_fixture('PR_BOUND')
+        state = p.resume(p.new_state(v), facts, T0)
+        self.assertTrue(p.registration_readiness(v, positive, state)['roles']['review']['owner_settings_matched'])
+        negative = copy.deepcopy(positive)
+        negative['observed_at'] = T1
+        negative['review']['observed_at'] = T1
+        negative['review']['settings_version'] = 2
+        negative['review']['settings']['enabled'] = False
+        later_facts = copy.deepcopy(facts)
+        later_facts['owner_record'] = negative
+        newer = p.resume(state, later_facts, T1)
+        self.assertEqual(newer['status'], 'WAITING')
+        rejected = p.resume(newer, facts, T2)
+        self.assertEqual(rejected['status'], 'WAITING')
+        self.assertTrue(any('older observation rejected' in reason
+                            for reason in rejected['phase_evidence']['missing']))
+        report = p.registration_readiness(v, positive, rejected)
+        self.assertFalse(report['roles']['review']['accepted_observation'])
+        self.assertFalse(report['roles']['review']['owner_settings_matched'])
+        self.assertIn('do not reuse stale success', report['roles']['review']['next_action'])
+
+    def test_finished_requires_disabled_readback_not_enabled_readback(self):
+        v, record, facts = v2_fixture('FINISHED')
+        initial = p.resume(p.new_state(v), facts, T0)
+        running = p.registration_readiness(v, record, initial)
+        for role in ('review', 'owner_resume'):
+            self.assertTrue(running['roles'][role]['accepted_observation'])
+            self.assertFalse(running['roles'][role]['owner_settings_matched'])
+            self.assertIn('disabled', running['roles'][role]['next_action'])
+        stopped = copy.deepcopy(record)
+        stopped['observed_at'] = T1
+        for role in ('review', 'owner_resume'):
+            stopped[role]['status'] = 'DISABLED_CONFIRMED'
+            stopped[role]['settings']['enabled'] = False
+            stopped[role]['settings_version'] = 2
+            stopped[role]['observed_at'] = T1
+        latest = copy.deepcopy(facts)
+        latest['owner_record'] = stopped
+        finished = p.resume(initial, latest, T1)
+        summary = p.registration_readiness(v, stopped, finished)
+        for role in ('review', 'owner_resume'):
+            self.assertTrue(summary['roles'][role]['accepted_observation'])
+            self.assertTrue(summary['roles'][role]['owner_settings_matched'])
+            self.assertIn('do not continue using this role', summary['roles'][role]['next_action'])
+
+    def test_unreconciled_raw_owner_data_is_not_ready(self):
+        v, record, _ = v2_fixture('PR_BOUND')
+        report = p.registration_readiness(v, record)
+        self.assertFalse(report['roles']['review']['owner_settings_matched'])
+        self.assertFalse(report['roles']['review']['accepted_observation'])
+        self.assertIn('Reconcile current role observation', report['roles']['review']['next_action'])
 
     def test_binding_change_or_spoofed_facts_fail(self):
         v, record, _ = v2_fixture('PR_BOUND')
