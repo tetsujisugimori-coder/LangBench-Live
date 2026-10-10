@@ -33,7 +33,7 @@ def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, 
     return {"schema_version": "1.0", "unit": "ms", "runs": runs}
 
 
-def print_text(report: dict, summary_only: bool = False) -> None:
+def print_text(report: dict, summary_only: bool = False, sample_limit: int | None = None) -> None:
     print("検証済み履歴のサンプル。入力順、単位 ms。中央値は samples_ms から再計算。")
     for index, run in enumerate(report["runs"], 1):
         print(f"履歴 {index}: {run['path']} (experiment_id={run['experiment_id']}, "
@@ -45,8 +45,13 @@ def print_text(report: dict, summary_only: bool = False) -> None:
                   f"前半 {format_number(row['first_half_median_ms'])}, "
                   f"後半 {format_number(row['second_half_median_ms'])}")
             if not summary_only:
-                print(f"    samples_ms (1-{len(row['samples_ms'])}): " + ", ".join(
-                    f"{i}:{format_number(value)}" for i, value in enumerate(row["samples_ms"], 1)))
+                samples = row["samples_ms"]
+                shown = samples if sample_limit is None else samples[:sample_limit]
+                ending = len(shown)
+                label = (f"1-{len(samples)}" if ending == len(samples) else
+                         f"1-{ending} of {len(samples)}")
+                print(f"    samples_ms ({label}): " + ", ".join(
+                    f"{i}:{format_number(value)}" for i, value in enumerate(shown, 1)))
     print("Cの各サンプルは0.001 ms単位で保存。丸め幅程度の差を原因として解釈しないでください。")
 
 
@@ -55,11 +60,18 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     parser.add_argument("--summary-only", action="store_true",
                         help="show sample counts and statistics without individual samples (text only)")
+    parser.add_argument("--sample-limit", type=int, metavar="N",
+                        help="print only the first N numbered samples per case (text only)")
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
     parser.add_argument("archives", type=Path, nargs="+", help="one or more archive directories")
     args = parser.parse_args()
     if args.summary_only and args.json:
         parser.error("--summary-only is text-only and cannot be combined with --json")
+    if args.sample_limit is not None:
+        if args.sample_limit <= 0:
+            parser.error("--sample-limit must be a positive integer")
+        if args.json or args.summary_only:
+            parser.error("--sample-limit is text-only and cannot be combined with --json or --summary-only")
     try:
         resolved = [path.resolve() for path in args.archives]
         if len(set(resolved)) != len(resolved):
@@ -79,7 +91,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
     else:
-        print_text(report, summary_only=args.summary_only)
+        print_text(report, summary_only=args.summary_only, sample_limit=args.sample_limit)
     return 0
 
 
