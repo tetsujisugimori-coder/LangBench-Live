@@ -174,6 +174,44 @@ class ShowArchiveSamplesTests(unittest.TestCase):
                 self.assertEqual("", result.stdout)
                 self.assertIn("--summary-only is text-only and cannot be combined with --json", result.stderr)
 
+    def test_sample_limit_restricts_text_to_first_n_without_changing_full_statistics(self) -> None:
+        path = self.make_archive("20260801_130000")
+        before = {file.name: file.read_bytes() for file in path.iterdir() if file.is_file()}
+        baseline = self.run_cli(path)
+        limited = self.run_cli(path, extra=("--sample-limit", "3"))
+        self.assertEqual(0, limited.returncode, limited.stderr)
+        self.assertIn("samples_ms (1-3 of 50): 1:0.1, 2:0.1, 3:0.1", limited.stdout)
+        self.assertIn("samples_ms (1-3 of 50): 1:0.4, 2:0.4, 3:0.4", limited.stdout)
+        self.assertNotIn("4:0.1", limited.stdout)
+        self.assertIn("中央値 0.175, 最小 0.1, 最大 0.25, 前半 0.1, 後半 0.25",
+                      limited.stdout)
+        self.assertNotIn("samples_ms (1-50)", limited.stdout)
+        self.assertEqual(baseline.stdout, self.run_cli(path, extra=("--sample-limit", "50")).stdout)
+        self.assertEqual(baseline.stdout, self.run_cli(path, extra=("--sample-limit", "500")).stdout)
+        self.assertEqual(before, {file.name: file.read_bytes() for file in path.iterdir() if file.is_file()})
+
+    def test_sample_limit_multiple_archives_all_languages_preserves_order(self) -> None:
+        first = self.make_archive("20260801_130000")
+        second = self.make_archive("20260802_130000", low=0.200, high=0.300)
+        report = self.run_cli(second, first, extra=("--all-languages", "--sample-limit", "1"))
+        self.assertEqual(0, report.returncode, report.stderr)
+        self.assertTrue(report.stdout.index(f"履歴 1: {second}") <
+                        report.stdout.index(f"履歴 2: {first}"))
+        self.assertEqual(12, report.stdout.count("samples_ms (1-1 of 50): 1:"))
+        self.assertNotIn("2:0.", report.stdout)
+
+    def test_sample_limit_invalid_and_conflicting_flags_fail_before_loading(self) -> None:
+        missing = self.root / "missing"
+        for flags in (("--sample-limit", "0"), ("--sample-limit", "-1"),
+                      ("--sample-limit", "abc"), ("--sample-limit", "2", "--json"),
+                      ("--json", "--sample-limit", "2"),
+                      ("--summary-only", "--sample-limit", "2")):
+            with self.subTest(flags=flags):
+                result = self.run_cli(missing, extra=flags)
+                self.assertEqual(2, result.returncode)
+                self.assertEqual("", result.stdout)
+                self.assertIn("--sample-limit", result.stderr)
+
     def test_summary_errors_match_default_and_do_not_modify_inputs(self) -> None:
         path = self.make_archive("20260801_130000")
         (path / "c.json").write_bytes(b"{}")
