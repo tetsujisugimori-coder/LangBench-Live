@@ -671,17 +671,72 @@ def evaluate(issue, policy, previous, facts):
     return state
 
 
+def observed_pr_facts(issue, policy, facts):
+    """Independent read-only facts for humans, never an authorization or Gate PASS.
+
+    Input comes from the trusted collector's current GitHub API snapshot.
+    Do not turn a missing dispatch receipt into an invented run identity.
+    """
+    pull = facts.get("pr")
+    if pull is None:
+        return {"status": "NOT_OBSERVED", "reason": "No unique linked PR",
+                "read_only": "INSPECT_SCOPE", "effectful": "EXISTING_GATES_ONLY"}
+    base = pull.get("base") or {}
+    head = (pull.get("head") or {}).get("sha")
+    if (type(pull.get("number")) is not int or pull["number"] <= 0
+            or not sha(head)
+            or (base.get("repo") or {}).get("full_name") != REPOSITORY
+            or base.get("ref") != "main"
+            or re.search(rf"(?m)^Refs #{issue}\s*$", pull.get("body") or "") is None):
+        return {"status": "SCOPE_UNVERIFIED", "reason": "PR/Issue/main/HEAD binding mismatch",
+                "read_only": "INSPECT_SCOPE", "effectful": "EXISTING_GATES_ONLY"}
+    merged = pull.get("merged") is True
+    merge_sha = pull.get("merge_commit_sha") if merged else None
+    if merged and (not sha(merge_sha) or not pull.get("merged_at")
+                   or (pull.get("merged_by") or {}).get("type") != "User"):
+        return {"status": "SCOPE_UNVERIFIED", "reason": "Human merge identity unavailable",
+                "read_only": "INSPECT_SCOPE", "effectful": "EXISTING_GATES_ONLY"}
+    pending = result("PENDING", "Current verified evidence not collected")
+    ubuntu = copy.deepcopy(pending)
+    windows = copy.deepcopy(pending)
+    review = copy.deepcopy(pending)
+    sync = copy.deepcopy(pending)
+    if (facts.get("workflow_ids") or {}).get("python-tests.yml"):
+        try:
+            ubuntu, windows, _ = ci_evidence(facts, head)
+        except (KeyError, TypeError, ValueError):
+            pass
+    if "pr_comments" in facts and "reviews" in facts:
+        try:
+            review, _ = work_review(facts["pr_comments"], issue, pull["number"], head,
+                                    policy, facts.get("reviews"))
+        except (KeyError, TypeError, ValueError):
+            review = result("ERROR", "Review transport or evidence cannot be verified")
+    if merged and (facts.get("workflow_ids") or {}).get("pull-local-main.yml"):
+        try:
+            sync = sync_evidence(facts, merge_sha)
+        except (KeyError, TypeError, ValueError):
+            pass
+    return {"status": "OBSERVED", "reason": "Bound GitHub facts; no dispatch inference",
+            "pr": pull["number"], "head_sha": head, "merged": merged,
+            "merge_sha": merge_sha, "ci_ubuntu": ubuntu, "ci_windows": windows,
+            "work_review": review, "local_sync": sync,
+            "read_only": "INSPECT_BOUNDED_FACTS",
+            "effectful": "EXISTING_GATES_ONLY"}
+
+
+
 def text_cell(value):
     # No HTML, links, multiline table injection, credential-bearing URLs or paths.
     value = json.dumps(value, ensure_ascii=False, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
     return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("|", "&#124;").replace("\n", " ")
 
 
-def render(state):
+def render(state, observed=None):
     if __package__:
         from .automation_dashboard_display import render_markdown
     else:
         from automation_dashboard_display import render_markdown
 
     payload = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).replace("<", "\\u003c").replace(">", "\\u003e")
-    return render_markdown(state, REPOSITORY) + "\n\n" + START + payload + END + "\n"
+    return render_markdown(state, REPOSITORY, observed=observed) + "\n\n" + START + payload + END + "\n"

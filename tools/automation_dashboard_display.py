@@ -140,7 +140,7 @@ def records(state, repository, items):
     return "<br>".join(parts)
 
 
-def render_markdown(state, repository):
+def render_markdown(state, repository, observed=None):
     """Read-only projection. All machine data remains in the existing JSON block."""
     ref = lambda kind, value: reference(state, repository, kind, value)
     identities = {
@@ -172,6 +172,33 @@ def render_markdown(state, repository):
                        ("CI認定head SHA", ref("commit", state.get("ci_head_sha"))),
                        ("公開データ検算", ev("public_data", True))]),
                 "### 正式同期・live smoke・必要条件"]
+    if observed is not None:
+        status = observed.get("status", "NOT_OBSERVED")
+        observed_rows = [
+            ("照合範囲", plain(status) + " / " + plain(observed.get("reason"))),
+            ("読取の進行判断", plain(observed.get("read_only"))),
+            ("副作用を伴う操作", plain(observed.get("effectful"))),
+        ]
+        if status == "OBSERVED":
+            observed_rows.extend([
+                ("GitHub PR", ref("pr", observed["pr"])),
+                ("観測したPR HEAD", ref("commit", observed["head_sha"])),
+                ("人間merge", ("確認" if observed["merged"] else "未merge")),
+                ("観測したmerge SHA", ref("commit", observed.get("merge_sha"))),
+            ])
+            for field, name in (("ci_ubuntu", "Ubuntu CI"),
+                                ("ci_windows", "Windows CI"),
+                                ("work_review", "独立レビュー"),
+                                ("local_sync", "正式Windows同期")):
+                item = observed.get(field) or {}
+                observed_rows.append((name, plain(item.get("status")) + " / " + plain(item.get("reason"))))
+        sections[1:1] = [
+            "### GitHubで観測した事実（正式Gateの認定とは別）",
+            table(observed_rows),
+            "この表示は読取・照合のための参考情報です。初期dispatch、Work実起動、"
+            "待機受領、次操作、Merge/Completion GateのPASS、書込権限は認定しません。"
+            "取得できない証拠は取得できないまま保持します。"
+        ]
     rows = [("正式同期", ev("local_sync")),
             ("同期target SHA", ref("commit", state.get("local_sync_target_sha")))]
     requirements, conditions = state.get("requirements") or {}, state.get("conditions") or {}

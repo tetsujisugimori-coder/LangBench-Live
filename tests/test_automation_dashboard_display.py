@@ -11,7 +11,7 @@ from tests.test_automation_dashboard import (
     FakeGitHub, HEAD, OLD, MERGE, NOW, fixtures,
 )
 from tools.automation_dashboard import (
-    END, REPOSITORY, START, DISPATCH, STATUSES, evaluate, initial_state, parse_state, render, result,
+    END, REPOSITORY, START, DISPATCH, STATUSES, evaluate, initial_state, parse_state, render, result, observed_pr_facts,
 )
 from tools.automation_dashboard_display import (
     DISPATCH_LABELS, STATE_LABELS, STATUS_LABELS, described, plain, reference, updated_time,
@@ -212,10 +212,16 @@ class DashboardDisplayTests(unittest.TestCase):
         before = evaluate(80, self.policy, self.state, self.facts)
         after = evaluate(80, self.policy, parse_state(render(self.state), 80, self.policy), self.facts)
         self.assertEqual(before, after)
-        api = FakeGitHub(self.policy, self.facts, render(self.state))
+        api = FakeGitHub(self.policy, self.facts, render(self.state, observed_pr_facts(80, self.policy, self.facts)))
         self.assertEqual("NO_OP", reconcile(api, 80, self.policy, "2027-01-01T00:00:00+00:00"))
         self.assertEqual([], api.writes)
         self.assertEqual(NOW, parse_state(api.dashboard["body"], 80, self.policy)["last_updated"])
+
+    def test_legacy_display_migrates_once_then_no_op(self):
+        api = FakeGitHub(self.policy, self.facts, render(self.state))
+        self.assertEqual("UPDATED", reconcile(api, 80, self.policy, NOW))
+        self.assertIn("GitHubで観測した事実", api.dashboard["body"])
+        self.assertEqual("NO_OP", reconcile(api, 80, self.policy, "2027-01-01T00:00:00+00:00"))
 
     def test_unknown_and_broken_schema_keep_existing_safe_stop(self):
         for body in (render(self.state).replace(START, "<!-- langbench-automation-state:v99\n"),
