@@ -21,11 +21,11 @@ import zipfile
 try:
     from tools.automation_dashboard import (BOT, REPOSITORY, author_matches, evaluate,
                                           parse_state, render, result,
-                                          validated_work_record, WorkRecordError, repair_handoff)
+                                          validated_work_record, WorkRecordError, repair_handoff, observed_pr_facts)
 except ModuleNotFoundError:
     from automation_dashboard import (BOT, REPOSITORY, author_matches, evaluate,
                                      parse_state, render, result,
-                                     validated_work_record, WorkRecordError, repair_handoff)
+                                     validated_work_record, WorkRecordError, repair_handoff, observed_pr_facts)
 
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
@@ -260,10 +260,11 @@ def reconcile(api, issue, policy, now):
         if fingerprint(first) != fingerprint(second) or dashboard_before != dashboard_after:
             continue
         state["last_updated"] = (previous or {}).get("last_updated")
-        if previous == state:
+        observed = observed_pr_facts(issue, policy, second)
+        if previous == state and dashboard_after and dashboard_after["body"] == render(state, observed):
             return "NO_OP"
         state["last_updated"] = now
-        body = render(state)
+        body = render(state, observed)
         if len(body.encode()) > 60000:
             raise ValueError("Dashboard exceeds safe comment size")
         if dashboard_after:
@@ -283,7 +284,7 @@ def reconcile(api, issue, policy, now):
             fresh["completion_gate"] = copy.deepcopy(fresh["merge_gate"])
             fresh["last_transition"] = f'{state["current_state"]} -> SAFE_STOPPED'
             fresh["last_updated"] = now
-            api.request(api.root + f'/issues/comments/{saved["id"]}', "PATCH", {"body": render(fresh)})
+            api.request(api.root + f'/issues/comments/{saved["id"]}', "PATCH", {"body": render(fresh, observed_pr_facts(issue, policy, checked))})
             return "RACE_BLOCKED"
         return "UPDATED"
     raise ValueError("GitHub snapshot changed repeatedly; unsafe to publish")
