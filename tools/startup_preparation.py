@@ -451,7 +451,7 @@ def summary(state):
 
 
 
-def registration_readiness(value, owner_facts=None):
+def registration_readiness(value, owner_facts=None, state=None):
     """One optional, non-authoritative I-07/I-09 role summary from existing inputs.
 
     Does not register Work automations, approve prompts, certify a service event,
@@ -465,6 +465,15 @@ def registration_readiness(value, owner_facts=None):
         except ModuleNotFoundError:
             from preparation_github import validate_owner_facts
         validate_owner_facts(owner_facts, value)
+    if state is not None:
+        # Compare readback with the existing accepted observation history.
+        # A raw owner report alone cannot override a newer negative watermark.
+        if value['schema_version'] == 2:
+            evidence_contract().validate_state(state)
+        else:
+            validate_state(state)
+        if state['input'] != value or state['input_digest'] != digest(value):
+            raise ValueError('Readiness state belongs to another input version')
 
     report = {'kind': 'local_registration_readiness_advisory',
               'repository': value['repository'], 'issue': value['issue'],
@@ -482,21 +491,46 @@ def registration_readiness(value, owner_facts=None):
             expected = value['registration_prompts'][role]
             observed = owner_facts[role] if owner_facts is not None else None
             registration_id = value['work_automation_id'] if role == 'review' else value['owner_resume_id']
-            confirmed = contract.ready(observed, value, role) if observed is not None else False
+            # Existing v2 resume() is the sole authority for accepting a role
+            # observation. Raw owner_facts might be older than a retained negative
+            # or conflict with an equal-timestamp readback.
+            watermark = (state['owner_watermarks'].get(role) if state is not None else None)
+            accepted = (observed is not None and watermark is not None
+                        and watermark['input_digest'] == digest(value)
+                        and watermark['record'] == observed
+                        and watermark['conflict_at'] is None
+                        and state['status'] != 'STOPPED'
+                        and not any(reason.startswith(role + ': older')
+                                    or reason.startswith(role + ': conflicting')
+                                    or reason.startswith(role + ': same-time')
+                                    or reason.startswith(role + ': settings change')
+                                    for reason in state['phase_evidence']['missing']))
+            stopping = value['phase'] == 'FINISHED'
+            confirmed = bool(accepted and contract.ready(observed, value, role, stopped=stopping))
+            if expected is None:
+                action = 'Acquire approved role Prompt without inventing a registration'
+            elif not accepted:
+                action = 'Reconcile current role observation against retained history; do not reuse stale success'
+            elif not confirmed and stopping:
+                action = 'Verify dedicated registration is disabled, with full saved Trigger/Prompt and stop readback'
+            elif not confirmed:
+                action = 'Read and verify the approved Prompt, full saved Trigger and enabled status'
+            elif stopping:
+                action = 'Disabled registration confirmed; retain stop evidence and do not continue using this role'
+            else:
+                action = 'Current role settings verified; actual event and Work start remain separate'
             report['roles'][role] = {
                 'registered_id': registration_id,
                 'approved_prompt_digest': expected['digest'] if expected is not None else None,
                 'approved_prompt_version': expected['version'] if expected is not None else None,
                 'approved_events': copy.deepcopy(expected.get('events')) if expected is not None else None,
                 'owner_reported_status': observed['status'] if observed is not None else 'NOT_OBSERVED',
+                'accepted_observation': bool(accepted),
+                'effective_record_status': (watermark['record']['status'] if watermark is not None else 'NOT_OBSERVED'),
                 'owner_settings_matched': confirmed,
-                'owner_reported_event': observed['event'] is not None if observed is not None else False,
+                'owner_reported_event': bool(accepted and observed['event'] is not None),
                 'service_run_verified': False,
-                'next_action': ('Read and verify the approved Prompt, full saved Trigger and enabled status'
-                                if expected is not None and not confirmed else
-                                'Acquire approved role Prompt without inventing a registration'
-                                if expected is None else
-                                'Continue using current observed role; live event/start remains separate')
+                'next_action': action
             }
     else:
         review = owner_facts['review'] if owner_facts is not None else None
@@ -644,7 +678,7 @@ def main():
             assessment_facts = (record['owner_facts'] if args.github_read and value['schema_version'] == 2
                                 else owner_facts)
             products['registration_readiness.json'] = canonical(
-                registration_readiness(value, assessment_facts)) + '\n'
+                registration_readiness(value, assessment_facts, state)) + '\n'
         if args.lifecycle:
             if value['schema_version'] != 1:
                 raise ValueError('Local lifecycle v1 cannot be mixed with formal v2')
