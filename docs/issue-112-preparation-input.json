@@ -1,0 +1,41 @@
+{
+  "actors": {
+    "dispatch": "Work(root)",
+    "implementation": "Work(root) direct authorized implementation",
+    "publication": "Work(root) authenticated GitHub connector",
+    "review": "Dedicated independent event Work execution",
+    "sync": ".github/workflows/pull-local-main.yml"
+  },
+  "input_version": 2,
+  "issue": 112,
+  "owner": {
+    "id": 265440097,
+    "login": "tetsujisugimori-coder",
+    "type": "User"
+  },
+  "purpose": "startup-review-registration-i07",
+  "repository": "tetsujisugimori-coder/LangBench-Live",
+  "requirement_reasons": {
+    "artifact_integrity": "No measurement artifact; synchronization safety artifact digest remains mandatory",
+    "live_smoke": "Post-merge trusted-main CLI, sole writer same record readback/NO_OP, registered review stop/readback",
+    "measurement_result_pr": "No measurement output",
+    "windows_measurement": "No machine measurement",
+    "windows_validation": "Preparation management only; no unmerged self-hosted execution"
+  },
+  "requirements": {
+    "artifact_integrity": "NOT_REQUIRED",
+    "live_smoke": "REQUIRED",
+    "measurement_result_pr": "NOT_REQUIRED",
+    "windows_measurement": "NOT_REQUIRED",
+    "windows_validation": "NOT_REQUIRED"
+  },
+  "schema_version": 1,
+  "specification": "https://github.com/tetsujisugimori-coder/LangBench-Live/issues/112",
+  "start_main_sha": "6f291e2e982878e9346581d952807a7aa3e0d35d",
+  "work_author": {
+    "id": 265440097,
+    "login": "tetsujisugimori-coder",
+    "type": "User"
+  },
+  "work_automation_id": "6acb6f559514819184e3badcc6f16482"
+}
