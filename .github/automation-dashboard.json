@@ -5,8 +5,16 @@
     "80": {
       "purpose": "automation-dashboard-gates",
       "dashboard_comment_id": 5979234464,
-      "owner": {"login": "tetsujisugimori-coder", "id": 265440097, "type": "User"},
-      "work_author": {"login": "tetsujisugimori-coder", "id": 265440097, "type": "User"},
+      "owner": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
+      "work_author": {
+        "login": "tetsujisugimori-coder",
+        "id": 265440097,
+        "type": "User"
+      },
       "work_automation_id": "6ac2312d9a3481919a778124d511b885",
       "dispatch_owners": {
         "implementation_task": "Work(root); watchdog=6ac231f0c7348191b3ac8cf03ecca54d",
@@ -230,6 +238,35 @@
           "id": 265440097,
           "type": "User"
         }
+      }
+    },
+    "112": {
+      "purpose": "startup-review-registration-i07",
+      "owner": {
+        "id": 265440097,
+        "login": "tetsujisugimori-coder",
+        "type": "User"
+      },
+      "work_author": {
+        "id": 265440097,
+        "login": "tetsujisugimori-coder",
+        "type": "User"
+      },
+      "work_automation_id": "6acb6f559514819184e3badcc6f16482",
+      "dashboard_comment_id": null,
+      "initial_dispatch": null,
+      "requirements": {
+        "artifact_integrity": "NOT_REQUIRED",
+        "live_smoke": "REQUIRED",
+        "measurement_result_pr": "NOT_REQUIRED",
+        "windows_measurement": "NOT_REQUIRED",
+        "windows_validation": "NOT_REQUIRED"
+      },
+      "dispatch_owners": {
+        "implementation_task": "Work(root)",
+        "fix_task": "Work(root)",
+        "work_review": "Dedicated independent event Work execution",
+        "local_main_sync": ".github/workflows/pull-local-main.yml"
       }
     }
   }

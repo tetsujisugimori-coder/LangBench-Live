@@ -355,6 +355,19 @@ def resume(state, facts, observed_at):
             observe('publication', 'UNKNOWN', publication, 'Publication route was unavailable at the recorded observation', publication.get('evidence_ref'))
     for key, operation in output['operations'].items():
         external = facts.get('operations', {}).get(key)
+        if external is None and review and review.get('available') is True:
+            # A real owner readback may resolve the registration intent after
+            # null -> real ID rebinding. Do not guess across purpose/owner/SHA
+            # or changed specs, and retain the original intent digest/history.
+            bound = next((v for v in state['input_history'] + [value]
+                          if digest(v) == operation['input_digest']), None)
+            if (bound is not None and key == operation_key(bound, 'review')
+                    and all(bound[k] == value[k] for k in INPUT_FIELDS - {'input_version', 'work_automation_id'})
+                    and bound['work_automation_id'] in (None, value['work_automation_id'])
+                    and value['work_automation_id'] is not None and review.get('id') == value['work_automation_id']
+                    and review.get('confirmed_by') == value['actors']['dispatch']
+                    and review.get('owner_observed_at') and review.get('evidence_ref')):
+                external = {'id': review['id'], 'input_digest': operation['input_digest']}
         if external is not None:
             if (not isinstance(external, dict) or set(external) != {'id', 'input_digest'}
                     or external['input_digest'] != operation['input_digest'] or not external_id(external['id'])):

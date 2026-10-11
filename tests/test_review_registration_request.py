@@ -57,6 +57,33 @@ class ReviewRegistrationRequestTests(unittest.TestCase):
         other = copy.deepcopy(self.v); other['input_version'] += 1
         with self.assertRaises(ValueError): p.review_registration_request(other, self.s, 113, 'a'*40)
 
+    def test_unknown_readback_resolves_only_same_bound_registration(self):
+        from tests.test_startup_preparation import owner_facts
+        from tools.preparation_github import apply_owner_facts
+        pending = p.mark_unknown(self.s, 'review')
+        registered = copy.deepcopy(self.v)
+        registered.update(input_version=2, work_automation_id='a'*32)
+        state = p.rebase(pending, registered)
+        owner = owner_facts(registered)
+        owner['review'].update(event_verified=False, actual_event=None)
+        facts = apply_owner_facts({'input_digest':p.digest(registered)}, owner, registered)
+        out = p.resume(state, facts, owner['observed_at'])
+        operation = next(iter(out['operations'].values()))
+        self.assertEqual(operation['status'], 'CONFIRMED')
+        self.assertEqual(operation['external_id'], 'a'*32)
+        self.assertEqual(operation['input_digest'], p.digest(self.v))
+        self.assertEqual(out['stages']['review']['status'], 'WAITING')
+        self.assertIsNone(p.review_registration_request(registered, out, 113, 'b'*40)['create_args'])
+        changed = copy.deepcopy(registered); changed.update(input_version=3, specification='changed approval scope')
+        other = p.rebase(pending, changed)
+        obs = owner_facts(changed)
+        out = p.resume(other, apply_owner_facts({'input_digest':p.digest(changed)}, obs, changed), obs['observed_at'])
+        self.assertEqual(next(iter(out['operations'].values()))['status'], 'UNKNOWN')
+        negative = copy.deepcopy(owner); negative['observed_at']='2026-10-12T00:00:00Z'
+        negative['review']['enabled']=False
+        neg = p.resume(state, apply_owner_facts({'input_digest':p.digest(registered)},negative,registered),negative['observed_at'])
+        with self.assertRaises(ValueError): p.resume(neg, facts, owner['observed_at'])
+
     def test_v2_binding_and_approved_prompt_preserved(self):
         from tests.test_preparation_evidence import fixture
         v, _, _ = fixture('PR_BOUND')
