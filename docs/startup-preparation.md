@@ -6,6 +6,42 @@
 
 ## 使用例と入力・出力
 
+### I-07 専用review登録への限定接続
+
+`--review-registration-request`は既存v1/v2入力から正式Work登録用引数の**案**を
+`review_registration_request.json`へ任意出力する。通常の6生成物と入力/state/owner-facts契約は変更しない。
+実PR前はPR/full HEAD/未取得task IDをnullとし、`WAIT_FOR_TARGET`。v1は正式GitHubで確認した
+実PRとfull HEADを`--review-pr N --review-head FULL_SHA`で渡す（両方必須）。v2は入力内の
+PR/HEADと一致する値だけを受ける。引数は自己申告であり、`target_verified=false`のまま。
+Work本担当が現在のIssue目的・PR唯一Refs・base=main・HEAD・既存taskを照合してから使う。
+
+```sh
+python -B tools/startup_preparation.py --input work/input.json --state work/state.json --output work/generated --review-registration-request --review-pr REAL_PR --review-head FULL_SHA
+```
+
+`CREATE_CANDIDATE`の`create_args`を本担当が正式automations.createへ渡す。Pythonは送信しない。
+正式仕様をその実行で確認し、repository/実PR番号をTrigger側で限定する。標準PRイベント
+（opened/ready/closedとopt-in synchronize）と実操作許可（ready_for_review/synchronizeのみ）を分ける。
+対象外・誤対象・HEAD変更・同HEADのclaim/結果・UNKNOWN競合はGitHub書込みゼロNO_OP。
+v2のapproved Promptは書換えず再利用する。対応eventsが違えば承認済み期待値の取得へ停止する。
+
+入力の実IDまたはstateの未解決操作があれば`RECONCILE_ONLY`、`create_args=null`。
+この結果はタスクの有効状態や同一対象の実登録を認証しない。成否不明時は正式peek/一覧と保存Promptを
+照合し、同scopeの登録があればその実IDを既存入力へ戻す。再登録しない。送信前は既存
+`--mark-unknown review`でintentを保存し、候補JSONを登録済み証拠にしない。
+
+実登録後はinput版を増やし実IDを入れ、既存owner-factsのID/enabled/観測時刻/証拠参照を
+同じ準備recordへ戻す。保存Prompt全文/Trigger読戻しの取得範囲/登録時last_run_time/PR/full HEAD/
+実event/レビュー結果/停止・別peekを同commentのowner管理詳細で段階別に記録する。
+v1にはfull Prompt/HEAD/停止の正式契約がないため、部分観測を設定確認済み・正式Gateへ昇格しない。
+新しい否定後の古いowner入力は既存watermarkで拒否し、HEADが変われば旧結果は非適用とする。
+旧candidateファイルが残っても成功ではない。現CLI終了値・input digest・最新PR/HEADを必ず照合する。
+
+本担当は人間merge後の既存正式Windows同期run/attempt/jobs/実ZIP digest/report/保持を読み、
+専用review taskだけを停止して別peekでdisabledを確認する。打切り時も停止ownerは本担当。
+実レビューは別のイベントWorkが自分で結果を公開する。本担当代筆・自動merge・未merge
+self-hosted・性能測定・新writer・汎用policy自動適用は含まない。I-07全体の正式完了ではない。
+
 ```sh
 python -B tools/startup_preparation.py \
   --input docs/startup-preparation-input.json \
