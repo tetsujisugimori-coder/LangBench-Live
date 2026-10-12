@@ -1,0 +1,16 @@
+# V4.0 再開報告と既存準備・Dashboard接続
+
+Issue114/PR115の停止原因は未特定。実行時刻の更新は結果公開の成功証拠ではない。今回の変更は次回の診断性を改善し、過去の起動成功を遡及認定しない。
+
+## 再開担当の報告順序
+対象repository/PR/base/許可HEADとGitHubの人間mergeを確認後、まずWork会話へ「マージ確認」、PR番号、merged_at、実merge SHA、確認時刻を報告する。これはイベント受信の認定やGitHub開始claimではない。受信context不足は未確認と報告し、書込み許可条件を緩めない。
+続いて固定待機照合、正式同期確認、承認済み次操作、完了を短く報告する。GitHub開始claimは対象・権限・重複確認後のみ。全終了分岐で結果・最後の段階・不足・停止理由・次担当/操作をWork最終回答に残す。対象外のGitHub書込み禁止とWork会話の報告義務を区別する。
+同期待ちは最大3回、各待機60秒以内。取得できたrun/attempt、未完了条件、再確認担当と方法を引き渡す。再確認用の常設監視・重複dispatchを作らない。Work run ID未取得と副作用の送信成否UNKNOWNを混同しない。同対象HEAD/mergeの完了済み記録は再実行しない。
+
+## 既存接続
+既存CLIのv2承認済みPromptは全文/digestを維持する。テンプレート更新で保存済みタスクを自動変更しない。次回の新規準備または明示承認した再bindingで新テンプレートを採用する。停止済みIssue114の登録は再開しない。
+ownerは検証済み契約の範囲で既存github_record.mdを同一準備コメントへ戻し、trusted-main唯一writerのreconcile_preparationが保存する。正式policyのpreparation_contract=2を持つ対象は既存collect_preparation_gateで現在事実を再計算する。Dashboardは同PR/HEADの準備工程・証拠状態・不足・I-01認定・次担当/操作を表示する。機械state/Completion Gateの判定は変更しない。
+policy未登録やv2未対応scopeでは、この表示を接続済みと主張しない。契約に表現できない手動成果を架空のexecution/receiptに変換せず、通常の結果コメント/Work最終回答へ保持する。Issue114のpolicyを遡及登録せず、正式WAITINGを手でPASSへ変えない。
+
+## 正式適用
+commit→push→PR公開後、同HEADの独立レビューとHosted Ubuntu/Windows CI、人間merge、正式同期、次回イベント実動を別々に確認する。ローカル回帰の成功は実Workの自動一周成功ではない。

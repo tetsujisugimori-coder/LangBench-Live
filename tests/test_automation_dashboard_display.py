@@ -236,6 +236,26 @@ class DashboardDisplayTests(unittest.TestCase):
                 self.assertIn("SAFE_STOPPED", api.dashboard["body"])
                 self.assertIn("Completion Gate: ERROR", api.dashboard["body"])
 
+    def test_preparation_facts_visible_without_gate_or_state_mutation(self):
+        policy = copy.deepcopy(self.policy)
+        policy['preparation_contract'] = 2
+        facts = copy.deepcopy(self.facts)
+        facts['preparation_gate'] = dict(contract=2, pr=facts['pr']['number'], head_sha=HEAD,
+            phase='POST_MERGE', status='WAITING', missing=['Work event unverified'],
+            i01_live='UNVERIFIED', next_owner='Work(root)', next_action='Collect result')
+        before = copy.deepcopy((self.state, facts))
+        observed = observed_pr_facts(80, policy, facts)
+        visible = render(self.state, observed)
+        self.assertIn('不足する準備証拠', visible)
+        self.assertIn('Work event unverified', visible)
+        self.assertIn('Collect result', visible)
+        self.assertEqual(self.state, parse_state(visible, 80, self.policy))
+        self.assertEqual(before, (self.state, facts))
+        for field, wrong in (('pr', facts['pr']['number'] + 1), ('head_sha', OLD), ('contract', 1)):
+            bad = copy.deepcopy(facts); bad['preparation_gate'][field] = wrong
+            self.assertNotIn('preparation', observed_pr_facts(80, policy, bad))
+        self.assertNotIn('preparation', observed_pr_facts(80, self.policy, facts))
+
     def test_renderer_has_no_clock_or_network_access(self):
         with patch("urllib.request.urlopen", side_effect=AssertionError("network")), \
              patch("tools.update_automation_dashboard.datetime") as clock:

@@ -594,3 +594,15 @@ class PostMergeCollectorTests(unittest.TestCase):
             prepared=g.collect_preparation_gate(api,100,rf['policy'])
             self.assertEqual(prepared['status'],'WAITING')
             self.assertEqual(prepared['i01_live'],'UNVERIFIED')
+
+
+class ResumeReportingTests(unittest.TestCase):
+    def test_merge_report_precedes_detailed_checks_and_all_exits_report(self):
+        value, _, _ = fixture('PR_BOUND')
+        from tools import preparation_evidence as e
+        prompt = e.prompt(value, 'owner_resume')
+        self.assertLess(prompt.index('マージ確認'), prompt.index('固定待機'))
+        self.assertIn('最大3回', prompt)
+        self.assertIn('GitHub書込み禁止でも会話報告を省略しない', prompt)
+        self.assertIn('同対象/HEAD/merge SHAの完了記録', prompt)
+        self.assertIn('既存owner入力/準備ツール/唯一writer', prompt)

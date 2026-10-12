@@ -81,5 +81,7 @@ class LifecycleTests(unittest.TestCase):
                  '--state',str(d/'state.json'),'--output',str(d/'out'),'--config',str(root/'.github/automation-dashboard.json')]
             subprocess.run(cmd,check=True,capture_output=True,cwd=root)
             result=subprocess.run(cmd+['--lifecycle',str(d/'phase.json')],check=True,capture_output=True,cwd=root)
+            self.assertIn('V4.0 kit', (d/'out/owner_resume_registration.md').read_text(encoding='utf-8'))
+            self.assertIn('まずWork会話へマージ確認', (d/'out/owner_resume_registration.md').read_text(encoding='utf-8'))
             self.assertIn(b'NOT_CERTIFIED',result.stdout); self.assertTrue((d/'out/owner_resume_registration.md').exists())
             self.assertEqual(p.loads((d/'state.json').read_text(encoding='utf-8'))['schema_version'],1)

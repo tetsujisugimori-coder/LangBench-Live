@@ -217,3 +217,6 @@ Work非公開API、手動PASS/独立PASS代筆、dispatch receipt捏造、自動
 ## V3.9段階別補助確認
 
 追加の--lifecycle入力と境界は[preparation-lifecycle-v39.md](preparation-lifecycle-v39.md)を参照。旧v1とローカル補助判定は正式Gate・I-01全体成功を表さない。正式v2契約は[preparation-evidence-v2.md](preparation-evidence-v2.md)を参照。
+
+## 現行運用V4.0
+登録候補はV4.0を参照する。v39の歴史的ファイル名やv1/v2契約番号は保持する。再開報告と既存writer/Dashboard接続は[resume-reporting-v40.md](resume-reporting-v40.md)を参照。保存済み承認Promptは自動置換しない。
