@@ -568,11 +568,17 @@ python tools/validate_function_call_analysis.py <new-output-directory> --expecte
 
 表示JSONの `schema_version` は `1.0` を維持します。これは従来例外で出力できなかった有効な1件入力への対応で、2件以上の既存のキー・型・統計・順序は変えません。半分中央値の契約は数値または欠測を表す `null` となるため、外部で常に数値と仮定する利用先は `null` を確認してから計算してください。repository内でこれらを数値として読む利用先はなく、`remeasure_function_call.ps1` はJSONを診断ファイルへ保存します。保存archive・測定結果のschemaやValidatorは変更しません。
 
+`--case direct` / `--case function_call` は表示ケースを選択します。省略時は従来どおり両ケースです。通常表示・`--json`・`--summary-only`・`--sample-limit`・`--all-languages`・複数履歴に対応し、既存オプションの競合条件は維持します。全履歴・全言語・両ケースの検証を終えてから選択するため、非表示ケースや言語の破損も拒否します。統計は選択したケースの全サンプルから計算し、件数制限は表示だけに適用します。未知値・空値・値欠落は引数エラー（終了コード2）です。
+
+ケース選択後も表示JSONの `schema_version: 1.0` を維持します。既存キー・型・値・履歴/言語/サンプルの順序を保持し、各履歴の `cases` 配列から非選択ケースの行だけを除きます。`run_ids` など他の情報は絞り込みません。指定なしの出力契約は変わらず、repository内の診断保存・検証用途も `--case` を使わないため従来出力を受け取ります。外部利用先で配列の要素数や位置を固定している場合、`--case` 使用時は `language` / `case` で行を照合してください。保存archiveのschemaは変更しません。
+
 ```powershell
 python -B tools/show_archive_samples.py "results/history/<experiment_id>/<archive_id>"
 python -B tools/show_archive_samples.py --json --all-languages "results/history/<experiment_id>/<archive_id>"
 python -B tools/show_archive_samples.py --summary-only "results/history/<experiment_id>/<archive_id>"
 python -B tools/show_archive_samples.py --summary-only --all-languages "results/history/<experiment_id>/<archive_id>"
+python -B tools/show_archive_samples.py --case direct --sample-limit 3 "results/history/<experiment_id>/<archive_id>"
+python -B tools/show_archive_samples.py --case function_call --json --all-languages "results/history/<experiment_id>/<archive_id>"
 ```
 
 同じソース・設定のWindows実機で10回を**逐次**実行する場合は、独立したチェックアウトで次を実行します。`run_all.ps1` の言語順は Python → JavaScript → C、C内は `direct` → `function_call` です。スクリプトはベンチマーク入力ファイルのSHA-256が途中で変わらないことを各回の前後に確認します。各回の開始・終了時刻、成否、失敗理由、`experiment_id`、`archive_id`、履歴パス、順番を `runs.json` に記録し、各履歴を保存後に同じ診断ツールで再検証します。失敗回は成功回に含めません。通常出力は `run-XX.log`、検証済みサンプルは `run-XX-samples.json` に残します。これらは `results/diagnostics/` に置き、Git管理しません。
