@@ -717,12 +717,18 @@ def observed_pr_facts(issue, policy, facts):
             sync = sync_evidence(facts, merge_sha)
         except (KeyError, TypeError, ValueError):
             pass
-    return {"status": "OBSERVED", "reason": "Bound GitHub facts; no dispatch inference",
+    observed = {"status": "OBSERVED", "reason": "Bound GitHub facts; no dispatch inference",
             "pr": pull["number"], "head_sha": head, "merged": merged,
             "merge_sha": merge_sha, "ci_ubuntu": ubuntu, "ci_windows": windows,
             "work_review": review, "local_sync": sync,
             "read_only": "INSPECT_BOUNDED_FACTS",
             "effectful": "EXISTING_GATES_ONLY"}
+    preparation = facts.get("preparation_gate")
+    if (policy.get("preparation_contract") == 2 and isinstance(preparation, dict)
+            and preparation.get("contract") == 2
+            and preparation.get("pr") == pull["number"] and preparation.get("head_sha") == head):
+        observed["preparation"] = copy.deepcopy(preparation)
+    return observed
 
 
 

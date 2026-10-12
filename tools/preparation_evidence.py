@@ -105,12 +105,16 @@ def prompt(value, role):
             f"reviewed HEAD: {value['head_sha']}\n"
             + ('Independent Work review; verify current full HEAD and report only this PR.\n'
                if role == 'review' else
-               'Work(root) merge resume: re-fetch Issue/PR/policy/Dashboard/main; reject stale or unmerged events.\n'
+               '運用正本V4.0。最初にGitHubで対象PR/base/main/許可HEADと人間mergeを照合し、Work会話へ「マージ確認」、PR番号、merged_at、実merge SHA、確認時刻を報告する。未確認なら不足を報告し、副作用を止める。イベント起動成功の認定とは分離する。\n'
+               'その後、Issue/policy/Dashboard/mainと固定待機を詳細照合する。GitHub開始claimは権限・対象・重複確認後だけ投稿する。\n'
                'Authenticate the shared waiting record and exclusive claim before receipt or next operation.\n'
                'Read the existing pull-local-main.yml run; never dispatch/rerun sync. Verify exact SHA, actual ZIP/digest/report and preservation.\n'
-               'If pending, continue this execution or verify a pending-only recheck registration.\n'
+               'Work会話で待機記録照合・同期確認・完了を短く報告し、確認済みと不足を区別する。同期待ちは最大3回、各待機60秒以内。継続不能ならrun/不足/次担当/再確認方法を報告し終了する。新規再確認登録を勝手に作らない。\n'
                'Execute only the authorized live smoke/safe stop; update owner input, read sole-writer result and remaining Completion.\n'
-               'Never edit snapshots/Gates, auto-merge, start another theme or claim an unobserved Work event.\n'))
+               '同対象/HEAD/merge SHAの完了記録があれば再実行しない。UNKNOWNの送信成否は照合まで再送禁止。Work run ID未取得だけを全操作のUNKNOWNとしない。\n'
+               '結果は既存owner入力/準備ツール/唯一writer経由で共有し、Dashboardを読戻す。契約で表現できない事実は通常の結果報告へ残し、架空receipt/PASSを作らない。\n'
+               'Never edit snapshots/Gates, auto-merge, start another theme or claim an unobserved Work event.\n')
+            + '全終了分岐（NO_OP・証拠不足・失敗・完了済みを含む）で、実行結果・最後の到達段階・不足証拠・停止理由・次owner/actionをWork最終回答に必ず残す。GitHub書込み禁止でも会話報告を省略しない。\n')
 
 
 def validate_registration(record, value, role):

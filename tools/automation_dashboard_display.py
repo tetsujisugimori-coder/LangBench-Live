@@ -192,6 +192,12 @@ def render_markdown(state, repository, observed=None):
                                 ("local_sync", "正式Windows同期")):
                 item = observed.get(field) or {}
                 observed_rows.append((name, plain(item.get("status")) + " / " + plain(item.get("reason"))))
+        preparation = observed.get("preparation")
+        if status == "OBSERVED" and isinstance(preparation, dict):
+            observed_rows.extend((name, plain(preparation.get(key))) for key, name in (
+                ("phase", "準備工程"), ("status", "準備証拠の状態"),
+                ("missing", "不足する準備証拠"), ("i01_live", "I-01実動認定"),
+                ("next_owner", "準備の次担当"), ("next_action", "準備の次操作")))
         sections[1:1] = [
             "### GitHubで観測した事実（正式Gateの認定とは別）",
             table(observed_rows),

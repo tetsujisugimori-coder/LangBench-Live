@@ -27,6 +27,8 @@ class ReviewRegistrationRequestTests(unittest.TestCase):
         args = r['create_args']
         self.assertEqual(args['triggers'][0]['params']['pull_request_number'], 113)
         self.assertEqual(args['triggers'][0]['params']['repository'], self.v['repository'])
+        self.assertIn('運用正本V4.0。', args['prompt'])
+        self.assertNotIn('V4.0へ切替しない', args['prompt'])
         self.assertIn('Issue #112', args['prompt'])
         self.assertIn('a'*40, args['prompt'])
         self.assertIn('GitHub書込みゼロ', args['prompt'])
