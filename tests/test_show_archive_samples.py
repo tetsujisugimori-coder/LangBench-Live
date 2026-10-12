@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import shutil
 import statistics
 import subprocess
 import sys
@@ -320,6 +321,117 @@ class ShowArchiveSamplesTests(unittest.TestCase):
                 self.assertEqual("", result.stdout)
                 self.assertEqual(before, {str(p): p.read_bytes() for folder in paths
                                           for p in folder.iterdir() if p.is_file()})
+
+    def test_case_json_keeps_contract_order_and_full_statistics(self) -> None:
+        paths = [self.make_archive(f"202608{day:02d}_130000", count=count)
+                 for day, count in enumerate((1, 2, 5, 50), 1)]
+        before = self.file_hashes(*paths)
+        for all_languages in ((), ("--all-languages",)):
+            original = self.run_cli(*reversed(paths), extra=("--json", *all_languages))
+            self.assertEqual(0, original.returncode, original.stderr)
+            baseline = json.loads(original.stdout)
+            for case in ("direct", "function_call"):
+                result = self.run_cli(*reversed(paths), extra=("--json", "--case", case, *all_languages))
+                self.assertEqual((0, ""), (result.returncode, result.stderr))
+                expected = json.loads(original.stdout)
+                for run in expected["runs"]:
+                    run["cases"] = [row for row in run["cases"] if row["case"] == case]
+                self.assertEqual(json.dumps(expected, ensure_ascii=False, indent=2) + "\n", result.stdout)
+                report = json.loads(result.stdout)
+                self.assertEqual(list(baseline), list(report))
+                for run, count in zip(report["runs"], (50, 5, 2, 1)):
+                    self.assertEqual(["c", "javascript", "python"] if all_languages else ["c"],
+                                     [row["language"] for row in run["cases"]])
+                    samples = ([0.100] * (count // 2) + [0.250] * (count - count // 2)
+                               if case == "direct" else [0.400] * count)
+                    for row in run["cases"]:
+                        self.assertEqual(samples, row["samples_ms"])
+                        self.assertEqual(count, len(row["samples_ms"]))
+                        self.assertEqual(statistics.median(samples), row["median_ms"])
+                        self.assertEqual(min(samples), row["min_ms"])
+                        self.assertEqual(max(samples), row["max_ms"])
+                        self.assertEqual(statistics.median(samples[:count // 2]) if count > 1 else None,
+                                         row["first_half_median_ms"])
+                        self.assertEqual(statistics.median(samples[count // 2:]), row["second_half_median_ms"])
+        self.assertEqual(before, self.file_hashes(*paths))
+
+    def test_case_text_modes_only_remove_unselected_rows(self) -> None:
+        first = self.make_archive("20260801_130000", count=1)
+        second = self.make_archive("20260802_130000", count=50)
+        before = self.file_hashes(first, second)
+        for languages in ((), ("--all-languages",)):
+            for mode in ((), ("--summary-only",), ("--sample-limit", "1"),
+                         ("--sample-limit", "3"), ("--sample-limit", "500")):
+                baseline = self.run_cli(second, first, extra=(*mode, *languages))
+                self.assertEqual(0, baseline.returncode, baseline.stderr)
+                for case in ("direct", "function_call"):
+                    selected = self.run_cli(second, first, extra=("--case", case, *mode, *languages))
+                    expected, keep = [], True
+                    for line in baseline.stdout.splitlines():
+                        if line.startswith("  ") and not line.startswith("    "):
+                            keep = f"/{case}:" in line
+                        elif not line.startswith("    "):
+                            keep = True
+                        if keep:
+                            expected.append(line)
+                    self.assertEqual((0, "\n".join(expected) + "\n", ""),
+                                     (selected.returncode, selected.stdout, selected.stderr))
+        self.assertEqual(before, self.file_hashes(first, second))
+
+    def test_case_rejects_hidden_content_after_rehash_and_hash_tampering(self) -> None:
+        for selected, hidden in (("direct", "function_call"), ("function_call", "direct")):
+            for language in ("c", "python"):
+                for rehash in (False, True):
+                    with self.subTest(selected=selected, language=language, rehash=rehash):
+                        path = self.make_archive(f"20260801_{len(list(self.root.glob('*_c.json'))):06d}")
+                        def damage(document):
+                            document["results"][hidden]["samples_ms"][0] = -1
+                        if rehash:
+                            ShowArchiveMetricsTests.rewrite(path, f"{language}.json", damage)
+                        else:
+                            file = path / f"{language}.json"
+                            document = json.loads(file.read_text(encoding="utf-8"))
+                            damage(document)
+                            file.write_text(json.dumps(document), encoding="utf-8")
+                        before = self.file_hashes(path)
+                        for mode in ((), ("--json",), ("--summary-only",), ("--sample-limit", "1")):
+                            result = self.run_cli(path, extra=("--case", selected, *mode))
+                            self.assertEqual(2, result.returncode)
+                            if "--json" in mode:
+                                error = json.loads(result.stdout)
+                                self.assertEqual({"error"}, set(error))
+                                code = error["error"]["code"]
+                            else:
+                                self.assertEqual("", result.stdout)
+                                code = result.stderr
+                            self.assertIn("RESULT_VALIDATION_FAILED" if rehash else "SHA256_MISMATCH", code)
+                        self.assertEqual(before, self.file_hashes(path))
+
+    def test_case_invalid_values_conflicts_and_duplicate_archives(self) -> None:
+        missing = self.root / "missing"
+        for flags in (("--case", "unknown"), ("--case", ""), ("--case",),
+                      ("--case=",), ("--case", "direct", "--summary-only", "--json"),
+                      ("--case", "function_call", "--sample-limit", "1", "--json"),
+                      ("--case", "direct", "--sample-limit", "1", "--summary-only"),
+                      ("--case", "direct", "--sample-limit", "0")):
+            with self.subTest(flags=flags):
+                # Value-missing must be tested without a positional argument that could consume it.
+                paths = () if flags == ("--case",) else (missing,)
+                result = self.run_cli(*paths, extra=flags)
+                self.assertEqual(2, result.returncode)
+                self.assertEqual("", result.stdout)
+                self.assertIn("error:", result.stderr)
+                self.assertNotIn("検証エラー", result.stderr)
+        path = self.make_archive("20260801_130000")
+        copied = self.root / "copy" / path.parent.name / path.name
+        shutil.copytree(path, copied)
+        before = self.file_hashes(path, copied)
+        for other in (path, copied):
+            for case in ("direct", "function_call"):
+                result = self.run_cli(path, other, extra=("--case", case, "--json"))
+                self.assertEqual(2, result.returncode)
+                self.assertEqual("DUPLICATE_ARCHIVE", json.loads(result.stdout)["error"]["code"])
+        self.assertEqual(before, self.file_hashes(path, copied))
 
 
 if __name__ == "__main__":

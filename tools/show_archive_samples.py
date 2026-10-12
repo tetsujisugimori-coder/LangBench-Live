@@ -15,12 +15,13 @@ else:
     from validate_result_json import median_from_samples
 
 
-def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, ...]) -> dict:
+def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, ...],
+                 selected_cases: tuple[str, ...] = CASES) -> dict:
     runs = []
     for path, archive in zip(paths, archives):
         cases = []
         for language in languages:
-            for case in CASES:
+            for case in selected_cases:
                 samples = archive["results"][language]["results"][case]["samples_ms"]
                 midpoint = len(samples) // 2
                 first_half, second_half = samples[:midpoint], samples[midpoint:]
@@ -68,6 +69,8 @@ def main() -> int:
     parser.add_argument("--sample-limit", type=int, metavar="N",
                         help="print only the first N numbered samples per case (text only)")
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
+    parser.add_argument("--case", choices=CASES,
+                        help="show only this case after validating the entire archive")
     parser.add_argument("archives", type=Path, nargs="+", help="one or more archive directories")
     args = parser.parse_args()
     if args.summary_only and args.json:
@@ -85,7 +88,8 @@ def main() -> int:
         archive_ids = [archive["index"]["archive_id"] for archive in archives]
         if len(set(archive_ids)) != len(archive_ids):
             raise ArchiveError("DUPLICATE_ARCHIVE", "each input must have a distinct archive_id")
-        report = build_report(args.archives, archives, LANGUAGES if args.all_languages else ("c",))
+        report = build_report(args.archives, archives, LANGUAGES if args.all_languages else ("c",),
+                              (args.case,) if args.case is not None else CASES)
     except (ArchiveError, OSError) as error:
         code = error.code if isinstance(error, ArchiveError) else "IO_ERROR"
         if args.json:
