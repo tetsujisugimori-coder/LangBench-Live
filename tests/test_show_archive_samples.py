@@ -433,6 +433,25 @@ class ShowArchiveSamplesTests(unittest.TestCase):
                 self.assertEqual("DUPLICATE_ARCHIVE", json.loads(result.stdout)["error"]["code"])
         self.assertEqual(before, self.file_hashes(path, copied))
 
+    def test_legacy_argument_errors_keep_usage_without_case_option(self) -> None:
+        missing = self.root / "missing"
+        for flags in (("--summary-only", "--json"), ("--sample-limit", "0"),
+                      ("--sample-limit", "1", "--json"),
+                      ("--sample-limit", "1", "--summary-only"),
+                      ("--sample-limit", "bad"), ("--unknown",)):
+            result = self.run_cli(missing, extra=flags)
+            self.assertEqual((2, ""), (result.returncode, result.stdout))
+            self.assertIn("usage:", result.stderr)
+            self.assertNotIn("--case", result.stderr)
+        for flags in (("--case", "direct", "--sample-limit", "0"),
+                      ("--cas=function_call", "--sample-limit", "0")):
+            result = self.run_cli(missing, extra=flags)
+            self.assertEqual(2, result.returncode)
+            self.assertIn("[--case {direct,function_call}]", result.stderr)
+        help_result = self.run_cli(extra=("--help",))
+        self.assertEqual(0, help_result.returncode)
+        self.assertIn("--case {direct,function_call}", help_result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

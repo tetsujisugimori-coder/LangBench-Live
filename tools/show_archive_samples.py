@@ -61,16 +61,33 @@ def format_half_median(value: int | float | None) -> str:
     return "算出不可" if value is None else format_number(value)
 
 
+class SampleArgumentParser(argparse.ArgumentParser):
+    """Keep legacy error usage when the new option was not requested."""
+
+    case_argument: argparse.Action | None = None
+
+    def error(self, message: str) -> None:
+        option_args = sys.argv[1:]
+        if "--" in option_args:
+            option_args = option_args[:option_args.index("--")]
+        case_requested = any(token.startswith("--") and len(token) > 2
+                             and "--case".startswith(token.split("=", 1)[0])
+                             for token in option_args)
+        if self.case_argument is not None and not case_requested:
+            self.case_argument.help = argparse.SUPPRESS
+        super().error(message)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = SampleArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     parser.add_argument("--summary-only", action="store_true",
                         help="show sample counts and statistics without individual samples (text only)")
     parser.add_argument("--sample-limit", type=int, metavar="N",
                         help="print only the first N numbered samples per case (text only)")
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
-    parser.add_argument("--case", choices=CASES,
-                        help="show only this case after validating the entire archive")
+    parser.case_argument = parser.add_argument(
+        "--case", choices=CASES, help="show only this case after validating the entire archive")
     parser.add_argument("archives", type=Path, nargs="+", help="one or more archive directories")
     args = parser.parse_args()
     if args.summary_only and args.json:
