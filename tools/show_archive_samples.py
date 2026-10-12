@@ -23,11 +23,12 @@ def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, 
             for case in CASES:
                 samples = archive["results"][language]["results"][case]["samples_ms"]
                 midpoint = len(samples) // 2
+                first_half, second_half = samples[:midpoint], samples[midpoint:]
                 cases.append({"language": language, "case": case, "samples_ms": samples,
                               "median_ms": median_from_samples(samples),
                               "min_ms": min(samples), "max_ms": max(samples),
-                              "first_half_median_ms": median_from_samples(samples[:midpoint]),
-                              "second_half_median_ms": median_from_samples(samples[midpoint:])})
+                              "first_half_median_ms": median_from_samples(first_half) if first_half else None,
+                              "second_half_median_ms": median_from_samples(second_half) if second_half else None})
         run_ids = {entry["language"]: entry["run_id"] for entry in archive["index"]["results"]}
         runs.append({**identity(path, archive), "run_ids": run_ids, "cases": cases})
     return {"schema_version": "1.0", "unit": "ms", "runs": runs}
@@ -42,8 +43,8 @@ def print_text(report: dict, summary_only: bool = False, sample_limit: int | Non
             count = f"件数 {len(row['samples_ms'])}, " if summary_only else ""
             print(f"  {row['language']}/{row['case']}: {count}中央値 {format_number(row['median_ms'])}, "
                   f"最小 {format_number(row['min_ms'])}, 最大 {format_number(row['max_ms'])}, "
-                  f"前半 {format_number(row['first_half_median_ms'])}, "
-                  f"後半 {format_number(row['second_half_median_ms'])}")
+                  f"前半 {format_half_median(row['first_half_median_ms'])}, "
+                  f"後半 {format_half_median(row['second_half_median_ms'])}")
             if not summary_only:
                 samples = row["samples_ms"]
                 shown = samples if sample_limit is None else samples[:sample_limit]
@@ -53,6 +54,10 @@ def print_text(report: dict, summary_only: bool = False, sample_limit: int | Non
                 print(f"    samples_ms ({label}): " + ", ".join(
                     f"{i}:{format_number(value)}" for i, value in enumerate(shown, 1)))
     print("Cの各サンプルは0.001 ms単位で保存。丸め幅程度の差を原因として解釈しないでください。")
+
+
+def format_half_median(value: int | float | None) -> str:
+    return "算出不可" if value is None else format_number(value)
 
 
 def main() -> int:
