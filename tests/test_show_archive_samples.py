@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import statistics
@@ -52,6 +53,97 @@ class ShowArchiveSamplesTests(unittest.TestCase):
         return subprocess.run([sys.executable, str(COMMAND), *extra, *(str(path) for path in paths)],
                               capture_output=True, text=True, encoding="utf-8", check=False,
                               env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"})
+
+    def file_hashes(self, *paths: Path) -> dict:
+        return {str(file): hashlib.sha256(file.read_bytes()).hexdigest()
+                for path in paths for file in path.iterdir() if file.is_file()}
+
+    def test_single_sample_all_modes_statistics_and_input_hashes(self) -> None:
+        path = self.make_archive("20260801_130000", count=1)
+        before = self.file_hashes(path)
+        for flags in (("--json",), ("--json", "--all-languages")):
+            result = self.run_cli(path, extra=flags)
+            self.assertEqual(0, result.returncode, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual("1.0", report["schema_version"])
+            rows = report["runs"][0]["cases"]
+            self.assertEqual(6 if "--all-languages" in flags else 2, len(rows))
+            for row in rows:
+                expected = 0.250 if row["case"] == "direct" else 0.400
+                self.assertEqual([expected], row["samples_ms"])
+                self.assertIsNone(row["first_half_median_ms"])
+                for field in ("median_ms", "min_ms", "max_ms", "second_half_median_ms"):
+                    self.assertEqual(expected, row[field])
+        for flags in ((), ("--summary-only",), ("--sample-limit", "1"),
+                      ("--sample-limit", "5"), ("--all-languages",),
+                      ("--summary-only", "--all-languages"),
+                      ("--sample-limit", "1", "--all-languages")):
+            with self.subTest(flags=flags):
+                result = self.run_cli(path, extra=flags)
+                self.assertEqual(0, result.returncode, result.stderr)
+                size = 6 if "--all-languages" in flags else 2
+                self.assertEqual(size, result.stdout.count("前半 算出不可"))
+                self.assertIn("中央値 0.25, 最小 0.25, 最大 0.25, 前半 算出不可, 後半 0.25", result.stdout)
+                if "--summary-only" in flags:
+                    self.assertEqual(size, result.stdout.count("件数 1"))
+                    self.assertNotIn("samples_ms (", result.stdout)
+                else:
+                    self.assertEqual(size, result.stdout.count("samples_ms (1-1): 1:"))
+        self.assertEqual(before, self.file_hashes(path))
+
+    def test_single_and_multi_sample_archives_keep_order(self) -> None:
+        first = self.make_archive("20260801_130000", count=1)
+        second = self.make_archive("20260802_130000", count=3)
+        before = self.file_hashes(first, second)
+        for flags in (("--json", "--all-languages"), ("--all-languages",),
+                      ("--summary-only", "--all-languages"),
+                      ("--sample-limit", "1", "--all-languages")):
+            result = self.run_cli(second, first, extra=flags)
+            self.assertEqual(0, result.returncode, result.stderr)
+            if "--json" in flags:
+                runs = json.loads(result.stdout)["runs"]
+                self.assertEqual([str(second), str(first)], [run["path"] for run in runs])
+                self.assertEqual(["c", "c", "javascript", "javascript", "python", "python"],
+                                 [row["language"] for row in runs[1]["cases"]])
+                self.assertTrue(all(row["first_half_median_ms"] is None for row in runs[1]["cases"]))
+                self.assertTrue(all(row["first_half_median_ms"] is not None for row in runs[0]["cases"]))
+            else:
+                self.assertLess(result.stdout.index(f"履歴 1: {second}"),
+                                result.stdout.index(f"履歴 2: {first}"))
+                self.assertEqual(6, result.stdout.count("前半 算出不可"))
+        self.assertEqual(before, self.file_hashes(first, second))
+
+    def test_two_odd_and_fifty_samples_keep_split_statistics(self) -> None:
+        for count in (2, 3, 5, 50):
+            with self.subTest(count=count):
+                path = self.make_archive(f"20260801_{count:06d}", count=count)
+                result = self.run_cli(path, extra=("--json", "--all-languages"))
+                self.assertEqual(0, result.returncode, result.stderr)
+                for row in json.loads(result.stdout)["runs"][0]["cases"]:
+                    samples = row["samples_ms"]
+                    self.assertEqual(count, len(samples))
+                    self.assertEqual(statistics.median(samples), row["median_ms"])
+                    self.assertEqual(statistics.median(samples[:count // 2]), row["first_half_median_ms"])
+                    self.assertEqual(statistics.median(samples[count // 2:]), row["second_half_median_ms"])
+
+    def test_empty_samples_and_zero_count_rejected_after_rehash(self) -> None:
+        for count in (0, 1):
+            path = self.make_archive(f"20260801_{count:06d}", count=1)
+            def empty(document):
+                document["config"]["measurement_iterations"] = count
+                for result in document["results"].values():
+                    result["samples_ms"] = []
+            ShowArchiveMetricsTests.rewrite(path, "c.json", empty)
+            before = self.file_hashes(path)
+            for flags in ((), ("--json",), ("--summary-only",), ("--sample-limit", "1")):
+                result = self.run_cli(path, extra=flags)
+                self.assertEqual(2, result.returncode)
+                self.assertNotIn("IndexError", result.stderr)
+                if "--json" in flags:
+                    self.assertEqual({"error"}, set(json.loads(result.stdout)))
+                else:
+                    self.assertEqual("", result.stdout)
+            self.assertEqual(before, self.file_hashes(path))
 
     def test_ordered_fifty_samples_and_half_medians(self) -> None:
         path = self.make_archive("20260801_130000")
