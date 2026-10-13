@@ -433,6 +433,107 @@ class ShowArchiveSamplesTests(unittest.TestCase):
                 self.assertEqual("DUPLICATE_ARCHIVE", json.loads(result.stdout)["error"]["code"])
         self.assertEqual(before, self.file_hashes(path, copied))
 
+    def test_language_selection_all_modes_statistics_order_and_hashes(self) -> None:
+        paths = [self.make_archive(f"202609{day:02d}_130000", count=count)
+                 for day, count in enumerate((1, 2, 5, 50), 1)]
+        # Deliberately unsorted samples distinguish sample order from median order.
+        for path in paths:
+            for language in ("c", "javascript", "python"):
+                def reorder(document):
+                    for row in document["results"].values():
+                        row["samples_ms"].reverse()
+                ShowArchiveMetricsTests.rewrite(path, f"{language}.json", reorder)
+        before = self.file_hashes(*paths)
+        ordered = tuple(reversed(paths))
+        for case in ((), ("--case", "direct"), ("--case", "function_call")):
+            original = self.run_cli(*ordered, extra=(*case, "--json", "--all-languages"))
+            self.assertEqual(0, original.returncode, original.stderr)
+            for language in ("c", "python", "javascript"):
+                result = self.run_cli(*ordered, extra=(*case, "--json", "--language", language))
+                expected = json.loads(original.stdout)
+                for run in expected["runs"]:
+                    run["cases"] = [row for row in run["cases"] if row["language"] == language]
+                self.assertEqual((0, json.dumps(expected, ensure_ascii=False, indent=2) + "\n", ""),
+                                 (result.returncode, result.stdout, result.stderr))
+                for run, count in zip(json.loads(result.stdout)["runs"], (50, 5, 2, 1)):
+                    for row in run["cases"]:
+                        samples = list(reversed([0.100] * (count // 2) + [0.250] * (count - count // 2)))
+                        if row["case"] == "function_call":
+                            samples = [0.400] * count
+                        self.assertEqual(samples, row["samples_ms"])
+                        midpoint = count // 2
+                        for key, value in (("median_ms", statistics.median(samples)),
+                                           ("min_ms", min(samples)), ("max_ms", max(samples)),
+                                           ("first_half_median_ms", statistics.median(samples[:midpoint])
+                                            if midpoint else None),
+                                           ("second_half_median_ms", statistics.median(samples[midpoint:]))):
+                            self.assertEqual(value, row[key])
+                for mode in ((), ("--summary-only",), ("--sample-limit", "1"),
+                             ("--sample-limit", "3"), ("--sample-limit", "500")):
+                    baseline = self.run_cli(*ordered, extra=(*case, *mode, "--all-languages"))
+                    selected = self.run_cli(*ordered, extra=(*case, *mode, "--language", language))
+                    expected_lines, keep = [], True
+                    for line in baseline.stdout.splitlines():
+                        if line.startswith("  ") and not line.startswith("    "):
+                            keep = line.startswith(f"  {language}/")
+                        elif not line.startswith("    "):
+                            keep = True
+                        if keep:
+                            expected_lines.append(line)
+                    self.assertEqual((0, "\n".join(expected_lines) + "\n", ""),
+                                     (selected.returncode, selected.stdout, selected.stderr))
+        self.assertEqual(before, self.file_hashes(*paths))
+
+    def test_language_rejects_hidden_language_and_case_corruption(self) -> None:
+        for selected in ("c", "python", "javascript"):
+            for damaged in ("c", "python", "javascript"):
+                for rehash in (False, True):
+                    with self.subTest(selected=selected, damaged=damaged, rehash=rehash):
+                        path = self.make_archive(f"20260901_{len(list(self.root.glob('*_c.json'))):06d}")
+                        def damage(document):
+                            document["results"]["function_call"]["samples_ms"][0] = -1
+                        if rehash:
+                            ShowArchiveMetricsTests.rewrite(path, f"{damaged}.json", damage)
+                        else:
+                            file = path / f"{damaged}.json"
+                            document = json.loads(file.read_text(encoding="utf-8"))
+                            damage(document)
+                            file.write_text(json.dumps(document), encoding="utf-8")
+                        before = self.file_hashes(path)
+                        for mode in ((), ("--json",), ("--summary-only",), ("--sample-limit", "1")):
+                            result = self.run_cli(path, extra=("--language", selected, "--case", "direct", *mode))
+                            self.assertEqual(2, result.returncode)
+                            code = json.loads(result.stdout)["error"]["code"] if "--json" in mode else result.stderr
+                            self.assertIn("RESULT_VALIDATION_FAILED" if rehash else "SHA256_MISMATCH", code)
+                        self.assertEqual(before, self.file_hashes(path))
+
+    def test_language_invalid_conflicting_and_duplicate_inputs(self) -> None:
+        missing = self.root / "missing"
+        flags_list = [("--language", "unknown"), ("--language", ""), ("--language=",),
+                      ("--language",), ("--language", "python", "--summary-only", "--json"),
+                      ("--language", "python", "--sample-limit", "0"),
+                      ("--language", "python", "--sample-limit", "1", "--json"),
+                      ("--language", "python", "--sample-limit", "1", "--summary-only")]
+        for language in ("c", "python", "javascript"):
+            flags_list.extend((("--language", language, "--all-languages"),
+                               ("--all-languages", f"--language={language}")))
+        for flags in flags_list:
+            with self.subTest(flags=flags):
+                result = self.run_cli(*(() if flags == ("--language",) else (missing,)), extra=flags)
+                self.assertEqual((2, ""), (result.returncode, result.stdout))
+                self.assertIn("error:", result.stderr)
+                self.assertNotIn("検証エラー", result.stderr)
+        path = self.make_archive("20260901_130000")
+        copied = self.root / "copy" / path.parent.name / path.name
+        shutil.copytree(path, copied)
+        before = self.file_hashes(path, copied)
+        for language in ("c", "python", "javascript"):
+            for other in (path, copied):
+                result = self.run_cli(path, other, extra=("--language", language, "--json"))
+                self.assertEqual(2, result.returncode)
+                self.assertEqual("DUPLICATE_ARCHIVE", json.loads(result.stdout)["error"]["code"])
+        self.assertEqual(before, self.file_hashes(path, copied))
+
     def test_legacy_argument_errors_keep_usage_without_case_option(self) -> None:
         missing = self.root / "missing"
         for flags in (("--summary-only", "--json"), ("--sample-limit", "0"),
@@ -443,14 +544,17 @@ class ShowArchiveSamplesTests(unittest.TestCase):
             self.assertEqual((2, ""), (result.returncode, result.stdout))
             self.assertIn("usage:", result.stderr)
             self.assertNotIn("--case", result.stderr)
+            self.assertNotIn("--language", result.stderr)
         for flags in (("--case", "direct", "--sample-limit", "0"),
                       ("--cas=function_call", "--sample-limit", "0")):
             result = self.run_cli(missing, extra=flags)
             self.assertEqual(2, result.returncode)
             self.assertIn("[--case {direct,function_call}]", result.stderr)
+            self.assertNotIn("--language", result.stderr)
         help_result = self.run_cli(extra=("--help",))
         self.assertEqual(0, help_result.returncode)
         self.assertIn("--case {direct,function_call}", help_result.stdout)
+        self.assertIn("--language {c,javascript,python}", help_result.stdout)
 
 
 if __name__ == "__main__":

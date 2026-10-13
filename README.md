@@ -579,7 +579,13 @@ python -B tools/show_archive_samples.py --summary-only "results/history/<experim
 python -B tools/show_archive_samples.py --summary-only --all-languages "results/history/<experiment_id>/<archive_id>"
 python -B tools/show_archive_samples.py --case direct --sample-limit 3 "results/history/<experiment_id>/<archive_id>"
 python -B tools/show_archive_samples.py --case function_call --json --all-languages "results/history/<experiment_id>/<archive_id>"
+python -B tools/show_archive_samples.py --language python --case direct --summary-only "results/history/<experiment_id>/<archive_id>"
+python -B tools/show_archive_samples.py --language javascript --sample-limit 3 "results/history/<experiment_id>/<archive_id>"
 ```
+
+`--language c` / `--language python` / `--language javascript` は表示言語を選びます。省略時は従来どおりC、`--all-languages` は従来どおり全言語です。両オプションの併用は `c` の指定でも引数エラー（終了コード2）になります。未知値・空値・値欠落も拒否します。`--case`・通常表示・JSON・要約・件数制限・複数履歴と組み合わせられ、既存の競合条件は維持します。全履歴・全言語・両ケースを既存経路で検証してから表示を選ぶため、非表示の言語やケースの破損も拒否します。統計は選択言語・ケースの全サンプルから計算し、件数制限は表示だけに適用します。
+
+言語選択後も表示JSONの `schema_version: 1.0` を維持します。既存キー・型・残る値・順序・全言語の `run_ids` を保ち、各履歴の `cases` 配列から非選択言語の行だけを除きます。`--language` を使わない出力契約は変わらず、`remeasure_function_call.ps1` の診断保存経路も従来どおりです。`analyze_balanced_order.py` は両ケース・全言語の6行を要求するため、言語またはケースを絞ったJSONをその解析入力へ代入しないでください。外部consumerは配列長・位置を固定せず、`language` / `case` で行を照合してください。保存archive・Validatorのschemaは変更しません。
 
 同じソース・設定のWindows実機で10回を**逐次**実行する場合は、独立したチェックアウトで次を実行します。`run_all.ps1` の言語順は Python → JavaScript → C、C内は `direct` → `function_call` です。スクリプトはベンチマーク入力ファイルのSHA-256が途中で変わらないことを各回の前後に確認します。各回の開始・終了時刻、成否、失敗理由、`experiment_id`、`archive_id`、履歴パス、順番を `runs.json` に記録し、各履歴を保存後に同じ診断ツールで再検証します。失敗回は成功回に含めません。通常出力は `run-XX.log`、検証済みサンプルは `run-XX-samples.json` に残します。これらは `results/diagnostics/` に置き、Git管理しません。
 

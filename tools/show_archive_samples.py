@@ -65,6 +65,7 @@ class SampleArgumentParser(argparse.ArgumentParser):
     """Keep legacy error usage when the new option was not requested."""
 
     case_argument: argparse.Action | None = None
+    language_argument: argparse.Action | None = None
 
     def error(self, message: str) -> None:
         option_args = sys.argv[1:]
@@ -75,6 +76,11 @@ class SampleArgumentParser(argparse.ArgumentParser):
                              for token in option_args)
         if self.case_argument is not None and not case_requested:
             self.case_argument.help = argparse.SUPPRESS
+        language_requested = any(token.startswith("--") and len(token) > 2
+                                 and "--language".startswith(token.split("=", 1)[0])
+                                 for token in option_args)
+        if self.language_argument is not None and not language_requested:
+            self.language_argument.help = argparse.SUPPRESS
         super().error(message)
 
 
@@ -88,8 +94,13 @@ def main() -> int:
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
     parser.case_argument = parser.add_argument(
         "--case", choices=CASES, help="show only this case after validating the entire archive")
+    parser.language_argument = parser.add_argument(
+        "--language", choices=LANGUAGES,
+        help="show only this language after validating the entire archive (default: c)")
     parser.add_argument("archives", type=Path, nargs="+", help="one or more archive directories")
     args = parser.parse_args()
+    if args.language is not None and args.all_languages:
+        parser.error("--language cannot be combined with --all-languages")
     if args.summary_only and args.json:
         parser.error("--summary-only is text-only and cannot be combined with --json")
     if args.sample_limit is not None:
@@ -105,7 +116,8 @@ def main() -> int:
         archive_ids = [archive["index"]["archive_id"] for archive in archives]
         if len(set(archive_ids)) != len(archive_ids):
             raise ArchiveError("DUPLICATE_ARCHIVE", "each input must have a distinct archive_id")
-        report = build_report(args.archives, archives, LANGUAGES if args.all_languages else ("c",),
+        languages = LANGUAGES if args.all_languages else (args.language or "c",)
+        report = build_report(args.archives, archives, languages,
                               (args.case,) if args.case is not None else CASES)
     except (ArchiveError, OSError) as error:
         code = error.code if isinstance(error, ArchiveError) else "IO_ERROR"
