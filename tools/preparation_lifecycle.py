@@ -133,7 +133,9 @@ def assess(value, record, previous=None):
     for role in ('review', 'owner_resume'):
         if record[role]['status'] in ('UNKNOWN', 'ATTEMPTING'):
             missing.append(role + ': reconcile existing attempt; no retransmission')
-    if not ready(review) and not (phase == 'FINISHED' and review['status'] == 'DISABLED_CONFIRMED'):
+    # A verified review may stop before human merge; its event evidence is still required.
+    if not ready(review) and not (phase in ('PRE_MERGE', 'POST_MERGE', 'FINISHED')
+                                 and review['status'] == 'DISABLED_CONFIRMED'):
         missing.append('review: registration and saved settings readback')
     if phase != 'PRE_IMPLEMENTATION':
         if not review['event_verified']:
