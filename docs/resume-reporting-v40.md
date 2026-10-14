@@ -14,3 +14,15 @@ policy未登録やv2未対応scopeでは、この表示を接続済みと主張�
 
 ## 正式適用
 commit→push→PR公開後、同HEADの独立レビューとHosted Ubuntu/Windows CI、人間merge、正式同期、次回イベント実動を別々に確認する。ローカル回帰の成功は実Workの自動一周成功ではない。
+
+## 新規登録候補の役割保持・投稿段階報告
+
+Issue124/PR125では、reviewの開始claim呼出しが中断され、owner_resumeのmerge確認GET後に別taskのreview指示へ処理を切り替えた。中断の取消主体・実行基盤内部の原因は未特定。同一親conversation IDだけで実行衝突を断定しない。
+
+新規v1レビュー登録候補と`--lifecycle`のowner再開候補は、開始時の固定role/task/対象/actionを報告し、後着の別task指示で現在の役割と未完了工程を上書きしないよう案内する。対象外reviewのclosedはreviewイベントだけのNO_OPで、ownerのmerge後処理の終了や取消を意味しない。人間の明示的な変更・取消は優先する。分離を確認できなければ別roleを同じ実行で開始せず、現在の工程と不足・次担当を残す。
+
+許可されたGitHub投稿は、呼出し前の投稿開始→応答の成功/失敗/中断/UNKNOWN→GETで本文・対象の読戻し確認をWork会話へ報告する。`aborted by user`等の原情報から取消主体を推定せず、UNKNOWNを一覧照合前に再送しない。
+
+同HEADの本人独立受入・必須CI・公開一致を確認後、本担当が人間merge前にreviewだけ停止・読戻しする。owner_resumeは有効に保ち、人間merge後の結果保存・読戻し後に停止する。これにより不要になったreview登録をmerge後まで継続させる指示も解消する。
+
+これは候補指示の改善であり、Workの配送・実行分離・強制timeoutを実装する変更ではない。保存済みタスクとv2承認Prompt全文/digestは自動更新しない。旧登録を再起動せず、次の実登録では担当間の実行分離と同時着信時の進行を別に確認する。ローカル生成/テスト成功はイベント実動、独立受入、正式Gate PASSの証拠ではない。

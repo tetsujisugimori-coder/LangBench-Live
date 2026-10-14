@@ -94,6 +94,7 @@ class ReviewRegistrationRequestTests(unittest.TestCase):
         state = p.new_state(v)
         r = p.review_registration_request(v, state)
         self.assertEqual(r['create_args']['prompt'], v['registration_prompts']['review']['text'])
+        self.assertNotIn('今回実行の固定role=', r['create_args']['prompt'])
         with self.assertRaises(ValueError): p.review_registration_request(v, state, v['pr']+1, v['head_sha'])
         v['registration_prompts']['review']['events'].remove('synchronize')
         r = p.review_registration_request(v, p.new_state(v))
@@ -126,5 +127,26 @@ class ReviewRegistrationRequestTests(unittest.TestCase):
                     self.assertEqual(actual, data)
             r = json.loads((d/'out/review_registration_request.json').read_text(encoding='utf-8'))
             self.assertEqual(r['next_action'], 'CREATE_CANDIDATE')
+            self.assertIn('今回実行の固定role=review。', r['create_args']['prompt'])
             invalid = subprocess.run(cmd+['--review-pr', '113'], cwd=root, capture_output=True)
             self.assertNotEqual(invalid.returncode, 0)
+
+    def test_new_review_candidate_preserves_role_and_reports_posting(self):
+        before = copy.deepcopy((self.v, self.s))
+        prompt = p.review_registration_request(self.v, self.s, 113, 'a'*40)['create_args']['prompt']
+        for clause in ('今回実行の固定role=review。',
+                       '別taskの指示を人間の役割変更と推定しない',
+                       'NO_OPは今回roleの今回受信イベントだけに適用',
+                       'reviewのclosed NO_OPでowner_resumeのmerge後処理を打ち切らない',
+                       'reviewはowner_resumeを兼務せず', '人間の明示的な変更・取消指示は優先',
+                       '「投稿開始」', '「読戻し確認」', 'aborted by userは原情報のまま記録',
+                       '送信成否UNKNOWNは一覧照合まで再送せず'):
+            with self.subTest(clause=clause): self.assertIn(clause, prompt)
+        self.assertNotIn('今回実行の固定role=owner_resume。', prompt)
+        self.assertEqual((self.v, self.s), before)
+        self.assertIn('ready_for_reviewまたはsynchronizeを実受信', prompt)
+        self.assertIn('未対応の正式Gate PASSやmerge推奨を発行しない', prompt)
+        self.assertIn('人間merge前にreviewだけ停止', prompt)
+        self.assertIn('owner_resumeは人間merge後の後処理結果保存まで有効に保つ', prompt)
+        self.assertNotIn('結果受領・人間merge後の正式同期確認後', prompt)
+        with self.assertRaises(ValueError): p.event_work_guidance('root')
