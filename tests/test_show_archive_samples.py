@@ -12,6 +12,7 @@ from pathlib import Path
 from tests.test_compare_archives import fixture_document
 from tests.test_show_archive_metrics import ShowArchiveMetricsTests
 from tools.archive_results import archive_results
+from tools.show_archive_metrics import format_number
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -534,6 +535,130 @@ class ShowArchiveSamplesTests(unittest.TestCase):
                 self.assertEqual("DUPLICATE_ARCHIVE", json.loads(result.stdout)["error"]["code"])
         self.assertEqual(before, self.file_hashes(path, copied))
 
+    def test_offset_ranges_all_columns_statistics_and_input_preservation(self) -> None:
+        paths = [self.make_archive(f"20261001_{count:06d}", count=count) for count in (1, 2, 5, 50)]
+        # Deliberately unsorted sequences make order/half-statistic errors visible.
+        for path in paths:
+            for language in ("c", "javascript", "python"):
+                def reorder(document):
+                    for row in document["results"].values():
+                        row["samples_ms"].reverse()
+                ShowArchiveMetricsTests.rewrite(path, f"{language}.json", reorder)
+        paths.reverse()
+        before = self.file_hashes(*paths)
+        for language_flags in ((), ("--language", "c"), ("--language", "javascript"),
+                               ("--language", "python"), ("--all-languages",)):
+            languages = ("c", "javascript", "python") if "--all-languages" in language_flags else (
+                language_flags[-1] if language_flags else "c",)
+            for case_flags in ((), ("--case", "direct"), ("--case", "function_call")):
+                cases = (case_flags[-1],) if case_flags else ("direct", "function_call")
+                baseline = self.run_cli(*paths, extra=(*language_flags, *case_flags))
+                self.assertEqual(0, baseline.returncode, baseline.stderr)
+                statistics_lines = [line for line in baseline.stdout.splitlines()
+                                    if not line.startswith("    samples_ms")]
+                expected_rows = []
+                for path, count in zip(paths, (50, 5, 2, 1)):
+                    for language in languages:
+                        for case in cases:
+                            samples = ([0.400] * count if case == "function_call" else
+                                       [0.250] * (count - count // 2) + [0.100] * (count // 2))
+                            midpoint = count // 2
+                            half = statistics.median(samples[:midpoint]) if midpoint else None
+                            expected_stats = (f"  {language}/{case}: 中央値 {format_number(statistics.median(samples))}, "
+                                              f"最小 {format_number(min(samples))}, 最大 {format_number(max(samples))}, "
+                                              f"前半 {format_number(half) if half is not None else '算出不可'}, "
+                                              f"後半 {format_number(statistics.median(samples[midpoint:]))}")
+                            self.assertIn(expected_stats, statistics_lines)
+                            expected_rows.append(samples)
+                for offset in (0, 1, 2, 4, 5, 25, 49, 50, 51):
+                    for limit in (None, 1, 3, 100):
+                        with self.subTest(language=language_flags, case=case_flags, offset=offset, limit=limit):
+                            limit_flags = () if limit is None else ("--sample-limit", str(limit))
+                            result = self.run_cli(*paths, extra=(*language_flags, *case_flags,
+                                                                "--sample-offset", str(offset), *limit_flags))
+                            self.assertEqual((0, ""), (result.returncode, result.stderr))
+                            self.assertEqual(statistics_lines, [line for line in result.stdout.splitlines()
+                                                               if not line.startswith("    samples_ms")])
+                            lines = [line for line in result.stdout.splitlines() if line.startswith("    samples_ms")]
+                            self.assertEqual(len(expected_rows), len(lines))
+                            for line, samples in zip(lines, expected_rows):
+                                # Compute by enumerated source positions, not the implementation's slice.
+                                numbered = [(i, value) for i, value in enumerate(samples, 1)
+                                            if i > offset and (limit is None or i <= offset + limit)]
+                                self.assertEqual(
+                                    ", ".join(f"{i}:{format_number(value)}" for i, value in numbered),
+                                    line.split(": ", 1)[1])
+                                if not numbered:
+                                    self.assertIn(f"(empty of {len(samples)})", line)
+                                elif offset:
+                                    self.assertIn(f"({numbered[0][0]}-{numbered[-1][0]} of {len(samples)})", line)
+                            if offset == 0:
+                                legacy = self.run_cli(*paths, extra=(*language_flags, *case_flags, *limit_flags))
+                                self.assertEqual(legacy.stdout, result.stdout)
+        self.assertEqual(before, self.file_hashes(*paths))
+
+    def test_offset_rejects_skipped_and_hidden_corruption_before_output(self) -> None:
+        valid = self.make_archive("20261002_000000", count=5)
+        for rehash in (False, True):
+            for language in ("c", "javascript", "python"):
+                for case in ("direct", "function_call"):
+                    path = self.make_archive(f"20261002_{len(list(self.root.glob('*_c.json'))):06d}", count=5)
+                    def damage(document):
+                        document["results"][case]["samples_ms"][0] = -1
+                    if rehash:
+                        ShowArchiveMetricsTests.rewrite(path, f"{language}.json", damage)
+                    else:
+                        file = path / f"{language}.json"
+                        document = json.loads(file.read_text(encoding="utf-8"))
+                        damage(document)
+                        file.write_text(json.dumps(document), encoding="utf-8")
+                    before = self.file_hashes(valid, path)
+                    for offset in (1, 10):
+                        result = self.run_cli(valid, path, extra=("--language", "c", "--case", "direct",
+                                                                  "--sample-offset", str(offset), "--sample-limit", "1"))
+                        self.assertEqual((2, ""), (result.returncode, result.stdout))
+                        self.assertIn("RESULT_VALIDATION_FAILED" if rehash else "SHA256_MISMATCH", result.stderr)
+                    self.assertEqual(before, self.file_hashes(valid, path))
+
+    def test_offset_invalid_conflicting_and_duplicate_inputs(self) -> None:
+        missing = self.root / "missing"
+        invalid = [("--sample-offset", value) for value in ("-1", "1.5", "abc", "")]
+        invalid.extend((("--sample-offset=",), ("--sample-offset",)))
+        for value in ("0", "1"):
+            for mode in ("--json", "--summary-only"):
+                invalid.extend((("--sample-offset", value, mode), (mode, f"--sample-offset={value}")))
+        invalid.extend((("--sample-offset", "0", "--sample-limit", "0"),
+                        ("--sample-offset", "0", "--language", "c", "--all-languages"),
+                        ("--sample-offset", "0", "--case", "bad")))
+        for flags in invalid:
+            result = self.run_cli(*(() if flags == ("--sample-offset",) else (missing,)), extra=flags)
+            self.assertEqual((2, ""), (result.returncode, result.stdout))
+            self.assertIn("error:", result.stderr)
+            self.assertNotIn("検証エラー", result.stderr)
+        path = self.make_archive("20261003_000000", count=5)
+        copy = self.root / "copy" / path.parent.name / path.name
+        shutil.copytree(path, copy)
+        before = self.file_hashes(path, copy)
+        for other in (path, copy):
+            result = self.run_cli(path, other, extra=("--sample-offset", "50"))
+            self.assertEqual((2, ""), (result.returncode, result.stdout))
+            self.assertIn("DUPLICATE_ARCHIVE", result.stderr)
+        self.assertEqual(before, self.file_hashes(path, copy))
+
+    def test_offset_help_and_legacy_limit_abbreviations(self) -> None:
+        help_result = self.run_cli(extra=("--help",))
+        self.assertEqual(0, help_result.returncode)
+        for text in ("--sample-offset N", "non-negative", "N+1", "archive/language/case",
+                     "empty list", "statistics use all samples", "explicit 0"):
+            self.assertIn(text, " ".join(help_result.stdout.split()))
+        path = self.make_archive("20261004_000000", count=50)
+        baseline = self.run_cli(path, extra=("--sample-limit", "3"))
+        for flag in ("--sam", "--sample", "--sample-", "--sample-l"):
+            self.assertEqual(baseline.stdout, self.run_cli(path, extra=(flag, "3")).stdout)
+        result = self.run_cli(path, extra=("--sample-o=10", "--sample-limit", "5"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("(11-15 of 50): 11:0.1, 12:0.1, 13:0.1, 14:0.1, 15:0.1", result.stdout)
+
     def test_legacy_argument_errors_keep_usage_without_case_option(self) -> None:
         missing = self.root / "missing"
         for flags in (("--summary-only", "--json"), ("--sample-limit", "0"),
@@ -545,6 +670,7 @@ class ShowArchiveSamplesTests(unittest.TestCase):
             self.assertIn("usage:", result.stderr)
             self.assertNotIn("--case", result.stderr)
             self.assertNotIn("--language", result.stderr)
+            self.assertNotIn("--sample-offset", result.stderr)
         for flags in (("--case", "direct", "--sample-limit", "0"),
                       ("--cas=function_call", "--sample-limit", "0")):
             result = self.run_cli(missing, extra=flags)

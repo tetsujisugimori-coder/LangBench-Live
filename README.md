@@ -563,6 +563,14 @@ python tools/validate_function_call_analysis.py <new-output-directory> --expecte
 
 `--sample-limit N` はテキスト表示だけを各ケースの**先頭N件**に制限し、`1-3 of 50` のように表示範囲と元の総件数を明記します。各履歴の完全性検証と全サンプルに対する中央値・最小最大・前後半統計は省略しません。既定表示と`--json`の出力仕様は変更せず、上限が総件数以上なら従来表示と同じです。正整数以外、および`--json`・`--summary-only`との併用は引数エラー（終了コード2）です。
 
+`--sample-offset N` は先頭から**飛ばす件数**です（0以上の整数、省略時0）。`--sample-offset 10 --sample-limit 5` は11～15件目を元の番号で表示します。各履歴・選択言語・選択ケースのサンプル列へ独立に適用し、offsetだけなら開始位置から末尾まで表示します。offsetが総件数以上なら `samples_ms (empty of 50):` のように一覧だけが空になり、統計は通常どおり表示します。中央値・最小・最大・前半・後半は選択した列の**全サンプル**から計算し、表示範囲では縮めません。飛ばした部分や非表示言語・ケースも含め、全履歴の検証を終えてから表示を選びます。
+
+`--language`・`--all-languages`・`--case`・`--sample-limit`・複数履歴と組み合わせられます。通常テキスト専用なので、明示したoffsetは0でも `--json` / `--summary-only` との併用を引数エラー（終了コード2）にします。負数・小数・未知文字列・空値・値欠落も拒否します。新オプションを省略した既存の出力・引数エラーusageを保持し、従来の `--sample` などの省略形は引き続きsample-limitを指します。offsetは `--sample-offset` と書くのが明確です。
+
+```powershell
+python -B tools/show_archive_samples.py --sample-offset 10 --sample-limit 5 --all-languages "results/history/<experiment_id>/<archive_id>"
+```
+
 
 `show_archive_samples.py` は既存の `load_archive` によって各履歴の `archive.json` と4ファイルのSHA-256、結果Validator、保存された実験定義との一致を確認してから表示します。履歴は書き換えません。既定はCの `direct` / `function_call`、`--all-languages` でJavaScriptとPythonも表示します。`--json` は入力順の全 `samples_ms` と、各ケースのサンプル由来の中央値、最小・最大、前半・後半の中央値を出します。分割位置は件数の半分を切り捨てた位置で、奇数件では後半が1件多くなります（通常50件なら25件ずつ）。テキストも1から順番を付けて全サンプルを出します。中央値は既存の `median_from_samples` を共用し、空の半分には呼び出しません。有効な1件の履歴では前半0件・後半1件となり、前半中央値はJSONの `first_half_median_ms: null`、テキストの「前半 算出不可」で表します。全体の中央値・最小・最大と後半中央値はその1件の値、要約の件数は1です。0やNaNでは補いません。空の履歴、欠落・改変・定義不一致は数値を出さず検証エラー（終了コード2）です。
 

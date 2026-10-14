@@ -35,7 +35,8 @@ def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, 
     return {"schema_version": "1.0", "unit": "ms", "runs": runs}
 
 
-def print_text(report: dict, summary_only: bool = False, sample_limit: int | None = None) -> None:
+def print_text(report: dict, summary_only: bool = False, sample_limit: int | None = None,
+               sample_offset: int = 0) -> None:
     print("検証済み履歴のサンプル。入力順、単位 ms。中央値は samples_ms から再計算。")
     for index, run in enumerate(report["runs"], 1):
         print(f"履歴 {index}: {run['path']} (experiment_id={run['experiment_id']}, "
@@ -48,12 +49,18 @@ def print_text(report: dict, summary_only: bool = False, sample_limit: int | Non
                   f"後半 {format_half_median(row['second_half_median_ms'])}")
             if not summary_only:
                 samples = row["samples_ms"]
-                shown = samples if sample_limit is None else samples[:sample_limit]
-                ending = len(shown)
-                label = (f"1-{len(samples)}" if ending == len(samples) else
-                         f"1-{ending} of {len(samples)}")
+                stop = None if sample_limit is None else sample_offset + sample_limit
+                shown = samples[sample_offset:stop]
+                ending = sample_offset + len(shown)
+                if not shown:
+                    label = f"empty of {len(samples)}"
+                elif sample_offset:
+                    label = f"{sample_offset + 1}-{ending} of {len(samples)}"
+                else:
+                    label = (f"1-{len(samples)}" if ending == len(samples) else
+                             f"1-{ending} of {len(samples)}")
                 print(f"    samples_ms ({label}): " + ", ".join(
-                    f"{i}:{format_number(value)}" for i, value in enumerate(shown, 1)))
+                    f"{i}:{format_number(value)}" for i, value in enumerate(shown, sample_offset + 1)))
     print("Cの各サンプルは0.001 ms単位で保存。丸め幅程度の差を原因として解釈しないでください。")
 
 
@@ -66,6 +73,16 @@ class SampleArgumentParser(argparse.ArgumentParser):
 
     case_argument: argparse.Action | None = None
     language_argument: argparse.Action | None = None
+    offset_argument: argparse.Action | None = None
+
+    def _get_option_tuples(self, option_string: str) -> list:
+        matches = super()._get_option_tuples(option_string)
+        # Preserve legacy --sample/--sam abbreviations of --sample-limit.
+        # Only an unambiguous offset prefix opts into the new argument.
+        prefix = option_string.split("=", 1)[0]
+        if "--sample-limit".startswith(prefix):
+            matches = [match for match in matches if match[0] is not self.offset_argument]
+        return matches
 
     def error(self, message: str) -> None:
         option_args = sys.argv[1:]
@@ -81,6 +98,12 @@ class SampleArgumentParser(argparse.ArgumentParser):
                                  for token in option_args)
         if self.language_argument is not None and not language_requested:
             self.language_argument.help = argparse.SUPPRESS
+        offset_requested = any(token.startswith("--") and len(token) > 2
+                               and "--sample-offset".startswith(token.split("=", 1)[0])
+                               and not "--sample-limit".startswith(token.split("=", 1)[0])
+                               for token in option_args)
+        if self.offset_argument is not None and not offset_requested:
+            self.offset_argument.help = argparse.SUPPRESS
         super().error(message)
 
 
@@ -91,6 +114,12 @@ def main() -> int:
                         help="show sample counts and statistics without individual samples (text only)")
     parser.add_argument("--sample-limit", type=int, metavar="N",
                         help="print only the first N numbered samples per case (text only)")
+    parser.offset_argument = parser.add_argument(
+        "--sample-offset", type=int, metavar="N",
+        help="skip N samples (non-negative, default 0) independently per archive/language/case; "
+             "numbering starts at N+1, then --sample-limit applies; without limit show the rest; "
+             "out-of-range shows an empty list, statistics use all samples; "
+             "text only, explicit 0 also conflicts with --json/--summary-only")
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
     parser.case_argument = parser.add_argument(
         "--case", choices=CASES, help="show only this case after validating the entire archive")
@@ -108,6 +137,11 @@ def main() -> int:
             parser.error("--sample-limit must be a positive integer")
         if args.json or args.summary_only:
             parser.error("--sample-limit is text-only and cannot be combined with --json or --summary-only")
+    if args.sample_offset is not None:
+        if args.sample_offset < 0:
+            parser.error("--sample-offset must be a non-negative integer")
+        if args.json or args.summary_only:
+            parser.error("--sample-offset is text-only and cannot be combined with --json or --summary-only")
     try:
         resolved = [path.resolve() for path in args.archives]
         if len(set(resolved)) != len(resolved):
@@ -129,7 +163,8 @@ def main() -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
     else:
-        print_text(report, summary_only=args.summary_only, sample_limit=args.sample_limit)
+        print_text(report, summary_only=args.summary_only, sample_limit=args.sample_limit,
+                   sample_offset=args.sample_offset or 0)
     return 0
 
 
