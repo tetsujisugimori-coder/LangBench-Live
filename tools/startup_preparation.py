@@ -686,6 +686,63 @@ def review_registration_request(value, state, pr=None, head_sha=None):
     return result
 
 
+def owner_registration_sequence(value, report, checks=None, pr=None, head=None):
+    """Advisory candidate only; local assertions are not Work/Gate authentication."""
+    record = report['record']
+    owner, review = record['owner_resume'], record['review']
+    if owner['id'] is not None or owner['status'] != 'NOT_ATTEMPTED':
+        return ('RECONCILE_ONLY: owner registration already recorded or attempted; '
+                'preserve ID/history, no new registration, cancellation or retransmission.\n')
+    missing = []
+    if record['phase'] != 'PRE_MERGE':
+        missing.append('PRE_MERGE phase')
+    if review['status'] != 'DISABLED_CONFIRMED' or review['enabled'] is not False:
+        missing.append('review formal stop and separate peek false')
+    if not review['settings_verified'] or not review['event_verified']:
+        missing.append('review saved settings and actual event')
+    if pr != record['pr'] or type(pr) is not int or not sha(head):
+        missing.append('current PR/full HEAD supplied by owner')
+    fields = {'input_digest', 'pr', 'head_sha', 'review_id', 'observed_at',
+              'independent_review_accepted', 'required_ci_passed', 'publication_matched',
+              'review_result_ref', 'ci_ref', 'publication_ref', 'stop_update_ref',
+              'stop_peek_ref', 'stop_update_at', 'stop_peek_at', 'stop_peek_enabled'}
+    if not isinstance(checks, dict) or set(checks) != fields:
+        missing.append('complete owner registration checks (local assertions only)')
+    else:
+        if (checks['input_digest'] != digest(value) or checks['pr'] != record['pr']
+                or type(checks['pr']) is not int or checks['head_sha'] != head
+                or checks['review_id'] != review['id'] or review['id'] is None
+                or checks['observed_at'] != record['observed_at']):
+            missing.append('same input/PR/full HEAD/review ID/current observation')
+        if any(checks[k] is not True for k in
+               ('independent_review_accepted', 'required_ci_passed', 'publication_matched')):
+            missing.append('independent review acceptance, required CI and publication match')
+        if any(not isinstance(checks[k], str) or not checks[k].strip() for k in
+               ('review_result_ref', 'ci_ref', 'publication_ref', 'stop_update_ref', 'stop_peek_ref')):
+            missing.append('review/CI/publication/formal stop/separate peek references')
+        try:
+            from tools.preparation_lifecycle import instant
+        except ModuleNotFoundError:
+            from preparation_lifecycle import instant
+        try:
+            ordered = (instant(checks['stop_update_at']) <= instant(checks['stop_peek_at'])
+                       <= instant(record['observed_at']))
+        except (ValueError, TypeError, AttributeError):
+            ordered = False
+        if (not ordered or checks['stop_peek_enabled'] is not False
+                or checks['stop_update_ref'] == checks['stop_peek_ref']):
+            missing.append('formal update followed by separate peek is_enabled=false')
+    if missing:
+        return ('WAIT: review first; owner_resume candidate withheld.\n'
+                + ''.join('- ' + item + '\n' for item in missing)
+                + 'Work(root): reconcile current evidence; do not register owner_resume yet.\n')
+    return (f"CANDIDATE_ONLY: PR={pr} / full HEAD={head}.\n"
+            'Work(root): recheck current evidence and duplicates, then register owner-resume '
+            'and separately read saved full Prompt/ID/settings/enabled state.\n'
+            'Local assertions do not authenticate evidence, atomically control Work registration, '
+            'or guarantee delivery/execution separation. Formal Gate: NOT_CERTIFIED.\n')
+
+
 def main():
     # Machine-readable artifacts and captured summaries share one encoding on Windows/Linux.
     if getattr(sys.stdout, 'reconfigure', None):
@@ -704,10 +761,14 @@ def main():
     parser.add_argument('--review-head', help='Owner-verified full review HEAD; pair with --review-pr')
     parser.add_argument('--migrate-v2', action='store_true', help='Explicit v1 state to v2 migration; preserves unresolved operations')
     parser.add_argument('--lifecycle', type=Path, help='V3.9 local phase evidence sidecar; never a formal Gate')
+    parser.add_argument('--owner-registration-checks', type=Path,
+                        help='Optional local sequential registration checks; requires --lifecycle and --review-pr/--review-head; no formal schema changes')
     parser.add_argument('--mark-unknown', choices=('issue', 'review', 'policy_pr', 'implementation_task', 'fix_task', 'owner_resume', 'review_bind'))
     args = parser.parse_args()
-    if (args.review_pr is not None or args.review_head is not None) and not args.review_registration_request:
-        parser.error('--review-pr/--review-head require --review-registration-request')
+    if (args.review_pr is not None or args.review_head is not None) and not (args.review_registration_request or args.lifecycle):
+        parser.error('--review-pr/--review-head require --review-registration-request or --lifecycle')
+    if args.owner_registration_checks and not (args.lifecycle and args.review_pr is not None and args.review_head is not None):
+        parser.error('--owner-registration-checks requires --lifecycle and --review-pr/--review-head')
     if args.sync_artifact_zip is not None and not args.github_read:
         parser.error('--sync-artifact-zip requires --github-read')
     value = validate_input(loads(args.input.read_text(encoding='utf-8')))
@@ -804,8 +865,11 @@ def main():
             products['lifecycle-summary.md'] = lifecycle.summary(report)
             products['owner_resume_registration.md'] = (
                 f"Work(root): repository={value['repository']} / Issue={value['issue']} / purpose={value['purpose']} / PR={report['record']['pr']}\n"
+                + owner_registration_sequence(value, report,
+                    loads(args.owner_registration_checks.read_text(encoding='utf-8'))
+                    if args.owner_registration_checks else None, args.review_pr, args.review_head)
                 + event_work_guidance('owner_resume') +
-                'Actual PR known -> register owner-resume -> read saved settings.\n'
+                '順序はreview先行→同HEAD独立受入・必須CI・公開一致→正式停止・別peek false→owner_resume後続。WAIT/RECONCILE_ONLYでは新規登録しない。\n'
                 '本担当は同HEAD独立受入・必須CI・公開一致を確認して人間merge前にreviewだけ停止読戻しし、owner_resumeは有効に保つ。merge後は承認済み結果保存・読戻しの後にowner_resumeを停止読戻しする。\n'
                 'See 02-event-task-registration-prompt.md in the V4.0 kit. No registration is sent here.\n'
                 '対象PR/base/許可HEADと人間mergeをGitHubで確認したら、まずWork会話へマージ確認・PR番号・merged_at・実merge SHA・確認時刻を報告する。未確認は不足を報告し副作用を止める。\n'

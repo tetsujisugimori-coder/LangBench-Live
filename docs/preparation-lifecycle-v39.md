@@ -25,3 +25,34 @@ role=`review`と`owner_resume`は別ID。statusはNOT_ATTEMPTED/ATTEMPTING/REGIS
 このローカルsidecar自体の正式共有・Gate接続は対象外。別の明示v2契約を[preparation-evidence-v2.md](preparation-evidence-v2.md)で候補実装しており、main適用前は正式稼働ではない。I-07へ統合した追加実装は、段階別input/owner facts/schema移行、正式ownerによる同一共有input更新、collectorの現在PR/設定対応、trusted-main唯一writerの再照合、適用対象を限定したMerge Gate条件。I-01必要最小部分を先に適用し、汎用登録・適用自動化はその後に行う。ローカル補助判定を正式stateへコピーしない。
 
 Hosted Windows・Work実登録・実受信・正式同期実ZIP取得はこのローカル検証では実施していない。
+
+## V4.0: 新規ownerの順次登録候補（Issue #128）
+
+`--lifecycle`の`owner_resume_registration.md`は、既登録・登録試行履歴があるownerを`RECONCILE_ONLY`として保持する。新規ownerはreview先行とし、正常停止のsidecarだけでは`WAIT`。同じ実PR/full HEADの独立受入・必須CI・公開一致、正式停止update後の別peek falseをWork(root)が照合する。旧登録を取り消したり、再登録を指示したりしない。
+
+候補を出すには、現在のPR/HEADを`--review-pr`と`--review-head`で明示し、任意の`--owner-registration-checks <JSON>`を加える（`--review-registration-request`との併用も可能）。このファイルは候補生成専用のローカル確認入力であり、既存input/state/lifecycleのschema、承認済みv2 Prompt、正式Gate/policy/保存データを変更しない。次は合成例であり、実証に転用しない。
+
+```json
+{
+  "input_digest": "<current input digest>",
+  "pr": 99,
+  "head_sha": "<owner-verified current full HEAD>",
+  "review_id": "<actual review automation ID>",
+  "observed_at": "2026-10-08T03:00:00Z",
+  "independent_review_accepted": true,
+  "required_ci_passed": true,
+  "publication_matched": true,
+  "review_result_ref": "synthetic://result",
+  "ci_ref": "synthetic://ci",
+  "publication_ref": "synthetic://publication",
+  "stop_update_ref": "synthetic://formal-update-response",
+  "stop_peek_ref": "synthetic://separate-peek-response",
+  "stop_update_at": "2026-10-08T02:58:00Z",
+  "stop_peek_at": "2026-10-08T02:59:00Z",
+  "stop_peek_enabled": false
+}
+```
+
+`observed_at`は現在のsidecar観測と完全一致、PR/HEAD/input digest/review IDは現在対象と一致する必要がある。停止update→別peek→現在観測の時系列も照合する。UNKNOWN/未停止/未確認/古い観測/別HEAD/不足は`WAIT`。現在の否定を古い肯定で戻すことは既存lifecycle履歴検証で拒否する。候補はPRE_MERGE限定であり、登録不足を含むlifecycle判定自体は従来どおりWAITING/NOT_CERTIFIEDを保持する。
+
+`CANDIDATE_ONLY`も実登録・サービス認証・自動完走ではない。JSONの真偽値や参照はWork(root)の照合申告であり、証拠原本の取得・独立性の認証を代行しない。実登録直前のGitHub対象/HEAD・重複・最新停止観測の再照合、正式登録、実ID/保存Prompt全文/取得可能設定/有効状態の別読戻しはWork(root)が行う。プログラムによる原子的な登録制御・実行配送分離・鮮度のサービス保証はない。review本人結果→停止/別peek false→owner登録の順を守り、人間merge後はowner本人の先行merge報告→既存正式同期実ZIP照合→関連検証→Gate対応範囲確認→本人結果保存/読戻し→専用停止/別peekを追跡する。

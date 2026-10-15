@@ -40,6 +40,94 @@ class LifecycleTests(unittest.TestCase):
             r['execution']['stop_ref'] = 'synthetic://stop'
         return v, r
 
+    def sequence_fixture(self):
+        v, r = self.complete_fixture('PRE_MERGE')
+        r['owner_resume'].update(status='NOT_ATTEMPTED', id=None, enabled=None,
+                                 settings_verified=False)
+        checks = dict(input_digest=p.digest(v), pr=r['pr'], head_sha='d'*40,
+                      review_id=r['review']['id'], observed_at=r['observed_at'],
+                      independent_review_accepted=True, required_ci_passed=True,
+                      publication_matched=True, review_result_ref='synthetic://result',
+                      ci_ref='synthetic://ci', publication_ref='synthetic://publication',
+                      stop_update_ref='synthetic://update', stop_peek_ref='synthetic://peek',
+                      stop_update_at='2026-10-08T02:58:00Z',
+                      stop_peek_at='2026-10-08T02:59:00Z', stop_peek_enabled=False)
+        return v, r, checks
+
+    def sequence(self, v, r, checks):
+        return p.owner_registration_sequence(v, l.assess(v, r), checks, 99, 'd'*40)
+
+    def test_sequential_candidate_requires_all_current_evidence(self):
+        v, r, c = self.sequence_fixture()
+        original = copy.deepcopy((v, r, c))
+        self.assertTrue(self.sequence(v, r, c).startswith('CANDIDATE_ONLY:'))
+        self.assertEqual((v, r, c), original)
+        self.assertEqual(l.assess(v, r)['status'], 'WAITING')
+        self.assertEqual(l.assess(v, r)['formal_gate'], 'NOT_CERTIFIED')
+        for key, invalid in (('independent_review_accepted', False), ('required_ci_passed', False),
+                             ('publication_matched', False), ('review_result_ref', None),
+                             ('stop_peek_ref', None), ('stop_peek_enabled', None),
+                             ('stop_peek_enabled', True), ('head_sha', 'e'*40),
+                             ('pr', 100), ('input_digest', 'f'*64), ('review_id', 'b'*32),
+                             ('observed_at', '2026-10-08T02:59:00Z'),
+                             ('stop_peek_at', '2026-10-08T02:57:00Z'),
+                             ('stop_peek_at', '2026-10-08T03:01:00Z'),
+                             ('stop_update_at', 'invalid'), ('stop_peek_ref', 'synthetic://update')):
+            with self.subTest(key=key, invalid=invalid):
+                changed = copy.deepcopy(c); changed[key] = invalid
+                self.assertTrue(self.sequence(v, r, changed).startswith('WAIT:'))
+        self.assertTrue(self.sequence(v, r, None).startswith('WAIT:'))
+        self.assertTrue(p.owner_registration_sequence(v, l.assess(v, r), c).startswith('WAIT:'))
+
+    def test_sequential_unstopped_unknown_or_unverified_review_waits(self):
+        for status in ('SETTINGS_CONFIRMED', 'REGISTERED', 'UNKNOWN', 'ATTEMPTING',
+                       'NOT_ATTEMPTED', 'FAILED'):
+            with self.subTest(status=status):
+                v, r, c = self.sequence_fixture()
+                r['review'].update(status=status, enabled=True,
+                                   settings_verified=status == 'SETTINGS_CONFIRMED')
+                self.assertTrue(self.sequence(v, r, c).startswith('WAIT:'))
+        v, r, c = self.sequence_fixture(); r['review']['event_verified'] = False
+        self.assertTrue(self.sequence(v, r, c).startswith('WAIT:'))
+
+    def test_sequential_owner_history_never_prompts_new_registration(self):
+        for status in l.STATUSES - {'NOT_ATTEMPTED'}:
+            with self.subTest(status=status):
+                v, r, c = self.sequence_fixture()
+                r['owner_resume'].update(status=status, id='b'*32,
+                    settings_verified=status in ('SETTINGS_CONFIRMED', 'DISABLED_CONFIRMED'),
+                    enabled=status != 'DISABLED_CONFIRMED')
+                before = copy.deepcopy(r)
+                self.assertTrue(self.sequence(v, r, c).startswith('RECONCILE_ONLY:'))
+                self.assertEqual(r, before)
+        v, r, c = self.sequence_fixture()
+        r['owner_resume'].update(status='UNKNOWN')
+        self.assertTrue(self.sequence(v, r, c).startswith('RECONCILE_ONLY:'))
+
+    def test_cli_sequential_wait_candidate_and_stale_checks(self):
+        v, r, c = self.sequence_fixture()
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            d = Path(directory)
+            (d/'input.json').write_text(p.canonical(v), encoding='utf-8')
+            (d/'phase.json').write_text(p.canonical(r), encoding='utf-8')
+            cmd = [sys.executable, '-B', str(root/'tools/startup_preparation.py'),
+                   '--input', str(d/'input.json'), '--state', str(d/'state.json'),
+                   '--output', str(d/'out'), '--config', str(root/'.github/automation-dashboard.json'),
+                   '--lifecycle', str(d/'phase.json'), '--review-pr', '99', '--review-head', 'd'*40]
+            for checks, expected in ((None, 'WAIT:'), (c, 'CANDIDATE_ONLY:'),
+                                    ({**c, 'head_sha': 'e'*40}, 'WAIT:')):
+                args = []
+                if checks is not None:
+                    (d/'checks.json').write_text(p.canonical(checks), encoding='utf-8')
+                    args = ['--owner-registration-checks', str(d/'checks.json')]
+                subprocess.run(cmd + args, check=True, capture_output=True, cwd=root)
+                text = (d/'out/owner_resume_registration.md').read_text(encoding='utf-8')
+                self.assertIn(expected, text)
+                self.assertNotIn('Actual PR known -> register owner-resume', text)
+                self.assertIn('今回実行の固定role=owner_resume。', text)
+                self.assertIn('NOT_CERTIFIED', (d/'out/lifecycle-assessment.json').read_text())
+
     def test_review_stop_accepted_only_after_implementation(self):
         for phase in l.PHASES:
             with self.subTest(phase=phase):
