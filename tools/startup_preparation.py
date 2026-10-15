@@ -690,7 +690,8 @@ def owner_registration_sequence(value, report, checks=None, pr=None, head=None):
     """Advisory candidate only; local assertions are not Work/Gate authentication."""
     record = report['record']
     owner, review = record['owner_resume'], record['review']
-    if owner['id'] is not None or owner['status'] != 'NOT_ATTEMPTED':
+    owner_history = [owner] + [old['owner_resume'] for old in report['history']]
+    if any(old['id'] is not None or old['status'] != 'NOT_ATTEMPTED' for old in owner_history):
         return ('RECONCILE_ONLY: owner registration already recorded or attempted; '
                 'preserve ID/history, no new registration, cancellation or retransmission.\n')
     missing = []

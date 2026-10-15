@@ -104,6 +104,21 @@ class LifecycleTests(unittest.TestCase):
         r['owner_resume'].update(status='UNKNOWN')
         self.assertTrue(self.sequence(v, r, c).startswith('RECONCILE_ONLY:'))
 
+    def test_sequential_new_empty_owner_cannot_hide_registered_or_unknown_history(self):
+        for status, task_id in (('SETTINGS_CONFIRMED', 'b'*32), ('UNKNOWN', None)):
+            with self.subTest(status=status):
+                v, r, c = self.sequence_fixture()
+                prior = copy.deepcopy(r)
+                prior['owner_resume'].update(status=status, id=task_id,
+                    settings_verified=status == 'SETTINGS_CONFIRMED',
+                    enabled=status == 'SETTINGS_CONFIRMED')
+                old_report = l.assess(v, prior)
+                r['observed_at'] = '2026-10-08T03:01:00Z'
+                c['observed_at'] = r['observed_at']
+                report = l.assess(v, r, old_report)
+                self.assertTrue(p.owner_registration_sequence(v, report, c, 99, 'd'*40)
+                                .startswith('RECONCILE_ONLY:'))
+
     def test_cli_sequential_wait_candidate_and_stale_checks(self):
         v, r, c = self.sequence_fixture()
         root = Path(__file__).resolve().parents[1]
