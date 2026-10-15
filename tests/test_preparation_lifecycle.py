@@ -26,6 +26,66 @@ def fixture(phase='PRE_IMPLEMENTATION'):
 
 
 class LifecycleTests(unittest.TestCase):
+    def observation_rows(self, report):
+        return {parts[0]: parts[1:] for line in l.observability(report).splitlines()
+                if line.startswith('| ') and (parts := [s.strip() for s in line.strip('|').split('|')])}
+
+    def test_observability_does_not_promote_complete_local_evidence(self):
+        v, r = self.complete_fixture('FINISHED')
+        report = l.assess(v, r)
+        before = copy.deepcopy(report)
+        rows = self.observation_rows(report)
+        self.assertEqual(report['status'], 'PHASE_EVIDENCE_COMPLETE')
+        for stage in ('candidate_generation', 'review.work_start', 'review.target_match',
+                      'review.result_post', 'owner_resume.work_start', 'owner_resume.target_match',
+                      'owner_resume.waiting', 'human_merge', 'windows_sync', 'result_saved'):
+            with self.subTest(stage=stage):
+                self.assertEqual(rows[stage][0], 'unverified')
+        for role in ('review', 'owner_resume'):
+            for stage in ('registration', 'settings_readback', 'event', 'stop_readback'):
+                self.assertEqual(rows[role + '.' + stage][0], 'confirmed')
+        self.assertEqual(report, before)
+        self.assertEqual(report['formal_gate'], 'NOT_CERTIFIED')
+
+    def test_observability_missing_failed_unknown_and_enabled_are_not_stopped(self):
+        for status in l.STATUSES - {'DISABLED_CONFIRMED'}:
+            v, r = fixture('PRE_MERGE')
+            for role in ('review', 'owner_resume'):
+                r[role].update(status=status, settings_verified=status == 'SETTINGS_CONFIRMED',
+                               event_verified=False)
+            r['execution'] = {k: None for k in l.EXEC_FIELDS}
+            report = l.assess(v, r)
+            rows = self.observation_rows(report)
+            for role in ('review', 'owner_resume'):
+                self.assertEqual(rows[role + '.stop_readback'][0], 'unverified')
+                self.assertEqual(rows[role + '.work_start'][0], 'unverified')
+                self.assertEqual(rows[role + '.event'][0], 'unverified')
+                if status == 'FAILED':
+                    self.assertEqual(rows[role + '.registration'][0], 'failed')
+            # A post failure cannot be encoded in legacy fields; absence must never mean success.
+            self.assertEqual(rows['review.result_post'][0], 'unverified')
+            self.assertEqual(rows['result_saved'][0], 'unverified')
+
+    def test_observability_current_negative_does_not_inherit_history(self):
+        v, old = self.complete_fixture('POST_MERGE')
+        r = copy.deepcopy(old)
+        r['observed_at'] = '2026-10-08T03:01:00Z'
+        r['review'].update(status='UNKNOWN', enabled=None, settings_verified=False, event_verified=False)
+        r['execution'] = {k: None for k in l.EXEC_FIELDS}
+        report = l.assess(v, r, l.assess(v, old))
+        rows = self.observation_rows(report)
+        for stage in ('review.registration', 'review.settings_readback', 'review.event',
+                      'review.stop_readback', 'windows_sync', 'result_saved'):
+            self.assertEqual(rows[stage][0], 'unverified')
+        self.assertEqual(len(report['history']), 1)
+
+    def test_observability_keeps_untrusted_references_inside_table_cells(self):
+        v, r = fixture()
+        r['review']['evidence_ref'] = 'https://example.test/a|b\n<script>fake</script>'
+        text = l.summary(l.assess(v, r))
+        self.assertIn('a&#124;b &lt;script&gt;fake&lt;/script&gt;', text)
+        self.assertNotIn('<script>', text)
+
     def complete_fixture(self, phase):
         v, r = fixture(phase)
         r['review'].update(status='DISABLED_CONFIRMED', enabled=False)
@@ -267,6 +327,9 @@ class LifecycleTests(unittest.TestCase):
                 self.assertIn(b'NOT_CERTIFIED', result.stdout)
                 summary = (d/'out/lifecycle-summary.md').read_text(encoding='utf-8')
                 self.assertIn(expected, summary); self.assertIn('NOT_CERTIFIED', summary)
+                self.assertIn('Work lifecycle observations (local assertions)', summary)
+                self.assertIn('| review.result_post | unverified |', summary)
+                self.assertIn('| windows_sync | unverified |', summary)
                 owner_prompt = (d/'out/owner_resume_registration.md').read_text(encoding='utf-8')
                 self.assertIn('今回実行の固定role=owner_resume。', owner_prompt)
                 self.assertNotIn('今回実行の固定role=review。', owner_prompt)
