@@ -26,6 +26,14 @@ role=`review`と`owner_resume`は別ID。statusはNOT_ATTEMPTED/ATTEMPTING/REGIS
 
 Hosted Windows・Work実登録・実受信・正式同期実ZIP取得はこのローカル検証では実施していない。
 
+## V4.0: 工程別観測表示（Issue #130）
+
+既存`--lifecycle`の`lifecycle-summary.md`と現在要約に、登録候補・各roleの登録/保存設定/実event/実起動/対象照合/停止、review結果投稿、owner待機受領、人間merge、Windows同期、結果保存の表を表示する。新しい証拠ファイルやfieldは追加せず、現在の同じassessmentから毎回再生成する。JSONの入力/schema/assessment/history、v2承認Prompt、登録資格、正式Gateは変更しない。`confirmed`は既存の明示的な**ローカル観測申告**のみ、`failed`は登録試行のFAILEDのみ、`unverified`は不足または既存契約で検証不能という意味であり、未実行・失敗の断定ではない。
+
+実eventフラグはWork実起動を示さず、`work_run`文字列もrole付き実起動の認証ではない。現契約にはfull HEAD照合・本人結果投稿/GET・人間merge認証がないため、その工程は常に`unverified`。`sync_ref`/`artifact_ref`/`action_ref`だけでZIP検証・結果保存を成功にしない。既存sync verifierの実ZIP検証等は別の実証拠として扱う。`DISABLED_CONFIRMED`はローカルの停止読戻し申告であり、実際の正式updateと別peek、および処理中runの取消は区別する。UNKNOWNや有効状態を停止済みにしない。過去の肯定を現在の不足へ継承しない。
+
+外部の実証結果・投稿失敗・停止失敗・取得不能の理由・証拠URLは、既存の同じ準備コメントのowner観測詳細へ集約し、本表へ二重保存しない。GETで投稿が存在する事実と、担当Work本人の投稿という根拠を分けて記す。実証用に未対応fieldを追加したり、表のconfirmedを正式Gateへ転用したりしない。候補生成は現CLI終了と対象/digestに一致する候補出力で別確認する。これはWork実行障害や配送・中断そのものの修正ではない。
+
 ## V4.0: 新規ownerの順次登録候補（Issue #128）
 
 `--lifecycle`の`owner_resume_registration.md`は、既登録・登録試行履歴があるownerを`RECONCILE_ONLY`として保持する。新規ownerはreview先行とし、正常停止のsidecarだけでは`WAIT`。同じ実PR/full HEADの独立受入・必須CI・公開一致、正式停止update後の別peek falseをWork(root)が照合する。旧登録を取り消したり、再登録を指示したりしない。

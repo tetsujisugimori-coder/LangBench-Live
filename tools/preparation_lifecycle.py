@@ -172,4 +172,75 @@ def summary(report):
     return ('Lifecycle: ' + report['record']['phase'] + ' / ' + report['status'] + '\n'
             + '\n'.join('- ' + m for m in report['missing']) + '\n'
             + 'Next owner: ' + report['next_owner'] + '\nNext action: ' + report['next_action'] + '\n'
-            + 'Local owner assertions only. Formal Merge/Completion Gate: NOT_CERTIFIED.\n')
+            + 'Local owner assertions only. Formal Merge/Completion Gate: NOT_CERTIFIED.\n'
+            + observability(report))
+
+
+def observability(report):
+    """Project current local assertions; never authenticate external execution.
+
+    Legacy references are deliberately not promoted to run/post/sync proof.
+    No new persisted contract, evidence copy, network access or Gate changes.
+    """
+    from html import escape
+
+    record = report['record']
+    execution = record['execution']
+    rows = []
+
+    def row(stage, status, evidence, limit):
+        rows.append((stage, status, evidence or '(missing)', limit))
+
+    row('candidate_generation', 'unverified', None,
+        'Inspect current candidate output and exit status; a lifecycle record is not a candidate receipt.')
+    for role in ('review', 'owner_resume'):
+        reg = record[role]
+        # FAILED applies to the registration attempt, not execution or stopping.
+        registration = ('failed' if reg['status'] == 'FAILED' else
+                        'confirmed' if reg['status'] in
+                        ('REGISTERED', 'SETTINGS_CONFIRMED', 'DISABLED_CONFIRMED') else 'unverified')
+        row(role + '.registration', registration, reg['evidence_ref'],
+            'Current local status=' + reg['status'] + '; ID=' + str(reg['id'])
+            + '. Registration is not Work start.')
+        row(role + '.settings_readback',
+            'confirmed' if reg['settings_verified'] else 'unverified', reg['evidence_ref'],
+            'Local saved-settings assertion only; enabled=' + str(reg['enabled'])
+            + '. Missing trigger details remain externally unverified.')
+        row(role + '.event', 'confirmed' if reg['event_verified'] else 'unverified',
+            reg['evidence_ref'], 'Local event assertion only; event is not Work start.')
+        row(role + '.work_start', 'unverified',
+            execution['work_run'] if role == 'owner_resume' else None,
+            'Legacy record cannot authenticate a role-bound Work start; run reference/time alone is insufficient.')
+        row(role + '.target_match', 'unverified', execution['handoff_ref'],
+            'Scope binds local input/PR/role but has no authenticated current full HEAD match.')
+        if role == 'review':
+            row('review.result_post', 'unverified', None,
+                'No result-post/readback contract. GET existence and this Work being the author require separate evidence; failure/UNKNOWN is not success.')
+        else:
+            row('owner_resume.waiting', 'unverified', execution['handoff_ref'],
+                'Handoff reference/settings do not prove the Work received the fixed waiting record.')
+            row('human_merge', 'unverified', execution['event_ref'],
+                'POST_MERGE/FINISHED or an event reference cannot authenticate human merged_by, merged_at and merge SHA.')
+            row('windows_sync', 'unverified',
+                'sync=' + str(execution['sync_ref']) + '; artifact=' + str(execution['artifact_ref']),
+                'References do not verify actual ZIP bytes/digest, target or protected files; use existing sync verifier.')
+            row('result_saved', 'unverified', execution['action_ref'],
+                'Action reference is not result publication/readback or proof that owner Work posted it.')
+        row(role + '.stop_readback',
+            'confirmed' if reg['status'] == 'DISABLED_CONFIRMED' else 'unverified',
+            reg['evidence_ref'], 'Local disabled-readback assertion only; current enabled='
+            + str(reg['enabled']) + '. Enabled/UNKNOWN/missing stop is not stopped; no run-cancellation guarantee.')
+
+    def cell(item):
+        return escape(str(item)).replace('|', '&#124;').replace('\r', ' ').replace('\n', ' ')
+
+    return ('\n## Work lifecycle observations (local assertions)\n\n'
+            'confirmed means an explicit current local assertion, not external authentication. '
+            'unverified means insufficient evidence, not proven failure or non-execution. '
+            'failed applies only to the stated stage. No stage inherits success from history, '
+            'event arrival, last_run_time, CI or PHASE_EVIDENCE_COMPLETE. '
+            'Keep external findings and failures in the existing owner preparation comment; '
+            'this table neither certifies Gate nor changes registration eligibility.\n\n'
+            '| Stage | Local status | Existing reference | Verification boundary |\n'
+            '|---|---|---|---|\n'
+            + ''.join('| ' + ' | '.join(cell(c) for c in values) + ' |\n' for values in rows))
