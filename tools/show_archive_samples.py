@@ -36,7 +36,7 @@ def build_report(paths: list[Path], archives: list[dict], languages: tuple[str, 
 
 
 def print_text(report: dict, summary_only: bool = False, sample_limit: int | None = None,
-               sample_offset: int = 0) -> None:
+               sample_offset: int = 0, samples_per_line: int | None = None) -> None:
     print("検証済み履歴のサンプル。入力順、単位 ms。中央値は samples_ms から再計算。")
     for index, run in enumerate(report["runs"], 1):
         print(f"履歴 {index}: {run['path']} (experiment_id={run['experiment_id']}, "
@@ -59,8 +59,13 @@ def print_text(report: dict, summary_only: bool = False, sample_limit: int | Non
                 else:
                     label = (f"1-{len(samples)}" if ending == len(samples) else
                              f"1-{ending} of {len(samples)}")
-                print(f"    samples_ms ({label}): " + ", ".join(
-                    f"{i}:{format_number(value)}" for i, value in enumerate(shown, sample_offset + 1)))
+                prefix = f"    samples_ms ({label}): "
+                numbered = [f"{i}:{format_number(value)}"
+                            for i, value in enumerate(shown, sample_offset + 1)]
+                width = samples_per_line or max(1, len(numbered))
+                print(prefix + ", ".join(numbered[:width]))
+                for start in range(width, len(numbered), width):
+                    print(" " * len(prefix) + ", ".join(numbered[start:start + width]))
     print("Cの各サンプルは0.001 ms単位で保存。丸め幅程度の差を原因として解釈しないでください。")
 
 
@@ -74,14 +79,16 @@ class SampleArgumentParser(argparse.ArgumentParser):
     case_argument: argparse.Action | None = None
     language_argument: argparse.Action | None = None
     offset_argument: argparse.Action | None = None
+    per_line_argument: argparse.Action | None = None
 
     def _get_option_tuples(self, option_string: str) -> list:
         matches = super()._get_option_tuples(option_string)
         # Preserve legacy --sample/--sam abbreviations of --sample-limit.
-        # Only an unambiguous offset prefix opts into the new argument.
+        # Only unambiguous offset/per-line prefixes opt into the new arguments.
         prefix = option_string.split("=", 1)[0]
         if "--sample-limit".startswith(prefix):
-            matches = [match for match in matches if match[0] is not self.offset_argument]
+            matches = [match for match in matches
+                       if match[0] is not self.offset_argument and match[0] is not self.per_line_argument]
         return matches
 
     def error(self, message: str) -> None:
@@ -104,6 +111,12 @@ class SampleArgumentParser(argparse.ArgumentParser):
                                for token in option_args)
         if self.offset_argument is not None and not offset_requested:
             self.offset_argument.help = argparse.SUPPRESS
+        per_line_requested = any(token.startswith("--") and len(token) > 2
+                                 and "--samples-per-line".startswith(token.split("=", 1)[0])
+                                 and not "--sample-limit".startswith(token.split("=", 1)[0])
+                                 for token in option_args)
+        if self.per_line_argument is not None and not per_line_requested:
+            self.per_line_argument.help = argparse.SUPPRESS
         super().error(message)
 
 
@@ -120,6 +133,11 @@ def main() -> int:
              "numbering starts at N+1, then --sample-limit applies; without limit show the rest; "
              "out-of-range shows an empty list, statistics use all samples; "
              "text only, explicit 0 also conflicts with --json/--summary-only")
+    parser.per_line_argument = parser.add_argument(
+        "--samples-per-line", type=int, metavar="K",
+        help="print at most K samples per line (positive integer, text only); "
+             "apply --sample-offset, then --sample-limit, then line splitting independently per "
+             "archive/language/case; example: --sample-offset 10 --sample-limit 5 --samples-per-line 2")
     parser.add_argument("--all-languages", action="store_true", help="include Python and JavaScript")
     parser.case_argument = parser.add_argument(
         "--case", choices=CASES, help="show only this case after validating the entire archive")
@@ -142,6 +160,11 @@ def main() -> int:
             parser.error("--sample-offset must be a non-negative integer")
         if args.json or args.summary_only:
             parser.error("--sample-offset is text-only and cannot be combined with --json or --summary-only")
+    if args.samples_per_line is not None:
+        if args.samples_per_line <= 0:
+            parser.error("--samples-per-line must be a positive integer")
+        if args.json or args.summary_only:
+            parser.error("--samples-per-line is text-only and cannot be combined with --json or --summary-only")
     try:
         resolved = [path.resolve() for path in args.archives]
         if len(set(resolved)) != len(resolved):
@@ -164,7 +187,7 @@ def main() -> int:
         print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))
     else:
         print_text(report, summary_only=args.summary_only, sample_limit=args.sample_limit,
-                   sample_offset=args.sample_offset or 0)
+                   sample_offset=args.sample_offset or 0, samples_per_line=args.samples_per_line)
     return 0
 
 

@@ -565,6 +565,12 @@ python tools/validate_function_call_analysis.py <new-output-directory> --expecte
 
 `--sample-offset N` は先頭から**飛ばす件数**です（0以上の整数、省略時0）。`--sample-offset 10 --sample-limit 5` は11～15件目を元の番号で表示します。各履歴・選択言語・選択ケースのサンプル列へ独立に適用し、offsetだけなら開始位置から末尾まで表示します。offsetが総件数以上なら `samples_ms (empty of 50):` のように一覧だけが空になり、統計は通常どおり表示します。中央値・最小・最大・前半・後半は選択した列の**全サンプル**から計算し、表示範囲では縮めません。飛ばした部分や非表示言語・ケースも含め、全履歴の検証を終えてから表示を選びます。
 
+`--samples-per-line K` は通常テキストで1行に表示するサンプルを最大K件にします。Kは1以上の整数で、`--json`・`--summary-only`との併用、不正値・空値・値欠落は引数エラー（終了コード2）です。各履歴・選択言語・選択ケースで **offset → limit → 行分割** の順に適用します。例えば `--sample-offset 10 --sample-limit 5 --samples-per-line 2` は11～15番を11・12、13・14、15の3行に表示します。番号:値の形式と順序を保ち、見出し・範囲ラベルは最初の行だけ、続きのデータ位置は最初の行に揃えます。表示対象0件ではempty表示だけを1回出します。統計と全体検証は変わりません。省略時の出力と既存の省略形（`--sam`などはsample-limit）も維持します。
+
+```powershell
+python -B tools/show_archive_samples.py --sample-offset 10 --sample-limit 5 --samples-per-line 2 "results/history/<experiment_id>/<archive_id>"
+```
+
 `--language`・`--all-languages`・`--case`・`--sample-limit`・複数履歴と組み合わせられます。通常テキスト専用なので、明示したoffsetは0でも `--json` / `--summary-only` との併用を引数エラー（終了コード2）にします。負数・小数・未知文字列・空値・値欠落も拒否します。新オプションを省略した既存の出力・引数エラーusageを保持し、従来の `--sample` などの省略形は引き続きsample-limitを指します。offsetは `--sample-offset` と書くのが明確です。
 
 ```powershell

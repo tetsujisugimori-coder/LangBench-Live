@@ -1,5 +1,20 @@
 # LOG
 
+## 2026-10-23 Issue #133 保存サンプルの行分割（実装担当B）
+
+* handoff_id: `human-langbench-133-20261022T182058Z-0ffc9fb6`、revision 1。通常の人間による手動受け渡し。原文は [Issue #133](https://github.com/tetsujisugimori-coder/LangBench-Live/issues/133)、updatedAt `2026-10-22T18:15:58Z`、UTF-8本文SHA-256 `b487d6ed62ca3dfdbf787040f4211b329805207b7592c8ff63521d3c24aa9e12`。受け渡し版との差なし。Issue本文は編集していない。
+* repo: `tetsujisugimori-coder/LangBench-Live`、通常root: `C:/Users/tetsu/Documents/Codex/LangBench-Live`、origin: `https://github.com/tetsujisugimori-coder/langbench-live.git`（大小文字以外は対象と一致）。開始main・fetch後origin/main・作業baseはすべて `fdfd4b920cca86586d988b47f88550eb65f44b81`。専用branch: `issue-133-samples-per-line-20261023`、worktree: `work/issue133-samples-per-line`。最終full SHAはこの記録を含むcommitとPRのheadを照合し、PR本文・返却報告に記録する。
+* 開始時tracked変更なし、Open PR 0件。同機能なし。既存untrackedファイル・読取拒否の一時領域・他worktreeを保持し、完全にクリーンとは扱っていない。適用候補の親階層・root/tools/tests/.githubにAGENTS.mdなし（ユーザー指定の末尾日時ルールを適用）。進行中merge/cherry-pick/revert/rebase/sequencerなし。既存REBASE_HEADは残存しているがrebase状態ディレクトリなし、statusも通常main。既存operation lockファイルは触れていない。
+* README・既存LOG・関連コード/fixture・Python tests workflow・pull-local-main.yml・sync_local_main.ps1を確認。pull-mainスキルは利用可能一覧になく、mainが最新なので更新・同期を実行していない。初回fetchのschannel認証失敗とworktree作成の.git書込拒否は、通常開発用の承認経路で同一操作を再実行して成功。Labの権限/Gate変更ではない。
+* `tools/show_archive_samples.py` に正整数の `--samples-per-line K` を追加。offset→limit→行分割の順、見出し1回・継続行の位置揃え・末尾カンマなし・empty 1回。全体検証と統計は既存のまま。既存省略形と未指定時error usageを保護し、JSON/summaryとの併用は引数エラー2。help/READMEに適用順・制約・具体例を記載。変更は同ツール・関連テスト・README・本LOGの4ファイルのみ。依頼仕様の変更なし。
+* 合成fixtureでK=1/2/同数/超過、割り切れない末尾、複数archive・言語/case選択、offset+limit・範囲外、元番号/順序/値/無重複/無欠落、見出し/位置/末尾、統計不変、入力hash不変、非表示部分の破損拒否、不正値/競合を検査。開始mainとの同一fixture/argv比較は84組のstdout/stderr/終了コードが完全一致（help追加・新オプション使用は比較対象外）。入力10ファイルのSHA-256不変。既存`--sam`等・曖昧な`--s`のエラーも比較した。
+* ローカル環境: Windows 11 build 26300、CPython 3.14.7、Node 24.20.0。ログは通常rootの `results/diagnostics/human-langbench-133-20261022T182058Z-0ffc9fb6/` と作業worktreeの `*-initial.log` / `*-final.log` 等に保存し、公開stageには含めない。合成fixtureの検証と実測性能評価を区別する。新規性能測定・Lab要求/import/recover/once/probe・追加worker・Workイベント登録は未実施。
+* 初回関連テストは41件実行・2件失敗（help折返しを未考慮のassertionと、実行中のコメント編集による保存途中読込）。helpのテストを空白正規化し、編集完了後の `python -B -m unittest tests.test_show_archive_samples -v` は41件成功・失敗/skip 0。初回全回帰は643件実行・1 failure/2 errors（helpとUTF-8出力/cp932 decoder不一致）。UTF-8モードでの全回帰は643件中、既存Windows affinity統合2件のみWinError 1920で失敗。承認付き通常開発経路で同じ全回帰を再実行する。失敗ログを保持し、成功扱いにしない。
+* `compare_main.py` の互換比較再実行でも84組一致。ただし補助ファイル `compatibility-input-hashes.json` は再実行時に上書きしてしまい、初回一覧は保持できていない。初回 `compatibility.log` は保持し、現在のJSONは再実行時の前後SHA-256一致10ファイルを記録する。この証跡管理上の不備は実装仕様の変更ではない。
+* 最終全回帰: `PYTHONUTF8=1` / `PYTHONIOENCODING=utf-8` の承認付き通常開発経路で `python -B -m unittest discover -s tests -q` は643件成功、失敗/errors/skip 0（204.779秒、既存Windows affinity統合を含む）。`node --test tests/test_javascript_optimization_analysis.js tests/test_javascript_exclusive_result.js` は25件成功・失敗/skip 0。変更PythonのAST構文確認・`git diff --check` 成功。既存回帰以外の新規benchmark測定系列は未実施。
+* ローカル証跡13ファイルのSHA-256一覧: 通常rootの `results/diagnostics/human-langbench-133-20261022T182058Z-0ffc9fb6/local-verification-hashes.json`、同一覧のSHA-256 `92fbcc11a972afe234bdc74a09ced3a425c5451574044a76ea57e45d0229ebc5`。Hosted CIは最終headに対してPR作成後確認しPRコメント/返却報告に記録する。
+* Labブローカー実証未実施。python_add_v1の正式MANUAL取込みとして登録していない。安全評価FAILED／LabのB起動許可NO／Error 87 UNKNOWN／ネットワーク隔離UNPROVENを維持。実装担当の自己検証のみ・独立レビュー待ち。人間がマージし、BはPR結果を返して停止する。同期・枝削除は人間のマージ連絡後にAが正式PR情報と既存同期結果を確認して行う。
+
 ## 2026-09-29 Issue #63 case測定順の切替
 
 * `run_all.ps1 -MeasurementOrder direct_first|function_call_first` を追加し、Python・JavaScriptにもC既存診断と同じcase実行順選択を実装した。指定なしはdirect→function_call。各新resultは `execution.measurement_order` に実際のcase順を書き、`results.direct` / `results.function_call` は常にcase identity順で保存する。逆順runは `results/diagnostics/<experiment_id>/` に分け、通常の固定名resultを上書きしない。
