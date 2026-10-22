@@ -659,6 +659,93 @@ class ShowArchiveSamplesTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("(11-15 of 50): 11:0.1, 12:0.1, 13:0.1, 14:0.1, 15:0.1", result.stdout)
 
+    def test_per_line_ranges_columns_statistics_and_hashes(self) -> None:
+        paths = [self.make_archive(f"20261005_{count:06d}", count=count) for count in (50, 5, 1)]
+        for path in paths:
+            for language in ("c", "javascript", "python"):
+                def reverse(document):
+                    for row in document["results"].values():
+                        row["samples_ms"].reverse()
+                ShowArchiveMetricsTests.rewrite(path, f"{language}.json", reverse)
+        before = self.file_hashes(*paths)
+        for language in ((), ("--all-languages",), ("--language", "javascript"),
+                         ("--language", "python")):
+            for case in ((), ("--case", "direct"), ("--case", "function_call")):
+                for offset, limit in ((0, None), (10, 5), (1, 3), (50, None), (51, 2)):
+                    flags = (*language, *case, "--sample-offset", str(offset))
+                    if limit is not None:
+                        flags += ("--sample-limit", str(limit))
+                    baseline = self.run_cli(*paths, extra=flags)
+                    self.assertEqual((0, ""), (baseline.returncode, baseline.stderr))
+                    # The JSON oracle retains source order and all values, before display slicing.
+                    report = json.loads(self.run_cli(*paths, extra=(*language, *case, "--json")).stdout)
+                    rows = [row for run in report["runs"] for row in run["cases"]]
+                    for width in (1, 2, 5, 100):
+                        with self.subTest(language=language, case=case, offset=offset, limit=limit, width=width):
+                            result = self.run_cli(*paths, extra=(*flags, "--samples-per-line", str(width)))
+                            self.assertEqual((0, ""), (result.returncode, result.stderr))
+                            lines = result.stdout.splitlines()
+                            self.assertEqual([s for s in baseline.stdout.splitlines() if not s.startswith("    ")],
+                                             [s for s in lines if not s.startswith("    ")])
+                            headers = [i for i, s in enumerate(lines) if s.startswith("    samples_ms")]
+                            self.assertEqual(len(rows), len(headers))
+                            for row, index in zip(rows, headers):
+                                expected = [f"{i}:{format_number(value)}"
+                                            for i, value in enumerate(row["samples_ms"], 1)
+                                            if i > offset and (limit is None or i <= offset + limit)]
+                                prefix, first = lines[index].split(": ", 1)
+                                column = len(prefix) + 2
+                                data = [first]
+                                for line in lines[index + 1:]:
+                                    if not line.startswith(" " * column):
+                                        break
+                                    self.assertEqual(column, len(line) - len(line.lstrip()))
+                                    data.append(line[column:])
+                                self.assertEqual(max(1, (len(expected) + width - 1) // width), len(data))
+                                self.assertTrue(all(not s.endswith(",") for s in data))
+                                self.assertTrue(all(len(s.split(", ")) <= width for s in data))
+                                actual = [item for line in data for item in line.split(", ") if item]
+                                self.assertEqual(expected, actual)
+                                if not expected:
+                                    self.assertIn(f"empty of {len(row['samples_ms'])}", prefix)
+        self.assertEqual(before, self.file_hashes(*paths))
+
+    def test_per_line_rejects_invalid_and_conflicting_arguments(self) -> None:
+        invalid = [("--samples-per-line", value) for value in ("0", "-1", "1.5", "abc", "")]
+        invalid += [("--samples-per-line=",), ("--samples-per-line",)]
+        for mode in ("--json", "--summary-only"):
+            invalid += [(mode, "--samples-per-line=2"), ("--samples-per-line", "1", mode)]
+        for flags in invalid:
+            result = self.run_cli(*(() if flags == ("--samples-per-line",) else (self.root / "missing",)),
+                                  extra=flags)
+            self.assertEqual((2, ""), (result.returncode, result.stdout))
+            self.assertIn("error:", result.stderr)
+            self.assertNotIn("検証エラー", result.stderr)
+        help_result = self.run_cli(extra=("--help",))
+        self.assertIn("--samples-per-line K", help_result.stdout)
+        self.assertIn("positive integer, text only", " ".join(help_result.stdout.split()))
+
+    def test_per_line_rejects_hidden_corruption_before_any_output(self) -> None:
+        valid = self.make_archive("20261006_000000", count=5)
+        for language, case in (("c", "direct"), ("c", "function_call"), ("python", "direct")):
+            for rehash in (False, True):
+                path = self.make_archive(f"20261006_{len(list(self.root.glob('*_c.json'))):06d}", count=5)
+                def damage(document):
+                    document["results"][case]["samples_ms"][0] = -1
+                if rehash:
+                    ShowArchiveMetricsTests.rewrite(path, f"{language}.json", damage)
+                else:
+                    file = path / f"{language}.json"
+                    document = json.loads(file.read_text(encoding="utf-8"))
+                    damage(document)
+                    file.write_text(json.dumps(document), encoding="utf-8")
+                before = self.file_hashes(valid, path)
+                result = self.run_cli(valid, path, extra=("--language", "c", "--case", "direct",
+                    "--sample-offset", "1", "--sample-limit", "1", "--samples-per-line", "2"))
+                self.assertEqual((2, ""), (result.returncode, result.stdout))
+                self.assertIn("RESULT_VALIDATION_FAILED" if rehash else "SHA256_MISMATCH", result.stderr)
+                self.assertEqual(before, self.file_hashes(valid, path))
+
     def test_legacy_argument_errors_keep_usage_without_case_option(self) -> None:
         missing = self.root / "missing"
         for flags in (("--summary-only", "--json"), ("--sample-limit", "0"),
@@ -671,6 +758,7 @@ class ShowArchiveSamplesTests(unittest.TestCase):
             self.assertNotIn("--case", result.stderr)
             self.assertNotIn("--language", result.stderr)
             self.assertNotIn("--sample-offset", result.stderr)
+            self.assertNotIn("--samples-per-line", result.stderr)
         for flags in (("--case", "direct", "--sample-limit", "0"),
                       ("--cas=function_call", "--sample-limit", "0")):
             result = self.run_cli(missing, extra=flags)
